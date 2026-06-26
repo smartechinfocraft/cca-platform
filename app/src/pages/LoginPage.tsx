@@ -10,7 +10,7 @@ import { useAdminAuth } from "../admin/context/AuthContext";
 import { useCoachAuth } from "../coach/context/AuthContext";
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
 type Mode = "parent-login" | "parent-register" | "staff";
 
