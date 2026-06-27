@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getSponsors } from "../services/programService";
+import { getSponsors, resolveUploadUrl } from "../services/programService";
 
 const FALLBACK_SPONSORS = [
   { _id: "s1", name: "Bay Area Cricket", websiteUrl: "#" },
@@ -37,7 +37,7 @@ function Sponsors() {
           {loading
             ? [1,2,3,4].map(i => <div key={i} className="sponsor-logo animate-pulse bg-slate-100" />)
             : display.map((s) => (
-                <a
+                
                   key={s._id}
                   href={s.websiteUrl ?? "#"}
                   target="_blank"
@@ -45,7 +45,7 @@ function Sponsors() {
                   className="sponsor-logo"
                 >
                   {s.coverImageUrl ? (
-                    <img src={s.coverImageUrl} alt={s.name} className="max-h-14 object-contain" />
+                    <img src={resolveUploadUrl(s.coverImageUrl)} alt={s.name} className="max-h-14 object-contain" />
                   ) : (
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">🏏</div>
