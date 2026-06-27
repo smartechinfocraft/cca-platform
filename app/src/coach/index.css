@@ -1,0 +1,46 @@
+/* ============================================================
+   index.css — Global styles for CCA Coach Portal
+   Dark cricket green + gold theme (matches Admin Portal)
+   Mobile-first since coaches mostly use this on their phones.
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #0d1b0e;
+  color: #ffffff;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root { min-height: 100vh; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.25); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.45); }
+
+input:focus, select:focus, textarea:focus, button:focus {
+  outline: none;
+  border-color: rgba(212,175,55,0.5) !important;
+  box-shadow: 0 0 0 2px rgba(212,175,55,0.12);
+}
+
+a { color: #D4AF37; text-decoration: none; }
+a:hover { color: #F5D97A; }
+
+button { font-family: inherit; cursor: pointer; }
+
+/* html5-qrcode injects its own video/canvas — keep it rounded + contained */
+#qr-reader-region video, #qr-reader-region canvas {
+  border-radius: 12px;
+}
+#qr-reader-region {
+  border: 2px solid rgba(212,175,55,0.35) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
