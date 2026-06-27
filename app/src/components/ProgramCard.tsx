@@ -28,7 +28,7 @@ function ProgramCard({ program }: ProgramCardProps) {
     <div className="group bg-white border border-slate-200 rounded-[24px] shadow-sm overflow-hidden transition duration-300 ease-out hover:-translate-y-1 hover:shadow-xl">
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="md:w-[25%] flex-none p-5 flex flex-col justify-between">
-           <div className="relative rounded-[24px] bg-slate-100 aspect-[1/0.5] flex items-center justify-center text-slate-500 text-sm font-semibold">
+          <div className="relative rounded-[24px] bg-slate-100 aspect-[4/5] flex items-center justify-center text-slate-500 text-sm font-semibold">
             Program Image
           </div>
 

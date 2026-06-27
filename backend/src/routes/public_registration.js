@@ -2,10 +2,10 @@
 //  Public Registration + Auth Endpoints
 //  /api/public/*
 // ============================================================
-const express  = require('express');
-const router   = express.Router();
+const express = require('express');
+const router = express.Router();
 const mongoose = require('mongoose');
-const jwt      = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
@@ -161,17 +161,17 @@ router.post('/validate-coupon', async (req, res) => {
     res.json({
       success: true,
       message: `Coupon applied! You save $${priced.discount.toFixed(2)}.`,
-      subtotal:  priced.subtotal,
-      discount:  priced.discount,
-      total:     priced.total,
+      subtotal: priced.subtotal,
+      discount: priced.discount,
+      total: priced.total,
       coupon: {
-        code:        priced.coupon.code,
-        type:        priced.coupon.type,
-        value:       priced.coupon.value,
+        code: priced.coupon.code,
+        type: priced.coupon.type,
+        value: priced.coupon.value,
         description: priced.coupon.description || '',
         // Show remaining uses only if a limit exists
-        usedCount:   priced.coupon.usedCount,
-        maxUses:     priced.coupon.maxUses,
+        usedCount: priced.coupon.usedCount,
+        maxUses: priced.coupon.maxUses,
       },
     });
   } catch (err) {
@@ -208,9 +208,9 @@ router.post('/paypal/create-order', async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to create PayPal order.', detail: order });
 
     res.json({
-      success:  true,
-      orderID:  order.id,
-      amount:   priced.total,
+      success: true,
+      orderID: order.id,
+      amount: priced.total,
       discount: priced.discount,
       currency: priced.currency,
     });
@@ -345,11 +345,11 @@ router.post('/register', async (req, res) => {
     let priced;
     if (allSameBatch) {
       priced = await computeRegistrationTotal({
-        programId:    selectedProgram._id,
-        batchId:      studentBatchIds[0],
+        programId: selectedProgram._id,
+        batchId: studentBatchIds[0],
         studentCount: studentInputs.length,
         sessionsPerWeek,
-        couponCode:   couponCode ? couponCode.trim().toUpperCase() : undefined,
+        couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
       });
     } else {
       // Price each student's batch individually, then sum
@@ -369,18 +369,18 @@ router.post('/register', async (req, res) => {
 
       // Now compute coupon discount on the combined subtotal using the first student's batch
       const pricedWithCoupon = await computeRegistrationTotal({
-        programId:    selectedProgram._id,
-        batchId:      studentBatchIds[0],
+        programId: selectedProgram._id,
+        batchId: studentBatchIds[0],
         studentCount: studentInputs.length,
         sessionsPerWeek,
-        couponCode:   couponCode ? couponCode.trim().toUpperCase() : undefined,
+        couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
       });
 
       // Use the real per-student sum but take discount from the coupon computation
       const discount = pricedWithCoupon.coupon
         ? (pricedWithCoupon.coupon.type === 'PERCENTAGE'
-            ? round2(subtotal * (pricedWithCoupon.coupon.value / 100))
-            : round2(Math.min(pricedWithCoupon.coupon.value, subtotal)))
+          ? round2(subtotal * (pricedWithCoupon.coupon.value / 100))
+          : round2(Math.min(pricedWithCoupon.coupon.value, subtotal)))
         : 0;
 
       priced = {
@@ -406,14 +406,14 @@ router.post('/register', async (req, res) => {
         const crypto = require('crypto');
         parent = new Parent({
           firstName: parentInfo.parentName?.split(' ')[0] || 'Guest',
-          lastName:  parentInfo.parentName?.split(' ').slice(1).join(' ') || 'User',
-          email:     parentInfo.email,
-          phone:     parentInfo.phone || '000-000-0000',
-          password:  crypto.randomBytes(16).toString('hex'),
-          address:   parentInfo.address,
-          city:      parentInfo.city,
-          state:     parentInfo.state,
-          zip:       parentInfo.zip,
+          lastName: parentInfo.parentName?.split(' ').slice(1).join(' ') || 'User',
+          email: parentInfo.email,
+          phone: parentInfo.phone || '000-000-0000',
+          password: crypto.randomBytes(16).toString('hex'),
+          address: parentInfo.address,
+          city: parentInfo.city,
+          state: parentInfo.state,
+          zip: parentInfo.zip,
         });
         await parent.save();
       }
@@ -427,36 +427,36 @@ router.post('/register', async (req, res) => {
       const query = {
         parentId: resolvedParentId,
         firstName: new RegExp(`^${s.firstName.trim()}$`, 'i'),
-        lastName:  new RegExp(`^${s.lastName.trim()}$`, 'i'),
+        lastName: new RegExp(`^${s.lastName.trim()}$`, 'i'),
       };
       if (dobDate && !isNaN(dobDate)) query.dob = dobDate;
 
       let studentDoc = await Student.findOne(query);
       if (!studentDoc) {
         studentDoc = new Student({
-          parentId:    resolvedParentId,
-          firstName:   s.firstName.trim(),
-          lastName:    s.lastName.trim(),
-          dob:         dobDate && !isNaN(dobDate) ? dobDate : undefined,
-          gender:      s.gender || '',
-          schoolName:  s.schoolName || '',
+          parentId: resolvedParentId,
+          firstName: s.firstName.trim(),
+          lastName: s.lastName.trim(),
+          dob: dobDate && !isNaN(dobDate) ? dobDate : undefined,
+          gender: s.gender || '',
+          schoolName: s.schoolName || '',
           medicalNotes: s.medicalNotes || '',
         });
         await studentDoc.save();
       } else {
-        if (s.schoolName)    studentDoc.schoolName    = s.schoolName;
-        if (s.medicalNotes)  studentDoc.medicalNotes  = s.medicalNotes;
-        if (s.gender)        studentDoc.gender        = s.gender;
+        if (s.schoolName) studentDoc.schoolName = s.schoolName;
+        if (s.medicalNotes) studentDoc.medicalNotes = s.medicalNotes;
+        if (s.gender) studentDoc.gender = s.gender;
         await studentDoc.save();
       }
       studentIds.push({
-        _id:         studentDoc._id,
-        firstName:   studentDoc.firstName,
-        lastName:    studentDoc.lastName,
-        dob:         s.dob || '',
-        gender:      studentDoc.gender || '',
+        _id: studentDoc._id,
+        firstName: studentDoc.firstName,
+        lastName: studentDoc.lastName,
+        dob: s.dob || '',
+        gender: studentDoc.gender || '',
         studentCode: studentDoc.studentCode || '',
-        photoUrl:    studentDoc.photoUrl || '',
+        photoUrl: studentDoc.photoUrl || '',
       });
     }
 
@@ -469,7 +469,7 @@ router.post('/register', async (req, res) => {
       try {
         const captureDetails = await getCaptureDetails(transactionId);
         const capturedValue = parseFloat(captureDetails?.amount?.value || '0');
-        const isCompleted   = captureDetails?.status === 'COMPLETED';
+        const isCompleted = captureDetails?.status === 'COMPLETED';
         const amountMatches = Math.abs(capturedValue - priced.total) <= 0.01;
 
         if (isCompleted && amountMatches) {
@@ -497,39 +497,40 @@ router.post('/register', async (req, res) => {
       .map(s => `${s.firstName} ${s.lastName} | DOB: ${s.dob || 'N/A'} | Gender: ${s.gender || 'N/A'}`)
       .join('; ');
 
-    const batchTitle  = selectedBatch?.title || selectedBatch?.name || '';
-    const batchIds    = selectedBatch?._id ? [selectedBatch._id] : [];
+    const batchTitle = selectedBatch?.title || selectedBatch?.name || '';
+    const batchIds = [...new Set(studentBatchIds.filter(Boolean).map(String))];
 
     const reg = new Registration({
-      parentId:      resolvedParentId,
-      programId:     selectedProgram._id,
-      students:      studentIds,
-      batches:       batchIds,
-      subtotal:      priced.subtotal,
-      totalAmount:   priced.total,
-      couponCode:    priced.coupon ? priced.coupon.code : undefined,
+      parentId: resolvedParentId,
+      programId: selectedProgram._id,
+      students: studentIds,
+      batches: batchIds,
+      subtotal: priced.subtotal,
+      discountAmount: priced.discount,
+      totalAmount: priced.total,
+      couponCode: priced.coupon ? priced.coupon.code : undefined,
       paymentMethod: pmMethod,
       paymentStatus: pmStatus,
       transactionId: transactionId || undefined,
-      checkNumber:   checkNumber   || undefined,
-      status:        pmStatus === 'SUCCESS' ? 'CONFIRMED' : 'AWAITING_PAYMENT',
-      customerNote:  studentNote,
-      adminNote:     verificationNote || undefined,
+      checkNumber: checkNumber || undefined,
+      status: pmStatus === 'SUCCESS' ? 'CONFIRMED' : 'AWAITING_PAYMENT',
+      customerNote: studentNote,
+      adminNote: verificationNote || undefined,
       waiverAccepted: true,
-      mediaConsent:   true,
+      mediaConsent: true,
     });
 
     await reg.save();
 
     sendRegistrationEmail({
-      to:                 parentInfo.email,
+      to: parentInfo.email,
       registrationNumber: reg.registrationNumber,
       studentName,
-      programName:        selectedProgram.title || 'CCA Program',
-      batchInfo:          batchTitle,
-      parentName:         parentInfo.parentName || parentInfo.email,
+      programName: selectedProgram.title || 'CCA Program',
+      batchInfo: batchTitle,
+      parentName: parentInfo.parentName || parentInfo.email,
       paymentMethod,
-      totalAmount:        priced.total,
+      totalAmount: priced.total,
       transactionId,
     }).catch(err => console.error('Email send failed:', err));
 
@@ -540,13 +541,13 @@ router.post('/register', async (req, res) => {
         : 'Registration received and is pending payment verification.',
       registrationNumber: reg.registrationNumber,
       studentName,
-      programName:    selectedProgram.title,
+      programName: selectedProgram.title,
       paymentMethod,
-      paymentStatus:  pmStatus,
-      subtotal:       priced.subtotal,
-      discount:       priced.discount,
-      totalAmount:    priced.total,
-      couponCode:     priced.coupon ? priced.coupon.code : undefined,
+      paymentStatus: pmStatus,
+      subtotal: priced.subtotal,
+      discount: priced.discount,
+      totalAmount: priced.total,
+      couponCode: priced.coupon ? priced.coupon.code : undefined,
     });
   } catch (err) {
     console.error('Registration error:', err);
@@ -565,8 +566,8 @@ router.post('/register', async (req, res) => {
 router.get('/parent/dashboard', parentAuth, async (req, res) => {
   try {
     const Registration = mongoose.model('Registration');
-    const Student       = require('../models/Student');
-    const Attendance     = require('../models/Attendance');
+    const Student = require('../models/Student');
+    const Attendance = require('../models/Attendance');
 
     const registrations = await Registration.find({ parentId: req.parent.id })
       .populate('programId', 'title coverImageUrl basePrice discountedPrice sku startDate endDate')
@@ -582,12 +583,12 @@ router.get('/parent/dashboard', parentAuth, async (req, res) => {
     const studentIds = students.map((s) => s._id);
     const recentAttendance = studentIds.length
       ? await Attendance.find({ studentId: { $in: studentIds } })
-          .populate('studentId', 'firstName lastName')
-          .populate('programId', 'title')
-          .populate('batchId', 'title dayOfWeek')
-          .sort({ date: -1 })
-          .limit(10)
-          .lean()
+        .populate('studentId', 'firstName lastName')
+        .populate('programId', 'title')
+        .populate('batchId', 'title dayOfWeek')
+        .sort({ date: -1 })
+        .limit(10)
+        .lean()
       : [];
 
     const totalSpent = registrations
@@ -595,15 +596,15 @@ router.get('/parent/dashboard', parentAuth, async (req, res) => {
       .reduce((sum, r) => sum + (r.totalAmount || 0), 0);
 
     const pendingPayments = registrations.filter((r) => r.paymentStatus === 'PENDING').length;
-    const activePrograms  = registrations.filter((r) => ['PAID', 'CONFIRMED', 'AWAITING_PAYMENT'].includes(r.status)).length;
+    const activePrograms = registrations.filter((r) => ['PAID', 'CONFIRMED', 'AWAITING_PAYMENT'].includes(r.status)).length;
 
     res.json({
       success: true,
       data: {
         stats: {
-          totalPrograms:   registrations.length,
+          totalPrograms: registrations.length,
           activePrograms,
-          totalStudents:   students.length,
+          totalStudents: students.length,
           totalSpent,
           pendingPayments,
         },
@@ -660,9 +661,9 @@ router.get('/parent/purchases/:id', parentAuth, async (req, res) => {
 // ── GET /api/public/parent/students ─────────────────────────────
 router.get('/parent/students', parentAuth, async (req, res) => {
   try {
-    const Student      = require('../models/Student');
-    const Registration  = mongoose.model('Registration');
-    const Attendance    = require('../models/Attendance');
+    const Student = require('../models/Student');
+    const Registration = mongoose.model('Registration');
+    const Attendance = require('../models/Attendance');
 
     const students = await Student.find({ parentId: req.parent.id, isActive: true }).lean();
 
@@ -674,9 +675,9 @@ router.get('/parent/students', parentAuth, async (req, res) => {
 
       const attendance = await Attendance.find({ studentId: s._id }).lean();
       const present = attendance.filter((a) => a.status === 'PRESENT').length;
-      const absent  = attendance.filter((a) => a.status === 'ABSENT').length;
-      const late     = attendance.filter((a) => a.status === 'LATE').length;
-      const excused  = attendance.filter((a) => a.status === 'EXCUSED').length;
+      const absent = attendance.filter((a) => a.status === 'ABSENT').length;
+      const late = attendance.filter((a) => a.status === 'LATE').length;
+      const excused = attendance.filter((a) => a.status === 'EXCUSED').length;
       const total = attendance.length;
 
       return {
@@ -704,9 +705,9 @@ router.get('/parent/students', parentAuth, async (req, res) => {
 // ── GET /api/public/parent/students/:id ─────────────────────────
 router.get('/parent/students/:id', parentAuth, async (req, res) => {
   try {
-    const Student     = require('../models/Student');
+    const Student = require('../models/Student');
     const Registration = mongoose.model('Registration');
-    const Attendance   = require('../models/Attendance');
+    const Attendance = require('../models/Attendance');
 
     const student = await Student.findOne({ _id: req.params.id, parentId: req.parent.id }).lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
@@ -724,9 +725,9 @@ router.get('/parent/students/:id', parentAuth, async (req, res) => {
       .lean();
 
     const present = attendance.filter((a) => a.status === 'PRESENT').length;
-    const absent  = attendance.filter((a) => a.status === 'ABSENT').length;
-    const late     = attendance.filter((a) => a.status === 'LATE').length;
-    const excused  = attendance.filter((a) => a.status === 'EXCUSED').length;
+    const absent = attendance.filter((a) => a.status === 'ABSENT').length;
+    const late = attendance.filter((a) => a.status === 'LATE').length;
+    const excused = attendance.filter((a) => a.status === 'EXCUSED').length;
     const total = attendance.length;
 
     res.json({
@@ -756,7 +757,7 @@ router.post('/parent/students/:id/photo', parentAuth, uploadStudentPhoto, async 
     if (!req.file) return res.status(400).json({ success: false, message: 'No photo uploaded.' });
 
     student.photoPath = req.file.path;
-    student.photoUrl  = fileUrl(req, req.file.path);
+    student.photoUrl = fileUrl(req, req.file.path);
     await student.save();
 
     res.json({ success: true, data: student });
@@ -790,13 +791,13 @@ router.put('/parent/profile', parentAuth, async (req, res) => {
 
     const update = {};
     if (firstName !== undefined) update.firstName = firstName;
-    if (lastName  !== undefined) update.lastName  = lastName;
-    if (email     !== undefined) update.email     = email.toLowerCase();
-    if (phone     !== undefined) update.phone     = phone;
-    if (address   !== undefined) update.address   = address;
-    if (city      !== undefined) update.city      = city;
-    if (state     !== undefined) update.state     = state;
-    if (zip       !== undefined) update.zip       = zip;
+    if (lastName !== undefined) update.lastName = lastName;
+    if (email !== undefined) update.email = email.toLowerCase();
+    if (phone !== undefined) update.phone = phone;
+    if (address !== undefined) update.address = address;
+    if (city !== undefined) update.city = city;
+    if (state !== undefined) update.state = state;
+    if (zip !== undefined) update.zip = zip;
 
     const parent = await Parent.findByIdAndUpdate(req.parent.id, update, { new: true });
     res.json({ success: true, data: parent });
@@ -837,7 +838,7 @@ router.post('/parent/profile/photo', parentAuth, uploadStudentPhoto, async (req,
     if (!req.file) return res.status(400).json({ success: false, message: 'No photo uploaded.' });
 
     parent.photoPath = req.file.path;
-    parent.photoUrl  = fileUrl(req, req.file.path);
+    parent.photoUrl = fileUrl(req, req.file.path);
     await parent.save();
 
     res.json({ success: true, data: parent });

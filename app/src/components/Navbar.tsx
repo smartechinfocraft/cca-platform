@@ -99,12 +99,11 @@ function Navbar() {
 
           {/* Logo */}
           <button onClick={() => handleNav("/")} className="flex items-center gap-3 group">
-            <img src="/logo.svg" alt="CCA Logo" className="h-12" />
-            {/* <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm text-white border-2 group-hover:scale-105 transition-transform" style={{ background: "var(--outfield)", borderColor: "var(--cca-red)" }}>CCA</div>*/}
+            <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm text-white border-2 group-hover:scale-105 transition-transform" style={{ background: "var(--outfield)", borderColor: "var(--gold)" }}>CCA</div>
             <div className="text-left">
               <p className="font-display font-semibold text-[var(--outfield)] text-base leading-tight">California Cricket Academy</p>
-              <p className="text-xs text-[var(--ink-400)] font-medium tracking-wide">501(c)(3) Nonprofit|</p>
-            </div> 
+              <p className="text-xs text-[var(--ink-400)] font-medium tracking-wide">Youth Training Programs</p>
+            </div>
           </button>
 
           {/* Desktop Nav */}

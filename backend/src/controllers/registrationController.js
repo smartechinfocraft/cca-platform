@@ -10,24 +10,24 @@ const getReg = () => mongoose.model('Registration');
 exports.getAll = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.status)        filter.status        = req.query.status;
-    if (req.query.program)       filter.programId     = req.query.program;
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.program) filter.programId = req.query.program;
     if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
     if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
     if (req.query.from || req.query.to) {
       filter.createdAt = {};
       if (req.query.from) filter.createdAt.$gte = new Date(req.query.from);
-      if (req.query.to)   filter.createdAt.$lte = new Date(req.query.to);
+      if (req.query.to) filter.createdAt.$lte = new Date(req.query.to);
     }
 
-    const page  = parseInt(req.query.page)  || 1;
+    const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 500;
-    const skip  = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
       getReg().find(filter)
         .populate('programId', 'title sku')
-        .populate('parentId',  'firstName lastName email phone')
+        .populate('parentId', 'firstName lastName email phone')
         // Populate students from the Student collection (handles both ref & embedded _id cases)
         .populate('students', 'firstName lastName studentCode dob gender photoUrl')
         // Populate batches with ALL fields + nested location
@@ -79,7 +79,7 @@ exports.updateStatus = async (req, res) => {
   try {
     const { status, adminNote } = req.body;
 
-    const validStatuses = ['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'];
+    const validStatuses = ['PENDING', 'AWAITING_PAYMENT', 'PAID', 'CONFIRMED', 'CANCELLED', 'REFUNDED', 'WAITLISTED'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid status value' });
     }
@@ -115,7 +115,7 @@ exports.toggleWhatsapp = async (req, res) => {
 exports.superAdminEdit = async (req, res) => {
   try {
     const { batches, students, adminNote } = req.body;
-    const Batch  = mongoose.model('Batch');
+    const Batch = mongoose.model('Batch');
     const Parent = mongoose.model('Parent');
 
     const reg = await getReg().findById(req.params.id).populate('programId', 'title');
@@ -148,29 +148,36 @@ exports.superAdminEdit = async (req, res) => {
 
     // ── Per-student field corrections (matched by array index) ──
     if (Array.isArray(students)) {
-      students.forEach((incoming, i) => {
+      const Student = mongoose.model('Student');
+      for (let i = 0; i < students.length; i++) {
+        const incoming = students[i];
         const existing = reg.students[i];
-        if (!existing) return;
+        if (!existing) continue;
 
         const fieldLabels = {
           firstName: 'First Name',
-          lastName:  'Last Name',
-          dob:       'Date of Birth',
-          gender:    'Gender',
+          lastName: 'Last Name',
+          dob: 'Date of Birth',
+          gender: 'Gender',
         };
+
+        const studentUpdates = {};
         for (const field of Object.keys(fieldLabels)) {
-          if (incoming[field] !== undefined && incoming[field] !== existing[field]) {
+          if (incoming[field] !== undefined && incoming[field] !== String(existing[field] || '')) {
             changes.push({
               field: `Student ${i + 1} — ${fieldLabels[field]}`,
-              from:  existing[field] || '—',
-              to:    incoming[field] || '—',
+              from: existing[field] || '—',
+              to: incoming[field] || '—',
             });
-            existing[field] = incoming[field];
+            studentUpdates[field] = incoming[field];
           }
         }
-      });
-    }
 
+        if (Object.keys(studentUpdates).length > 0) {
+          await Student.findByIdAndUpdate(existing._id || existing, studentUpdates);
+        }
+      }
+    }
     if (adminNote !== undefined) reg.adminNote = adminNote;
     reg.updatedBy = req.user._id;
 
@@ -190,11 +197,11 @@ exports.superAdminEdit = async (req, res) => {
           ? `${reg.students[0].firstName} ${reg.students[0].lastName}`
           : 'your child';
         await sendRegistrationUpdateEmail({
-          to:                 parent.email,
-          parentName:         `${parent.firstName} ${parent.lastName}`,
+          to: parent.email,
+          parentName: `${parent.firstName} ${parent.lastName}`,
           registrationNumber: reg.registrationNumber,
           studentName,
-          programName:        reg.programId?.title || 'CCA Program',
+          programName: reg.programId?.title || 'CCA Program',
           changes,
         });
         emailSent = true;
@@ -224,8 +231,8 @@ exports.confirmCheck = async (req, res) => {
     }
 
     reg.paymentStatus = 'SUCCESS';
-    reg.status        = 'CONFIRMED';
-    reg.adminNote     = reg.adminNote
+    reg.status = 'CONFIRMED';
+    reg.adminNote = reg.adminNote
       ? reg.adminNote + `\n[Check confirmed by admin on ${new Date().toLocaleString()}]`
       : `Check confirmed by admin on ${new Date().toLocaleString()}`;
     reg.updatedBy = req.user._id;

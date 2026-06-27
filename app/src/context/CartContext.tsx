@@ -80,16 +80,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeItem = (cartId: string) => {
-    setItems((prev) => prev.filter((i) => i.cartId !== cartId));
-    // If cart becomes empty, clear coupon
-    setItems((prev) => {
-      if (prev.filter((i) => i.cartId !== cartId).length === 0) {
-        setCouponState(null);
-        setCouponDiscountState(0);
-      }
-      return prev.filter((i) => i.cartId !== cartId);
-    });
-  };
+  setItems((prev) => {
+    const next = prev.filter((i) => i.cartId !== cartId);
+    if (next.length === 0) {
+      setCouponState(null);
+      setCouponDiscountState(0);
+    }
+    return next;
+  });
+};
 
   const clearCart = () => {
     setItems([]);

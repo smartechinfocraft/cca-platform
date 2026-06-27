@@ -94,7 +94,10 @@ exports.createAdmin = async (req, res) => {
     const { username, email, password, firstName, lastName, role } = req.body;
 
     // Super admin can only create ADMIN (not another SUPER_ADMIN)
-    const safeRole = role === 'SUPER_ADMIN' ? 'ADMIN' : (role || 'ADMIN');
+    if (role === 'SUPER_ADMIN') {
+  return res.status(403).json({ success: false, message: 'Cannot create a Super Admin account via this endpoint.' });
+}
+const safeRole = role || 'ADMIN';
 
     const user = await User.create({ username, email, password, firstName, lastName, role: safeRole });
 

@@ -151,10 +151,12 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     };
   };
 
+  // ── FIX: setSelectedProgram is now called here so ReviewOrder sees the program ──
   const handleConfirm = () => {
     const batchCtx = buildBatchContext();
     if (!batchCtx) return;
     setSelectedBatch(batchCtx as any);
+    setSelectedProgram({ _id: programId, title: programTitle } as any); // FIX
     updateStudent(currentStudentIndex, { selectedBatch: batchCtx as any });
     setBatchConfirmed(true);
     setTimeout(() => studentFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
@@ -183,8 +185,10 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     setTimeout(() => studentFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
+  // ── FIX: setSelectedProgram called before navigating so context is populated ──
   const handleContinue = () => {
     if (!isStudentValid) return;
+    setSelectedProgram({ _id: programId, title: programTitle } as any); // FIX
     if (!isLoggedIn) {
       setShowLoginModal(true);
       return;
@@ -224,12 +228,14 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     setTimeout(() => setCartSuccess(false), 3000);
   };
 
+  // ── FIX: setSelectedProgram called after login so context is populated before navigation ──
   const handleModalLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
     setLoginLoading(true);
     try {
       await doLogin(loginEmail, loginPassword);
+      setSelectedProgram({ _id: programId, title: programTitle } as any); // FIX
       setShowLoginModal(false);
       navigate("/review-order");
     } catch (err: any) {
@@ -284,9 +290,6 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                     {batch.title || batch.name}
                   </p>
                   {(() => {
-                    // Before any month is picked for this batch, show the program's
-                    // base price. Once the user picks a month (and day/frequency),
-                    // switch to the live computed total for this batch.
                     if (isSelected && selectedMonth) {
                       return (
                         <p className="text-xs text-[#F97316] font-semibold mt-0.5">
