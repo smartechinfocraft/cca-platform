@@ -26,7 +26,7 @@ function Sponsors() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-12">
           <span className="text-[var(--gold)] text-xs font-bold tracking-widest uppercase block mb-3">
-            Partners & Sponsors
+            Partners &amp; Sponsors
           </span>
           <h2 className="font-display text-3xl font-bold text-[var(--outfield)]">
             Proudly Supported By
@@ -37,7 +37,7 @@ function Sponsors() {
           {loading
             ? [1,2,3,4].map(i => <div key={i} className="sponsor-logo animate-pulse bg-slate-100" />)
             : display.map((s) => (
-                
+                <a
                   key={s._id}
                   href={s.websiteUrl ?? "#"}
                   target="_blank"
