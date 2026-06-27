@@ -43,7 +43,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Pliant', sans-serif;
   background: #ffffff;
   color: var(--outfield);
   -webkit-font-smoothing: antialiased;
@@ -53,7 +53,7 @@ body {
 
 /* Display face — an editorial serif with the gravity of a club
    honors board, used with restraint (headlines only, never body). */
-.font-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+.font-display { font-family: 'Pliant', serif; font-optical-sizing: auto; }
 
 /* ─── Scoreboard label — the page's structural signature ─────────
    Small-caps, gold-on-dark or dark-on-cream, thin rule beneath:
@@ -63,7 +63,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Pliant', sans-serif;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
