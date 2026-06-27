@@ -17,7 +17,7 @@ export function resolveUploadUrl(relativePath?: string | null): string | undefin
   if (/^https?:\/\//i.test(relativePath)) {
     return relativePath.replace(/^https?:\/\/localhost:\d+/, SERVER_ORIGIN);
   }
-  const cleanPath = relativePath.replace(/^\\/+/, "");
+  const cleanPath = relativePath.replace(/^\/+/, "");
   return `${SERVER_ORIGIN}/${cleanPath}`;
 }
 
