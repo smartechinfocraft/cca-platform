@@ -13,7 +13,10 @@ const SERVER_ORIGIN = API_BASE.replace(/\/api\/?$/, "");
 
 export function resolveUploadUrl(relativePath?: string | null): string | undefined {
   if (!relativePath) return undefined;
-  if (/^https?:\/\//i.test(relativePath)) return relativePath; // already a full URL
+  // If it's a localhost URL saved in DB, replace the origin with the real backend
+  if (/^https?:\/\//i.test(relativePath)) {
+    return relativePath.replace(/^https?:\/\/localhost:\d+/, SERVER_ORIGIN);
+  }
   const cleanPath = relativePath.replace(/^\/+/, "");
   return `${SERVER_ORIGIN}/${cleanPath}`;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getSponsors } from "../services/programService";
+import { getSponsors, resolveUploadUrl } from "../services/programService";
 
 const FALLBACK_SPONSORS = [
   { _id: "s1", name: "Bay Area Cricket", websiteUrl: "#" },
@@ -26,7 +26,7 @@ function Sponsors() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-12">
           <span className="text-[var(--gold)] text-xs font-bold tracking-widest uppercase block mb-3">
-            Partners & Sponsors
+            Partners &amp; Sponsors
           </span>
           <h2 className="font-display text-3xl font-bold text-[var(--outfield)]">
             Proudly Supported By
@@ -45,7 +45,7 @@ function Sponsors() {
                   className="sponsor-logo"
                 >
                   {s.coverImageUrl ? (
-                    <img src={s.coverImageUrl} alt={s.name} className="max-h-14 object-contain" />
+                    <img src={resolveUploadUrl(s.coverImageUrl)} alt={s.name} className="max-h-14 object-contain" />
                   ) : (
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">🏏</div>
