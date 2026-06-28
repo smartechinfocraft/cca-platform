@@ -53,7 +53,7 @@ function LoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: ()
       >
         <div className="flex items-start justify-between mb-5">
           <div>
-            <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#F97316" }}>Sign in to checkout</p>
+            <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#A33B2B" }}>Sign in to checkout</p>
             <h2 className="text-lg font-bold text-[#0F172A] mt-0.5">One more step</h2>
             <p className="text-xs text-slate-500 mt-1">Your cart is saved — sign in and we'll take you straight to payment.</p>
           </div>
@@ -65,23 +65,23 @@ function LoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: ()
             <label className="block text-xs font-semibold text-[#0F172A] mb-1">Email</label>
             <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="parent@email.com"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#F97316] transition" />
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] transition" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-[#0F172A] mb-1">Password</label>
             <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#F97316] transition" />
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] transition" />
           </div>
           <button type="submit" disabled={loading}
             className="w-full rounded-full py-3 text-sm font-bold transition disabled:opacity-50 mt-1"
-            style={{ background: "#F97316", color: "white" }}>
+            style={{ background: "#A33B2B", color: "white" }}>
             {loading ? "Signing in..." : "Sign In & Continue"}
           </button>
         </form>
         <div className="mt-4 text-center">
           <span className="text-xs text-slate-500">Don't have an account? </span>
-          <button type="button" onClick={() => navigate("/login")} className="text-xs font-semibold hover:underline" style={{ color: "#F97316" }}>
+          <button type="button" onClick={() => navigate("/login")} className="text-xs font-semibold hover:underline" style={{ color: "#A33B2B" }}>
             Create one
           </button>
         </div>
@@ -373,7 +373,7 @@ export default function CartPage() {
               <HiOutlineShoppingCart className="h-12 w-12" style={{ color: "var(--gold)" }} />
             </div>
             <h1 className="text-2xl font-bold text-[#0F172A]">Your cart is empty</h1>
-            <p className="text-slate-500 text-sm max-w-xs mx-auto">Browse programs, pick a batch, fill in your student's details, and add to cart.</p>
+            <p className="text-slate-500 text-sm max-w-xs mx-auto">Browse programs, pick a batch, fill in your student's details, and add registration.</p>
             <button
               onClick={() => navigate("/programs")}
               className="inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm font-bold transition"

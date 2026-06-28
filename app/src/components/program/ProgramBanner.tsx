@@ -20,7 +20,7 @@ function ProgramBanner({
       <div className="max-w-7xl mx-auto px-6 py-10">
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr] items-center">
           <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#F97316]/10 px-4 py-2 text-sm font-semibold text-[#F97316]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#A33B2B]/10 px-4 py-2 text-sm font-semibold text-[#A33B2B]">
               {category}
             </div>
 
@@ -36,7 +36,7 @@ function ProgramBanner({
               <span className="inline-flex items-center rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-[#0F172A]">
                 {location}
               </span>
-              <span className="inline-flex items-center rounded-full bg-[#F97316]/10 px-4 py-2 text-sm font-semibold text-[#F97316]">
+              <span className="inline-flex items-center rounded-full bg-[#A33B2B]/10 px-4 py-2 text-sm font-semibold text-[#A33B2B]">
                 {level}
               </span>
             </div>

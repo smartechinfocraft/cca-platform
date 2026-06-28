@@ -21,7 +21,7 @@ function LevelSelector({ selectedLevel, onSelectLevel }: LevelSelectorProps) {
             onClick={() => onSelectLevel(level.name)}
             className={`rounded-3xl border p-5 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-xl ${
               isActive
-                ? "border-[#F97316] bg-[#F97316]/10 shadow-md"
+                ? "border-[#A33B2B] bg-[#A33B2B]/10 shadow-md"
                 : "border-slate-200 bg-white"
             }`}
           >

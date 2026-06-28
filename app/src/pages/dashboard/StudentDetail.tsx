@@ -138,7 +138,7 @@ function StudentDetail() {
         <SummaryCard
           label="Attendance Rate"
           value={attendanceSummary.percentage !== null ? `${attendanceSummary.percentage}%` : "—"}
-          color="text-[#F97316]"
+          color="text-[#A33B2B]"
         />
       </div>
 
@@ -152,7 +152,7 @@ function StudentDetail() {
             {registrations.map((r) => (
               <div key={r._id} className="flex items-center gap-4 rounded-2xl border border-slate-100 p-4">
                 <div className="w-10 h-10 rounded-xl bg-[#FEF4E6] flex items-center justify-center flex-shrink-0">
-                  <HiOutlineAcademicCap className="h-5 w-5 text-[#F97316]" />
+                  <HiOutlineAcademicCap className="h-5 w-5 text-[#A33B2B]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-[#0F172A] truncate">{r.programId?.title || "CCA Program"}</p>

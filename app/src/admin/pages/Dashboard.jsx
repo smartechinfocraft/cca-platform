@@ -13,7 +13,7 @@ import { dashboardAPI } from '../api/client';
 import { useAdminAuth }      from '../context/AuthContext';
 
 // Color palette for charts (gold/green/cricket themed)
-const COLORS = ['#D4AF37','#22c55e','#3b82f6','#f97316','#a855f7','#ec4899','#14b8a6'];
+const COLORS = ['#D4AF37','#22c55e','#3b82f6','#A33B2B','#a855f7','#ec4899','#14b8a6'];
 
 // ─── Stat card component ──────────────────────────────────────────────────────
 const StatCard = ({ label, value, icon, sub, color = '#D4AF37' }) => (
@@ -100,7 +100,7 @@ const chartStyles = {
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
-  CONFIRMED: '#22c55e', PAID: '#3b82f6', PENDING: '#f97316',
+  CONFIRMED: '#22c55e', PAID: '#3b82f6', PENDING: '#A33B2B',
   CANCELLED: '#ef4444', REFUNDED: '#8b5cf6', WAITLISTED: '#6b7280',
   AWAITING_PAYMENT: '#eab308',
 };

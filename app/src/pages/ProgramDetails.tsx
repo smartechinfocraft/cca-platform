@@ -72,7 +72,7 @@ function buildDaySlotOptions(batch: BatchRaw): string[] {
 }
 function freqLabel(n: number): string {
   const m: Record<number, string> = { 1: "Once a Week", 2: "Twice a Week", 3: "Thrice a Week" };
-  return m[n] ?? `${n}× a Week`;
+  return m[n] ?? `${n} times a Week`;
 }
 function getDobError(value: string): string {
   if (!value) return "";
@@ -251,13 +251,13 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
 
       {/* ── STEP 1: Header ── */}
       <div>
-        <p className="text-xs uppercase tracking-[0.24em] text-[#F97316] font-semibold">Quick Registration</p>
+        <p className="text-sm tracking-[0.1em] text-[#A33B2B] font-semibold">Registration Details</p>
         {!batchConfirmed
-          ? <h2 className="mt-1 text-xl font-bold text-[#0F172A]">Select Month & Day</h2>
+          ? <h2 className="mt-1 text-md font-bold text-[#0F172A]">Select Month & Batch</h2>
           : (
             <div className="flex items-center gap-2 mt-1">
               <button type="button" onClick={() => setBatchConfirmed(false)}
-                className="text-xs font-medium text-[#F97316] hover:underline">
+                className="text-md font-medium text-[#A33B2B] hover:underline">
                 ← Change selection
               </button>
             </div>
@@ -269,7 +269,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
       {!batchConfirmed && (
         <div className="space-y-3 pr-1">
           {batches.length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-6">No batches available.</p>
+            <p className="text-md text-slate-800 text-center py-6">No batches available.</p>
           )}
 
           {batches.map((batch) => {
@@ -281,24 +281,24 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
             return (
               <div key={batch._id}
                 className={`rounded-2xl border transition ${isSelected
-                  ? "border-[#F97316] bg-[#FFF7ED] ring-2 ring-[#F97316]/20"
+                  ? "border-[#A33B2B] bg-[#FFF7ED] ring-2 ring-[#A33B2B]/20"
                   : "border-slate-200 bg-slate-50"}`}
               >
                 {/* Batch name row */}
                 <div className="px-4 pt-4 pb-2">
-                  <p className="text-sm font-bold text-[#0F172A]">
+                  <p className="text-xl font-bold text-[#0F172A]">
                     {batch.title || batch.name}
                   </p>
                   {(() => {
                     if (isSelected && selectedMonth) {
                       return (
-                        <p className="text-xs text-[#F97316] font-semibold mt-0.5">
+                        <p className="text-xs text-[#A33B2B] font-semibold mt-0.5">
                           ${totalPrice || baseMonthPrice || basePrice || 0}
                         </p>
                       );
                     }
                     return basePrice ? (
-                      <p className="text-xs text-[#F97316] font-semibold mt-0.5">
+                      <p className="text-xs text-[#A33B2B] font-semibold mt-0.5">
                         From ${basePrice}
                       </p>
                     ) : null;
@@ -315,9 +315,9 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                           const isChecked = isSelected && selectedMonth?.label === opt.label;
                           return (
                             <label key={oi}
-                              className={`flex items-center gap-1.5 cursor-pointer text-xs px-3 py-1.5 rounded-full border transition ${isChecked
-                                ? "border-[#F97316] bg-[#F97316] text-white"
-                                : "border-slate-300 bg-white text-slate-700 hover:border-[#F97316]/60"}`}
+                              className={`flex items-center gap-1.5 cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-full border transition ${isChecked
+                                ? "border-[#A33B2B] bg-[#A33B2B] text-white"
+                                : "border-slate-300 bg-white text-slate-700 hover:border-[#A33B2B]/60"}`}
                             >
                               <input type="radio" name={`month-${batch._id}`} checked={isChecked}
                                 onChange={() => {
@@ -347,7 +347,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                           setSelectedFreq(1);
                           setDaySlots([null]);
                         }}
-                        className="w-4 h-4 accent-[#F97316]"
+                        className="w-4 h-4 accent-[#A33B2B]"
                       />
                       Select this batch
                     </label>
@@ -363,9 +363,9 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                           <div className="flex flex-wrap gap-2">
                             {bFreqOpts.map((n) => (
                               <label key={n}
-                                className={`flex items-center gap-1.5 cursor-pointer text-xs px-3 py-1.5 rounded-full border transition ${selectedFreq === n
-                                  ? "border-[#F97316] bg-[#F97316] text-white"
-                                  : "border-slate-300 bg-white text-slate-700 hover:border-[#F97316]/60"}`}
+                                className={`flex items-center gap-1.5 cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-full border transition ${selectedFreq === n
+                                  ? "border-[#A33B2B] bg-[#A33B2B] text-white"
+                                  : "border-slate-300 bg-white text-slate-700 hover:border-[#A33B2B]/60"}`}
                               >
                                 <input type="radio" name={`freq-${batch._id}`} checked={selectedFreq === n}
                                   onChange={() => { setSelectedFreq(n); setDaySlots(Array(n).fill(null)); }}
@@ -389,8 +389,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                                 const val = e.target.value || null;
                                 setDaySlots((prev) => { const next = [...prev]; next[di] = val; return next; });
                               }}
-                              className="w-full rounded-xl border px-3 py-2 text-sm bg-white text-slate-900 outline-none transition focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
-                              style={{ borderColor: daySlots[di] ? "#F97316" : "#e2e8f0" }}
+                              className="w-full rounded-xl border px-3 py-2 text-sm bg-white text-slate-900 outline-none transition focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                              style={{ borderColor: daySlots[di] ? "#A33B2B" : "#e2e8f0" }}
                             >
                               <option value="">Select Day {selectedFreq > 1 ? di + 1 : ""}</option>
                               {buildDaySlotOptions(batch)
@@ -408,7 +408,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                           <p className="text-xl font-bold text-[#0F172A]">${totalPrice || "—"}</p>
                         </div>
                         <button type="button" disabled={!canConfirm} onClick={handleConfirm}
-                          className="inline-flex items-center gap-2 rounded-full bg-[#F97316] px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#ea7a2e] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          className="inline-flex items-center gap-2 rounded-full bg-[#A33B2B] px-5 py-2.5 text-md font-bold text-white shadow-md hover:bg-[#ea7a2e] disabled:opacity-40 disabled:cursor-not-allowed transition"
                         >
                           Next — Student Details <HiOutlineArrowRight className="h-4 w-4" />
                         </button>
@@ -426,7 +426,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
       {batchConfirmed && student && (
         <div ref={studentFormRef} className="space-y-4">
           {/* Confirmed batch summary */}
-          <div className="rounded-xl bg-[#FFF7ED] border border-[#F97316]/30 px-4 py-3 flex items-center justify-between">
+          <div className="rounded-xl bg-[#FFF7ED] border border-[#A33B2B]/30 px-4 py-3 flex items-center justify-between">
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide">Selected</p>
               <p className="text-sm font-semibold text-[#0F172A]">
@@ -434,7 +434,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               </p>
               <p className="text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
             </div>
-            <p className="text-lg font-bold text-[#F97316]">${totalPrice}</p>
+            <p className="text-lg font-bold text-[#A33B2B]">${totalPrice}</p>
           </div>
 
           {/* Student header */}
@@ -448,8 +448,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                   <button key={i} type="button"
                     onClick={() => { setCurrentStudentIndex(i); setDobError(""); }}
                     className={`h-8 w-8 rounded-full border text-xs font-bold transition ${i === currentStudentIndex
-                      ? "border-[#F97316] bg-[#F97316] text-white"
-                      : "border-slate-300 bg-white text-slate-600 hover:border-[#F97316]"}`}
+                      ? "border-[#A33B2B] bg-[#A33B2B] text-white"
+                      : "border-slate-300 bg-white text-slate-600 hover:border-[#A33B2B]"}`}
                   >{i + 1}</button>
                 ))}
               </div>
@@ -466,7 +466,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 <input type="text" value={student.firstName}
                   onChange={(e) => handleStudentChange("firstName", e.target.value)}
                   placeholder="Alex"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                 />
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -476,7 +476,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 <input type="text" value={student.lastName}
                   onChange={(e) => handleStudentChange("lastName", e.target.value)}
                   placeholder="Patel"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                 />
               </div>
             </div>
@@ -489,7 +489,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 <input type="date" value={student.dob}
                   max={new Date().toISOString().split("T")[0]}
                   onChange={(e) => handleDobChange(e.target.value)}
-                  className={`w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 ${dobError ? "border-red-400 focus:ring-red-400/15" : "border-slate-200 focus:border-[#F97316] focus:ring-[#F97316]/15"}`}
+                  className={`w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 ${dobError ? "border-red-400 focus:ring-red-400/15" : "border-slate-200 focus:border-[#A33B2B] focus:ring-[#A33B2B]/15"}`}
                 />
                 {dobError && <p className="mt-1 text-xs font-semibold text-red-500">{dobError}</p>}
               </div>
@@ -499,7 +499,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 </label>
                 <select value={student.gender}
                   onChange={(e) => handleStudentChange("gender", e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                 >
                   <option value="">Choose gender</option>
                   <option value="Male">Male</option>
@@ -515,7 +515,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               <input type="text" value={student.schoolName}
                 onChange={(e) => handleStudentChange("schoolName", e.target.value)}
                 placeholder="Sunrise High School"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
               />
             </div>
 
@@ -524,7 +524,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               <textarea rows={2} value={student.medicalNotes}
                 onChange={(e) => handleStudentChange("medicalNotes", e.target.value)}
                 placeholder="Allergies or important health info..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 resize-none"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15 resize-none"
               />
             </div>
 
@@ -541,22 +541,22 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
           {/* Action buttons */}
           <div className="flex flex-col gap-2 pt-1 border-t border-slate-200">
             <button type="button" onClick={handleAddStudent} disabled={!isStudentValid}
-              className="w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-[#F97316] bg-white px-3 py-2.5 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/5 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-[#A33B2B] bg-white px-3 py-2.5 text-xs font-semibold text-[#A33B2B] hover:bg-[#A33B2B]/5 disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               <HiOutlinePlusCircle className="h-4 w-4" /> Add Another Student
             </button>
             <div className="flex gap-2">
               <button type="button" onClick={handleAddToCart}
                 disabled={!isStudentValid || !batchConfirmed}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-md font-bold disabled:opacity-40 disabled:cursor-not-allowed transition"
                 style={{ borderColor: "var(--outfield)", color: "var(--outfield)", background: cartSuccess ? "var(--pitch-soft)" : "white" }}
               >
-                {cartSuccess ? "✓ Added!" : "🛒 Add to Cart"}
+                {cartSuccess ? "✓ Added!" : "🛒 Add Registration"}
               </button>
               <button type="button" onClick={handleContinue} disabled={!isStudentValid}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full bg-[#F97316] px-3 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#ea7a2e] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full bg-[#A33B2B] px-3 py-2.5 text-md font-bold text-white shadow-md hover:bg-[#ea7a2e] disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
-                Buy Now <HiOutlineArrowRight className="h-4 w-4" />
+                Registration Now <HiOutlineArrowRight className="h-4 w-4" />
               </button>
             </div>
             {cartSuccess && (
@@ -592,7 +592,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#F97316" }}>One more step</p>
+                <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#A33B2B" }}>One more step</p>
                 <h2 className="text-lg font-bold text-[#0F172A] mt-0.5">Sign in to continue</h2>
                 <p className="text-xs text-slate-500 mt-1">Your registration details are saved — just sign in and we'll take you straight to review.</p>
               </div>
@@ -614,7 +614,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                   type="email" required autoFocus
                   value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="parent@email.com"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/20 transition"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/20 transition"
                 />
               </div>
               <div>
@@ -623,13 +623,13 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                   type="password" required
                   value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/20 transition"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/20 transition"
                 />
               </div>
               <button
                 type="submit" disabled={loginLoading}
                 className="w-full rounded-full py-3 text-sm font-bold transition disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98] mt-1"
-                style={{ background: "#F97316", color: "white" }}
+                style={{ background: "#A33B2B", color: "white" }}
               >
                 {loginLoading ? "Signing in..." : "Sign In & Continue to Review"}
               </button>
@@ -641,7 +641,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 type="button"
                 onClick={() => { setShowLoginModal(false); navigate("/login", { state: { from: `/programs/${programId}` } }); }}
                 className="text-xs font-semibold hover:underline"
-                style={{ color: "#F97316" }}
+                style={{ color: "#A33B2B" }}
               >
                 Create one
               </button>
@@ -716,6 +716,17 @@ function ProgramDetails() {
 
   const p = program;
   const displayBatches = batches;
+  const coverImage = p.coverImageUrl ?? programImage;
+  const programMeta = [
+    { label: "Location", value: p.location?.title || p.location?.city || p.location?.address },
+    { label: "Category", value: p.category?.title },
+    { label: "Level", value: Array.isArray(p.skillLevels) ? p.skillLevels.join(", ") : p.skillLevels },
+    { label: "Age", value: Array.isArray(p.ageGroups) ? p.ageGroups.join(", ") : p.ageGroups },
+    {
+      label: "Price",
+      value: p.discountedPrice ? `$${p.discountedPrice}` : p.basePrice ? `$${p.basePrice}` : "Contact us",
+    },
+  ].filter((item) => Boolean(item.value));
 
   const benefits = [
     { icon: HiLightningBolt, title: "High-impact training", description: "Accelerated skill growth through focused practice sessions." },
@@ -728,52 +739,47 @@ function ProgramDetails() {
     <>
       <Navbar />
       <div className="h-20" />
-      <main className="bg-[#f8fafc] text-[#0F172A]">
+      <main className="bg-white text-[#0F172A]">
 
-        {/* ── Hero: Image LEFT | Registration RIGHT ── */}
-        <section className="relative overflow-hidden py-14 md:py-20">
-          <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.16),transparent_52%)] pointer-events-none" />
-          <div className="max-w-7xl mx-auto px-6">
+        {/* ── Hero: Full-width background image + centered registration ── */}
+        <section className="relative overflow-hidden pb-14 pt-12 md:pb-20 md:pt-16">
+          <div className="absolute inset-x-0 top-0 h-[520px] md:h-[620px] pointer-events-none">
+            <img
+              src={coverImage}
+              alt=""
+              className="h-full w-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).src = programImage; }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/10 to-white" />
+            <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-b from-white/0 to-white" />
+          </div>
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
             <motion.div
               initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: "easeOut" }}
-              className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] items-start"
+              className="mx-auto max-w-4xl"
             >
-              {/* Left — program image (sticky) */}
-              <div className="lg:sticky lg:top-24">
-                <div className="relative rounded-[24px] overflow-hidden bg-slate-100 shadow-2xl" style={{ aspectRatio: "4/3" }}>
-                  <img
-                    src={p.coverImageUrl ?? programImage} alt={p.title}
-                    className="absolute inset-0 h-full w-full object-cover transition duration-700 hover:scale-105"
-                    onError={(e) => { (e.target as HTMLImageElement).src = programImage; }}
-                  />
-                  <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950/40 to-transparent" />
-                  <div className="absolute left-6 top-6 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-[#0F172A] shadow-sm backdrop-blur-sm">
-                    {p.location?.title || "Location"}
-                  </div>
-                  <div className="absolute bottom-6 left-6 right-6">
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <span className="inline-flex items-center rounded-full bg-[#F97316]/90 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
-                        {p.category?.title || "Elite Academy"}
-                      </span>
-                      {p.skillLevels?.[0] && (
-                        <span className="inline-flex items-center rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-[#0F172A] backdrop-blur-sm">
-                          {p.skillLevels[0]}
-                        </span>
-                      )}
-                    </div>
-                    <h1 className="text-2xl font-bold text-white drop-shadow-lg">{p.title}</h1>
-                    <p className="mt-1 text-sm text-white/80">
-                      {p.discountedPrice ? `$${p.discountedPrice}` : p.basePrice ? `$${p.basePrice}` : "Contact us"}
-                      {" · "}{p.location?.title || ""}
+              <div className="rounded-[24px] border border-white/70 bg-white/95 p-5 shadow-2xl backdrop-blur-xl sm:p-7 md:p-8">
+                <div className="border-b border-slate-200 pb-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#A33B2B]">Program Registration</p>
+                  <h1 className="mt-2 text-3xl font-bold leading-tight text-[#0F172A] sm:text-4xl">{p.title}</h1>
+                  {(p.shortDescription || p.detailedDescription) && (
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+                      {p.shortDescription || p.detailedDescription}
                     </p>
+                  )}
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {programMeta.map((item) => (
+                      <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{item.label}</p>
+                        <p className="mt-1 text-sm font-bold text-[#0F172A]">{item.value}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-
-              {/* Right — Registration panel (scrollable) */}
-              <div className="rounded-[24px] bg-white/95 p-6 shadow-2xl backdrop-blur-xl">
-                <InlineRegistration programId={p._id} batches={displayBatches} programTitle={p.title ?? ""} programImage={p.coverImageUrl} basePrice={p.discountedPrice ?? p.basePrice} />
+                <div className="pt-6">
+                  <InlineRegistration programId={p._id} batches={displayBatches} programTitle={p.title ?? ""} programImage={coverImage} basePrice={p.discountedPrice ?? p.basePrice} />
+                </div>
               </div>
             </motion.div>
           </div>
@@ -791,7 +797,7 @@ function ProgramDetails() {
                 return (
                   <motion.div key={b.title} whileHover={{ y: -4 }}
                     className="rounded-[24px] border border-slate-200 bg-[#f8fafc] p-6 shadow-sm">
-                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F97316]/10 text-[#F97316]">
+                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#A33B2B]/10 text-[#A33B2B]">
                       <Icon className="h-6 w-6" />
                     </div>
                     <h3 className="mt-5 text-xl font-semibold">{b.title}</h3>
@@ -829,7 +835,7 @@ function ProgramDetails() {
         {/* ── CTA Banner ── */}
         <section className="max-w-7xl mx-auto px-6 py-16">
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5 }}
-            className="rounded-[24px] bg-gradient-to-r from-[#F97316] via-[#fb923c] to-[#fde68a] p-10 shadow-2xl">
+            className="rounded-[24px] bg-gradient-to-r from-[#A33B2B] via-[#fb923c] to-[#fde68a] p-10 shadow-2xl">
             <div className="grid gap-8 lg:grid-cols-[1.4fr_0.6fr] items-center">
               <div>
                 <h2 className="text-4xl font-bold text-white">Ready to elevate your game?</h2>

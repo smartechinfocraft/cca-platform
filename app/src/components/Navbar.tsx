@@ -207,7 +207,11 @@ function Navbar() {
                   className="flex items-center gap-2 text-sm font-medium text-[var(--ink-500)] hover:text-[var(--outfield)] px-4 py-2 transition rounded-full"
                   style={{ border: "1px solid var(--pitch-deep)" }}
                 >
-                  Hi, {user?.firstName}
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A9 9 0 1118.879 6.196 9 9 0 015.12 17.804z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {user?.firstName}
                   <svg className={`w-3.5 h-3.5 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
@@ -231,9 +235,9 @@ function Navbar() {
                 Sign In / Register
               </button>
             )}
-            <button onClick={() => handleNav("#programs")} className="text-sm font-semibold transition-all shadow-md hover:scale-105 px-6 py-2.5 rounded-full" style={{ background: "var(--gold)", color: "var(--outfield)" }}>
+            {/* <button onClick={() => handleNav("#programs")} className="text-sm font-semibold transition-all shadow-md hover:scale-105 px-6 py-2.5 rounded-full" style={{ background: "var(--gold)", color: "var(--outfield)" }}>
               Register Now
-            </button>
+            </button> */}
           </div>
 
           {/* Mobile Toggle */}

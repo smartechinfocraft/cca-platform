@@ -111,8 +111,8 @@ function Programs() {
         <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.18),transparent_48%)] pointer-events-none" />
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-3xl mx-auto text-center">
-            <span className="inline-flex items-center rounded-full bg-[#F97316]/10 px-4 py-2 text-sm font-semibold text-[#F97316] tracking-[0.24em] uppercase">
-              Elite Cricket Academy
+            <span className="inline-flex items-center rounded-full bg-[#A33B2B]/10 px-4 py-2 text-sm font-semibold text-[#A33B2B] tracking-[0.24em] uppercase">
+              Premium Cricket Academy
             </span>
             <h1 className="mt-6 text-4xl sm:text-5xl font-bold tracking-tight text-[#0F172A]">
               Browse Training Programs
@@ -152,7 +152,7 @@ function Programs() {
                 <div className="mt-6">
                   <button
                     onClick={handleReset}
-                    className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-2 text-sm font-semibold text-[#0F172A] transition hover:border-[#F97316] hover:text-[#F97316]"
+                    className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-2 text-sm font-semibold text-[#0F172A] transition hover:border-[#A33B2B] hover:text-[#A33B2B]"
                   >
                     Clear Filters
                   </button>
@@ -169,7 +169,7 @@ function Programs() {
 
               <div className="mt-12 flex flex-col gap-3 items-center justify-center sm:flex-row sm:gap-4">
                 <button
-                  className="min-w-[120px] rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#F97316] hover:text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-w-[120px] rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#A33B2B] hover:text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
                 >
@@ -181,7 +181,7 @@ function Programs() {
                 </div>
 
                 <button
-                  className="min-w-[120px] rounded-full bg-[#F97316] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#ea7a2e] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-w-[120px] rounded-full bg-[#A33B2B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#ea7a2e] disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => setPage((p) => Math.min(pages, p + 1))}
                   disabled={page === pages}
                 >

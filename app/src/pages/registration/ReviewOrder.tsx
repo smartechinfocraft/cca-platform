@@ -207,7 +207,7 @@ function ReviewOrder() {
                           .filter((d: string, i: number, arr: string[]) => d.trim() && arr.indexOf(d.trim()) === i)
                           .map((day: string, i: number) => (
                             <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#F97316]" />
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A33B2B]" />
                               {day.trim()}
                             </li>
                           ))}

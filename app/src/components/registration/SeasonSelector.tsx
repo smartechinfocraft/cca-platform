@@ -17,7 +17,7 @@ function SeasonSelector({ selectedSeason, onSelectSeason }: SeasonSelectorProps)
             onClick={() => onSelectSeason(season)}
             className={`rounded-3xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
               isSelected
-                ? "border-[#F97316] bg-[#F97316]/10 text-[#0F172A] shadow-md"
+                ? "border-[#A33B2B] bg-[#A33B2B]/10 text-[#0F172A] shadow-md"
                 : "border-slate-200 bg-white text-slate-800"
             }`}
           >

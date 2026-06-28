@@ -158,7 +158,7 @@ function PaymentPage() {
       <div className="h-20" />
       <main className="min-h-screen bg-[#f8fafc] text-[#0F172A]">
       <section className="max-w-7xl mx-auto px-6 py-10 sm:py-14">
-        <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#F97316] transition">
+        <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#A33B2B] transition">
           <HiOutlineArrowLeft className="h-4 w-4" /> Back to Review
         </button>
 
@@ -172,7 +172,7 @@ function PaymentPage() {
             <div className="rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">🔒 Secure Checkout</div>
           </div>
           <div className="mt-6 overflow-hidden rounded-full bg-slate-100 h-2">
-            <div className="h-2 rounded-full bg-[#F97316]" style={{ width: "100%" }} />
+            <div className="h-2 rounded-full bg-[#A33B2B]" style={{ width: "100%" }} />
           </div>
           <p className="mt-2 text-xs text-right text-slate-400">Final Step</p>
         </div>
@@ -188,7 +188,7 @@ function PaymentPage() {
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {(["PayPal", "Check"] as PaymentMethod[]).map(method => (
                   <button key={method} type="button" onClick={() => setPaymentMethod(method)}
-                    className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[#F97316] bg-[#F97316]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[#F97316]"}`}>
+                    className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[#A33B2B] bg-[#A33B2B]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[#A33B2B]"}`}>
                     <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : "bg-slate-700"}`}>
                       {method === "PayPal" ? "P" : "✉"}
                     </div>
@@ -222,18 +222,18 @@ function PaymentPage() {
                 <div className="mt-5 space-y-4">
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <label className="block text-sm font-semibold text-slate-700">Make Check Payable To <span className="text-red-500">*</span></label>
-                    <input type="text" value={checkPayableTo} onChange={e => setCheckPayableTo(e.target.value)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#F97316]" />
+                    <input type="text" value={checkPayableTo} onChange={e => setCheckPayableTo(e.target.value)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]" />
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <label className="block text-sm font-semibold text-slate-700">Check Number (optional)</label>
-                    <input type="text" value={checkNumber} onChange={e => setCheckNumber(e.target.value)} placeholder="1234" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#F97316]" />
+                    <input type="text" value={checkNumber} onChange={e => setCheckNumber(e.target.value)} placeholder="1234" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]" />
                   </div>
                 </div>
                 <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
                   <strong>Instructions:</strong> Mail your check within 5 business days. Your spot is held for 7 days.
                 </div>
                 <button type="button" onClick={submitCheck} disabled={loading || !checkPayableTo.trim()}
-                  className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-[#F97316] px-8 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 transition w-full">
+                  className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-[#A33B2B] px-8 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 transition w-full">
                   {loading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processing...</> : `Submit — $${grandTotal.toFixed(2)}`}
                 </button>
               </div>
@@ -245,7 +245,7 @@ function PaymentPage() {
           {/* Sidebar */}
           <aside className="space-y-5 xl:sticky xl:top-24">
             <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-lg">
-              <p className="text-sm uppercase tracking-widest text-[#F97316]">Order Summary</p>
+              <p className="text-sm uppercase tracking-widest text-[#A33B2B]">Order Summary</p>
               <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
                 {[
                   { label: "Program",     value: selectedProgram?.title ?? "—" },

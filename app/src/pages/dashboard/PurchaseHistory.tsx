@@ -96,7 +96,7 @@ function PurchaseHistory() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 outline-none focus:border-[#F97316]"
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 outline-none focus:border-[#A33B2B]"
         >
           <option value="ALL">All Statuses</option>
           <option value="CONFIRMED">Confirmed</option>
@@ -110,7 +110,7 @@ function PurchaseHistory() {
         <select
           value={payFilter}
           onChange={(e) => setPayFilter(e.target.value as PayFilter)}
-          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 outline-none focus:border-[#F97316]"
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 outline-none focus:border-[#A33B2B]"
         >
           <option value="ALL">All Payments</option>
           <option value="SUCCESS">Paid</option>
@@ -150,9 +150,9 @@ function PurchaseHistory() {
                 <div className="flex items-start gap-4 min-w-0">
                   <div className="w-12 h-12 rounded-xl bg-[#FEF4E6] flex items-center justify-center flex-shrink-0">
                     {reg.paymentMethod === "PAYPAL" ? (
-                      <HiOutlineCreditCard className="h-6 w-6 text-[#F97316]" />
+                      <HiOutlineCreditCard className="h-6 w-6 text-[#A33B2B]" />
                     ) : (
-                      <HiOutlineBanknotes className="h-6 w-6 text-[#F97316]" />
+                      <HiOutlineBanknotes className="h-6 w-6 text-[#A33B2B]" />
                     )}
                   </div>
                   <div className="min-w-0">
@@ -191,7 +191,7 @@ function PurchaseHistory() {
                 <button
                   onClick={() => handleDownloadInvoice(reg._id)}
                   disabled={downloadingId === reg._id}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-[#F97316] hover:text-[#0F172A] transition disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-[#A33B2B] hover:text-[#0F172A] transition disabled:opacity-50"
                 >
                   <HiOutlineArrowDownTray className="h-4 w-4" />
                   {downloadingId === reg._id ? "Preparing..." : "Download Invoice"}

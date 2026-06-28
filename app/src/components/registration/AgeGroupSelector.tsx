@@ -17,8 +17,8 @@ function AgeGroupSelector({ selectedAgeGroup, onSelectAgeGroup }: AgeGroupSelect
             onClick={() => onSelectAgeGroup(ageGroup)}
             className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
               isActive
-                ? "bg-[#F97316] text-white shadow-lg"
-                : "bg-white text-slate-800 border border-slate-200 hover:bg-[#F97316]/10"
+                ? "bg-[#A33B2B] text-white shadow-lg"
+                : "bg-white text-slate-800 border border-slate-200 hover:bg-[#A33B2B]/10"
             }`}
           >
             {ageGroup}

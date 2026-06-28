@@ -11,7 +11,7 @@ import { reportsAPI, programsAPI, categoriesAPI, batchesAPI, locationsAPI, level
 import { PageHeader, Btn, Card, FormField, Select, Input } from '../components/common/UI';
 import toast from 'react-hot-toast';
 
-const COLORS = ['#D4AF37','#22c55e','#3b82f6','#f97316','#a855f7','#ec4899'];
+const COLORS = ['#D4AF37','#22c55e','#3b82f6','#A33B2B','#a855f7','#ec4899'];
 
 export default function Reports() {
   const [revenue, setRevenue]       = useState(null);
@@ -110,7 +110,7 @@ export default function Reports() {
           { label: 'Total Revenue',       value: `$${(totals?.totalRevenue || 0).toLocaleString()}`,       color: '#D4AF37' },
           { label: 'Total Registrations', value: totals?.totalRegistrations || 0,                          color: '#22c55e' },
           { label: 'Avg Order Value',     value: `$${(totals?.avgOrderValue || 0).toFixed(2)}`,             color: '#3b82f6' },
-          { label: 'Total Discounts',     value: `$${(totals?.totalDiscount || 0).toLocaleString()}`,       color: '#f97316' },
+          { label: 'Total Discounts',     value: `$${(totals?.totalDiscount || 0).toLocaleString()}`,       color: '#A33B2B' },
         ].map(item => (
           <Card key={item.label} style={{ borderColor: item.color + '33', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ color: item.color, fontSize: '22px', fontWeight: '700' }}>{item.value}</div>
@@ -235,7 +235,7 @@ export default function Reports() {
               <div><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>Registrations: </span>
                 <span style={{ color: '#22c55e', fontWeight: '700' }}>{customData.totals.count}</span></div>
               <div><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>Total Discounts: </span>
-                <span style={{ color: '#f97316', fontWeight: '700' }}>${customData.totals.discount.toLocaleString()}</span></div>
+                <span style={{ color: '#A33B2B', fontWeight: '700' }}>${customData.totals.discount.toLocaleString()}</span></div>
             </div>
 
             {/* Table */}
@@ -255,7 +255,7 @@ export default function Reports() {
                       <td style={{ padding: '10px 12px', color: '#D4AF37', fontWeight: '600' }}>${row.revenue.toLocaleString()}</td>
                       <td style={{ padding: '10px 12px', color: '#22c55e' }}>{row.count}</td>
                       <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)' }}>${row.avgValue.toFixed(2)}</td>
-                      <td style={{ padding: '10px 12px', color: '#f97316' }}>${row.discount.toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', color: '#A33B2B' }}>${row.discount.toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>

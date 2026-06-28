@@ -56,7 +56,7 @@ function MyStudents() {
           </p>
           <Link
             to="/programs"
-            className="inline-flex items-center gap-2 mt-4 rounded-full bg-[#F97316] text-white px-5 py-2.5 text-sm font-semibold hover:bg-orange-600 transition"
+            className="inline-flex items-center gap-2 mt-4 rounded-full bg-[#A33B2B] text-white px-5 py-2.5 text-sm font-semibold hover:bg-orange-600 transition"
           >
             Browse Programs
           </Link>
@@ -67,7 +67,7 @@ function MyStudents() {
             <Link
               key={s._id}
               to={`/dashboard/students/${s._id}`}
-              className="rounded-3xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-slate-200/60 hover:ring-[#F97316]/40 hover:shadow-md transition group"
+              className="rounded-3xl bg-white p-5 sm:p-6 shadow-sm ring-1 ring-slate-200/60 hover:ring-[#A33B2B]/40 hover:shadow-md transition group"
             >
               <div className="flex items-start gap-4">
                 {s.photoUrl ? (
@@ -80,7 +80,7 @@ function MyStudents() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold text-[#0F172A] truncate">{s.firstName} {s.lastName}</p>
-                    <HiOutlineChevronRight className="h-4 w-4 text-slate-300 group-hover:text-[#F97316] transition flex-shrink-0" />
+                    <HiOutlineChevronRight className="h-4 w-4 text-slate-300 group-hover:text-[#A33B2B] transition flex-shrink-0" />
                   </div>
                   <p className="text-xs text-slate-400 font-mono mt-0.5">{s.studentCode}</p>
 
@@ -111,7 +111,7 @@ function MyStudents() {
                   <div className="flex items-center gap-2">
                     <div className="w-20 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                       <div
-                        className="h-full bg-[#F97316] rounded-full"
+                        className="h-full bg-[#A33B2B] rounded-full"
                         style={{ width: `${s.attendanceSummary.percentage ?? 0}%` }}
                       />
                     </div>

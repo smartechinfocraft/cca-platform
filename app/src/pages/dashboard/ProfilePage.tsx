@@ -174,7 +174,7 @@ function ProfilePage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-[#F97316] text-white flex items-center justify-center shadow-md hover:bg-orange-600 transition disabled:opacity-60"
+            className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-[#A33B2B] text-white flex items-center justify-center shadow-md hover:bg-orange-600 transition disabled:opacity-60"
             aria-label="Change photo"
             title="Change photo"
           >
@@ -218,7 +218,7 @@ function ProfilePage() {
             <select
               value={form.state}
               onChange={handleChange("state")}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#F97316] bg-white"
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] bg-white"
             >
               <option value="">Select state</option>
               {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -230,7 +230,7 @@ function ProfilePage() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-full bg-[#F97316] text-white px-6 py-3 text-sm font-semibold hover:bg-orange-600 transition disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-full bg-[#A33B2B] text-white px-6 py-3 text-sm font-semibold hover:bg-orange-600 transition disabled:opacity-60"
         >
           <HiOutlineCheckCircle className="h-4 w-4" />
           {saving ? "Saving..." : "Save Changes"}
@@ -259,7 +259,7 @@ function ProfilePage() {
         <button
           type="submit"
           disabled={pwSaving}
-          className="inline-flex items-center gap-2 rounded-full border border-slate-200 text-[#0F172A] px-6 py-3 text-sm font-semibold hover:border-[#F97316] transition disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 text-[#0F172A] px-6 py-3 text-sm font-semibold hover:border-[#A33B2B] transition disabled:opacity-60"
         >
           {pwSaving ? "Updating..." : "Update Password"}
         </button>
@@ -280,14 +280,14 @@ function Field({
   return (
     <div>
       <label className="block text-sm font-semibold text-slate-600 mb-1.5">
-        {label}{required && <span className="text-[#F97316]"> *</span>}
+        {label}{required && <span className="text-[#A33B2B]"> *</span>}
       </label>
       <input
         type={type}
         value={value}
         onChange={onChange}
         required={required}
-        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#F97316]"
+        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B]"
       />
     </div>
   );

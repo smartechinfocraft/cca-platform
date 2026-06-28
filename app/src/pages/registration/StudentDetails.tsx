@@ -89,7 +89,7 @@ function StudentDetails() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#F97316] transition"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#A33B2B] transition"
         >
           <HiOutlineArrowLeft className="h-4 w-4" />
           Back
@@ -98,13 +98,13 @@ function StudentDetails() {
         <div className="mt-6 rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/60 sm:p-10">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-widest text-[#F97316]">Phase 3 — Student Details</p>
+              <p className="text-sm uppercase tracking-widest text-[#A33B2B]">Phase 3 — Student Details</p>
               <h1 className="mt-2 text-3xl font-bold text-[#0F172A]">
                 Student {currentStudentIndex + 1} of {students.length}
               </h1>
               <p className="mt-2 text-slate-600 text-sm">Fill in the details for this student.</p>
             </div>
-            <div className="rounded-full bg-[#F97316]/10 px-4 py-2 text-sm font-semibold text-[#F97316]">
+            <div className="rounded-full bg-[#A33B2B]/10 px-4 py-2 text-sm font-semibold text-[#A33B2B]">
               {students.length} Student{students.length > 1 ? "s" : ""} in Cart
             </div>
           </div>
@@ -135,7 +135,7 @@ function StudentDetails() {
                     value={student.firstName}
                     onChange={(e) => handleChange("firstName", e.target.value)}
                     placeholder="Alex"
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                   />
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -147,7 +147,7 @@ function StudentDetails() {
                     value={student.lastName}
                     onChange={(e) => handleChange("lastName", e.target.value)}
                     placeholder="Patel"
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                   />
                 </div>
               </div>
@@ -165,7 +165,7 @@ function StudentDetails() {
                     className={`mt-3 w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:ring-2 ${
                       dobError
                         ? "border-red-400 focus:border-red-400 focus:ring-red-400/15"
-                        : "border-slate-200 focus:border-[#F97316] focus:ring-[#F97316]/15"
+                        : "border-slate-200 focus:border-[#A33B2B] focus:ring-[#A33B2B]/15"
                     }`}
                   />
                   {dobError && (
@@ -179,7 +179,7 @@ function StudentDetails() {
                   <select
                     value={student.gender}
                     onChange={(e) => handleChange("gender", e.target.value)}
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                   >
                     <option value="">Choose gender</option>
                     <option value="Male">Male</option>
@@ -197,7 +197,7 @@ function StudentDetails() {
                   value={student.schoolName}
                   onChange={(e) => handleChange("schoolName", e.target.value)}
                   placeholder="Sunrise High School"
-                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                 />
               </div>
 
@@ -208,7 +208,7 @@ function StudentDetails() {
                   value={student.medicalNotes}
                   onChange={(e) => handleChange("medicalNotes", e.target.value)}
                   placeholder="Allergies or important health info..."
-                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
+                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
                 />
               </div>
 
@@ -234,8 +234,8 @@ function StudentDetails() {
                       onClick={() => setCurrentStudentIndex(i)}
                       className={`h-8 w-8 rounded-full border text-xs font-bold transition ${
                         i === currentStudentIndex
-                          ? "border-[#F97316] bg-[#F97316] text-white"
-                          : "border-slate-300 bg-white text-slate-600 hover:border-[#F97316]"
+                          ? "border-[#A33B2B] bg-[#A33B2B] text-white"
+                          : "border-slate-300 bg-white text-slate-600 hover:border-[#A33B2B]"
                       }`}
                     >
                       {i + 1}
@@ -249,7 +249,7 @@ function StudentDetails() {
                 <button
                   type="button"
                   onClick={() => navigate(-1)}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:border-[#F97316] transition"
+                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:border-[#A33B2B] transition"
                 >
                   Back
                 </button>
@@ -259,7 +259,7 @@ function StudentDetails() {
                     type="button"
                     onClick={handleAddStudent}
                     disabled={!isStudentValid}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#F97316] bg-white px-5 py-3 text-sm font-semibold text-[#F97316] hover:bg-[#F97316]/5 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[#A33B2B] bg-white px-5 py-3 text-sm font-semibold text-[#A33B2B] hover:bg-[#A33B2B]/5 disabled:opacity-40 disabled:cursor-not-allowed transition"
                     title="Add another student to the same batch"
                   >
                     <HiOutlinePlusCircle className="h-4 w-4" />
@@ -269,7 +269,7 @@ function StudentDetails() {
                     type="button"
                     onClick={handleContinue}
                     disabled={!isStudentValid}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#F97316] px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-[#ea7a2e] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#A33B2B] px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-[#ea7a2e] disabled:opacity-40 disabled:cursor-not-allowed transition"
                   >
                     Continue <HiOutlineArrowRight className="h-4 w-4" />
                   </button>
@@ -281,7 +281,7 @@ function StudentDetails() {
           {/* Sidebar */}
           <aside className="space-y-5">
             <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
-              <p className="text-sm uppercase tracking-widest text-[#F97316]">Profile Preview</p>
+              <p className="text-sm uppercase tracking-widest text-[#A33B2B]">Profile Preview</p>
               <h2 className="mt-3 text-xl font-semibold text-[#0F172A]">Student {currentStudentIndex + 1}</h2>
               <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
                 {[

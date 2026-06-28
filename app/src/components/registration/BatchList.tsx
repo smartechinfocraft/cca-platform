@@ -25,16 +25,16 @@ function BatchList({ batches, onSelectBatch }: BatchListProps) {
         return (
           <div
            key={`${batch.name}-${index}`}
-            className={`rounded-3xl p-6 transition ${isActive ? "border border-[#F97316] bg-[#fff7ed] shadow-xl" : "bg-white shadow-sm hover:-translate-y-1 hover:shadow-lg"}`}
+            className={`rounded-3xl p-6 transition ${isActive ? "border border-[#A33B2B] bg-[#fff7ed] shadow-xl" : "bg-white shadow-sm hover:-translate-y-1 hover:shadow-lg"}`}
           >
             <div className="flex flex-col gap-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#F97316]">{batch.name}</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#A33B2B]">{batch.name}</p>
                   <h3 className="mt-3 text-2xl font-bold text-[#0F172A]">{batch.days}</h3>
                 </div>
                 {isActive && (
-                  <span className="inline-flex items-center rounded-full bg-[#F97316]/10 px-3 py-1 text-xs font-semibold text-[#F97316]">
+                  <span className="inline-flex items-center rounded-full bg-[#A33B2B]/10 px-3 py-1 text-xs font-semibold text-[#A33B2B]">
                     Selected
                   </span>
                 )}
@@ -62,7 +62,7 @@ function BatchList({ batches, onSelectBatch }: BatchListProps) {
                   setActiveBatch(batch.name);
                   onSelectBatch?.(batch);
                 }}
-                className={`mt-2 rounded-full px-5 py-3 text-sm font-semibold transition ${isActive ? "bg-[#0F172A] text-white hover:bg-slate-900" : "bg-[#F97316] text-white hover:bg-orange-600"}`}
+                className={`mt-2 rounded-full px-5 py-3 text-sm font-semibold transition ${isActive ? "bg-[#0F172A] text-white hover:bg-slate-900" : "bg-[#A33B2B] text-white hover:bg-orange-600"}`}
               >
                 {isActive ? "Selected" : "Select Batch"}
               </button>

@@ -228,7 +228,7 @@ function SuccessPage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <Link
                   to="/programs"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#F97316] px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-[#F97316]/20 hover:bg-[#ea7a2e] transition"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#A33B2B] px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-[#A33B2B]/20 hover:bg-[#ea7a2e] transition"
                 >
                   <HiOutlineHome className="h-4 w-4" />
                   Explore More Programs
@@ -236,7 +236,7 @@ function SuccessPage() {
                 <button
                   type="button"
                   onClick={handleDownloadReceipt}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3 text-sm font-semibold text-slate-700 hover:border-[#F97316] hover:text-[#0F172A] transition"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3 text-sm font-semibold text-slate-700 hover:border-[#A33B2B] hover:text-[#0F172A] transition"
                 >
                   <HiOutlineArrowDownTray className="h-4 w-4" />
                   Download Receipt
@@ -247,7 +247,7 @@ function SuccessPage() {
             {/* Right — What happens next */}
             <aside className="space-y-5 rounded-[28px] border border-slate-200 bg-[#FEF4E6] p-6 sm:p-8">
               <div className="rounded-[20px] bg-white p-5 shadow-sm">
-                <p className="text-sm uppercase tracking-widest text-[#F97316] font-semibold">What Happens Next</p>
+                <p className="text-sm uppercase tracking-widest text-[#A33B2B] font-semibold">What Happens Next</p>
                 <div className="mt-4 space-y-4 text-sm text-slate-600">
                   <div className="rounded-xl bg-slate-50 p-4">
                     <p className="font-bold text-[#0F172A]">📧 Confirmation Email</p>
@@ -273,7 +273,7 @@ function SuccessPage() {
                 <p className="mt-2 text-sm text-slate-600">
                   Contact us if you need to update your registration or have questions.
                 </p>
-                <div className="mt-3 rounded-xl bg-[#F97316]/10 px-4 py-3 text-sm font-semibold text-[#F97316]">
+                <div className="mt-3 rounded-xl bg-[#A33B2B]/10 px-4 py-3 text-sm font-semibold text-[#A33B2B]">
                   support@cca.example
                 </div>
               </div>

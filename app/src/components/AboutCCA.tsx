@@ -15,8 +15,8 @@ function AboutCCA() {
           {/* Left — Visual */}
           <div className="space-y-5">
             <div className="bg-[#0F172A] rounded-3xl p-8 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-[#F97316]/10 -translate-y-1/2 translate-x-1/2" />
-              <span className="inline-block bg-[#F97316] text-white text-xs font-bold px-3 py-1 rounded-full mb-5 uppercase tracking-wide">Our Story</span>
+              <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-[#A33B2B]/10 -translate-y-1/2 translate-x-1/2" />
+              <span className="inline-block bg-[#A33B2B] text-white text-xs font-bold px-3 py-1 rounded-full mb-5 uppercase tracking-wide">Our Story</span>
               <h3 className="font-display text-2xl font-bold leading-snug">
                 From a single ground in Fremont to California's largest cricket academy.
               </h3>
@@ -29,7 +29,7 @@ function AboutCCA() {
             <div className="grid grid-cols-2 gap-4">
               {milestones.map((m, i) => (
                 <div key={i} className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-md transition">
-                  <p className="font-display text-2xl font-bold text-[#F97316]">{m.year}</p>
+                  <p className="font-display text-2xl font-bold text-[#A33B2B]">{m.year}</p>
                   <p className="font-semibold text-[#0F172A] text-sm mt-1">{m.label}</p>
                   <p className="text-slate-400 text-xs mt-1 leading-tight">{m.desc}</p>
                 </div>
@@ -39,7 +39,7 @@ function AboutCCA() {
 
           {/* Right — Content */}
           <div>
-            <span className="text-[#F97316] text-xs font-bold tracking-widest uppercase block mb-4">About CCA</span>
+            <span className="text-[#A33B2B] text-xs font-bold tracking-widest uppercase block mb-4">About CCA</span>
             <h2 className="font-display text-4xl lg:text-5xl font-bold text-[#0F172A] leading-tight">
               Developing Young Cricketers Since 2004
             </h2>

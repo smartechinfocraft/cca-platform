@@ -28,13 +28,13 @@ function FAQ() {
     <section id="faq" className="py-24 bg-[#FFFBF5]">
       <div className="max-w-5xl mx-auto px-6">
         <div className="text-center mb-14">
-          <span className="text-[#F97316] text-xs font-bold tracking-widest uppercase block mb-3">FAQs</span>
+          <span className="text-[#A33B2B] text-xs font-bold tracking-widest uppercase block mb-3">FAQs</span>
           <h2 className="font-display text-4xl lg:text-5xl font-bold text-[#0F172A]">
             Frequently Asked Questions
           </h2>
           <p className="text-slate-500 mt-4 max-w-md mx-auto">
             Everything parents ask us most. Can't find your answer?{" "}
-            <a href="mailto:hello@californiacricketacademy.org" className="text-[#F97316] font-semibold hover:underline">
+            <a href="mailto:hello@californiacricketacademy.org" className="text-[#A33B2B] font-semibold hover:underline">
               Email us
             </a>
           </p>
@@ -58,7 +58,7 @@ function FAQ() {
                   <span>{faq.question}</span>
                   <span className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center transition-all text-sm font-bold ${
                     open === faq._id
-                      ? "bg-[#F97316] text-white rotate-45"
+                      ? "bg-[#A33B2B] text-white rotate-45"
                       : "bg-slate-100 text-slate-500"
                   }`}>
                     +

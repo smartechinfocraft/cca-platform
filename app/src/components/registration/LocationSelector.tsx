@@ -17,7 +17,7 @@ function LocationSelector({ selectedLocation, onSelectLocation }: LocationSelect
             onClick={() => onSelectLocation(location)}
             className={`rounded-3xl border p-5 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
               isActive
-                ? "border-[#F97316] bg-[#F97316]/10 text-[#0F172A] shadow-md"
+                ? "border-[#A33B2B] bg-[#A33B2B]/10 text-[#0F172A] shadow-md"
                 : "border-slate-200 bg-white text-slate-800"
             }`}
           >

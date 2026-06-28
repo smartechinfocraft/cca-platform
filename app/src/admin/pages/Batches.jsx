@@ -242,7 +242,7 @@ export default function Batches() {
       key: 'currentCapacity', label: 'Capacity',
       render: (v, row) => {
         const pct = row.maxCapacity ? Math.round((v / row.maxCapacity) * 100) : 0;
-        const color = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f97316' : '#22c55e';
+        const color = pct >= 90 ? '#ef4444' : pct >= 70 ? '#A33B2B' : '#22c55e';
         return (
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
             <span style={{ color }}>{v}/{row.maxCapacity}</span>

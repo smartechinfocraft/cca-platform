@@ -75,7 +75,7 @@ function MultiSelectDropdown({
           type="button"
           onClick={() => setOpen((v) => !v)}
           className={`w-full h-12 rounded-[12px] border bg-white/90 px-4 text-sm text-left flex items-center justify-between gap-2 outline-none transition duration-200 hover:border-slate-400 ${
-            open ? "border-[#F97316] ring-2 ring-[#F97316]/10" : "border-slate-300"
+            open ? "border-[#A33B2B] ring-2 ring-[#A33B2B]/10" : "border-slate-300"
           }`}
         >
           <span className={selected.length > 0 ? "text-slate-900" : "text-slate-500"}>
@@ -88,7 +88,7 @@ function MultiSelectDropdown({
                 tabIndex={0}
                 onClick={(e) => { e.stopPropagation(); onChange([]); }}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onChange([]); } }}
-                className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center hover:bg-[#F97316]/20 transition"
+                className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center hover:bg-[#A33B2B]/20 transition"
               >
                 <HiX className="h-2.5 w-2.5 text-slate-500" />
               </span>
@@ -113,13 +113,13 @@ function MultiSelectDropdown({
                   onClick={() => toggle(opt)}
                   className={`w-full text-left px-4 py-3 text-sm flex items-center gap-3 border-t border-slate-100 first:border-t-0 transition ${
                     checked
-                      ? "bg-[#F97316]/10 text-[#F97316] font-semibold"
-                      : "text-slate-700 hover:bg-orange-50 hover:text-[#F97316]"
+                      ? "bg-[#A33B2B]/10 text-[#A33B2B] font-semibold"
+                      : "text-slate-700 hover:bg-orange-50 hover:text-[#A33B2B]"
                   }`}
                 >
                   <span
                     className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                      checked ? "bg-[#F97316] border-[#F97316]" : "border-slate-300"
+                      checked ? "bg-[#A33B2B] border-[#A33B2B]" : "border-slate-300"
                     }`}
                   >
                     {checked && (
@@ -218,7 +218,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
         {/* ── Season custom dropdown ── */}
         <div className="space-y-2" ref={seasonRef}>
           <label className="text-xs uppercase tracking-[0.24em] text-slate-500 flex items-center gap-2">
-            <HiOutlineCalendar className="h-4 w-4 text-[#F97316]" />
+            <HiOutlineCalendar className="h-4 w-4 text-[#A33B2B]" />
             Season
           </label>
           <div className="relative">
@@ -226,7 +226,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
               type="button"
               onClick={() => setSeasonOpen((v) => !v)}
               className={`w-full h-12 rounded-[12px] border bg-white/90 px-4 text-sm text-left flex items-center justify-between gap-2 outline-none transition duration-200 hover:border-slate-400 ${
-                seasonOpen ? "border-[#F97316] ring-2 ring-[#F97316]/10" : "border-slate-300"
+                seasonOpen ? "border-[#A33B2B] ring-2 ring-[#A33B2B]/10" : "border-slate-300"
               }`}
             >
               <span className={filters.season ? "text-slate-900" : "text-slate-500"}>
@@ -244,8 +244,8 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
                   onClick={() => { onChange({ season: "" }); setSeasonOpen(false); }}
                   className={`w-full text-left px-4 py-3 text-sm transition ${
                     !filters.season
-                      ? "bg-[#F97316]/10 text-[#F97316] font-semibold"
-                      : "text-slate-700 hover:bg-orange-50 hover:text-[#F97316]"
+                      ? "bg-[#A33B2B]/10 text-[#A33B2B] font-semibold"
+                      : "text-slate-700 hover:bg-orange-50 hover:text-[#A33B2B]"
                   }`}
                 >
                   All Seasons
@@ -272,8 +272,8 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
                         !isLive
                           ? "text-slate-400 cursor-not-allowed"
                           : isSelected
-                          ? "bg-[#F97316]/10 text-[#F97316] font-semibold"
-                          : "text-slate-700 hover:bg-orange-50 hover:text-[#F97316]"
+                          ? "bg-[#A33B2B]/10 text-[#A33B2B] font-semibold"
+                          : "text-slate-700 hover:bg-orange-50 hover:text-[#A33B2B]"
                       }`}
                     >
                       <span>{s.title}</span>
@@ -293,7 +293,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
         {/* ── City multi-select ── */}
         <MultiSelectDropdown
           label="Location"
-          icon={<HiOutlineLocationMarker className="h-4 w-4 text-[#F97316]" />}
+          icon={<HiOutlineLocationMarker className="h-4 w-4 text-[#A33B2B]" />}
           options={cityOptions}
           selected={filters.cities}
           placeholder="All Locations"
@@ -303,7 +303,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
         {/* ── Skill Level multi-select ── */}
         <MultiSelectDropdown
           label="Skill Level"
-          icon={<HiOutlineSparkles className="h-4 w-4 text-[#F97316]" />}
+          icon={<HiOutlineSparkles className="h-4 w-4 text-[#A33B2B]" />}
           options={levelOptions}
           selected={filters.levels}
           placeholder="All Levels"
@@ -313,7 +313,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
         {/* ── Age Group multi-select ── */}
         <MultiSelectDropdown
           label="Age Group"
-          icon={<HiOutlineUserGroup className="h-4 w-4 text-[#F97316]" />}
+          icon={<HiOutlineUserGroup className="h-4 w-4 text-[#A33B2B]" />}
           options={ageGroupOptions}
           selected={filters.ageGroups}
           placeholder="All Ages"
@@ -324,13 +324,13 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
         <div className="flex flex-col gap-3 sm:flex-row items-stretch sm:items-end">
           <button
             onClick={() => onChange({ season: "", cities: [], levels: [], ageGroups: [] })}
-            className="h-12 rounded-[12px] border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-900 transition duration-200 hover:border-[#F97316]"
+            className="h-12 rounded-[12px] border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-900 transition duration-200 hover:border-[#A33B2B]"
           >
             Reset
           </button>
           <button
             onClick={() => onSearch && onSearch()}
-            className="h-12 rounded-[12px] bg-[#F97316] px-5 text-sm font-semibold text-white transition duration-200 hover:bg-[#ea7a2e] flex items-center justify-center gap-2"
+            className="h-12 rounded-[12px] bg-[#A33B2B] px-5 text-sm font-semibold text-white transition duration-200 hover:bg-[#ea7a2e] flex items-center justify-center gap-2"
           >
             <HiSearch className="h-4 w-4" />
             Search
