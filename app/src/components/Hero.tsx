@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const stats = [
@@ -22,6 +22,7 @@ function CricketBallSVG({ className = "" }: { className?: string }) {
 export default function Hero() {
   const navigate  = useNavigate();
   const sectionRef = useRef<HTMLElement>(null);
+  const [videoOpen, setVideoOpen] = useState(false);
 
   // Scroll-reveal observer for hero children
   useEffect(() => {
@@ -35,6 +36,19 @@ export default function Hero() {
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!videoOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setVideoOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [videoOpen]);
 
   return (
     <section ref={sectionRef} className="hero-gradient overflow-hidden relative min-h-[92vh] flex items-center">
@@ -76,7 +90,7 @@ export default function Hero() {
             <h1 className="reveal reveal-delay-1 font-display text-[3.2rem] sm:text-6xl lg:text-[4.2rem] font-semibold text-[var(--outfield)] leading-[1.06] tracking-tight mt-4">
               Train Like A{" "}
               <span className="relative inline-block">
-                <span style={{ color: "var(--gold)" }}>Champion</span>
+                <span style={{ color: "var(--cca-red)" }}>Champion</span>
                 {/* Underline — seam-stitch detail, on-brand */}
                 <svg
                   className="absolute -bottom-1.5 left-0 w-full"
@@ -86,7 +100,7 @@ export default function Hero() {
                 >
                   <path
                     d="M2 9 Q75 2 150 8 Q225 14 298 7"
-                    stroke="#A33B2B"
+                    stroke="var(--cca-red)"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeDasharray="5 5"
@@ -96,11 +110,20 @@ export default function Hero() {
               </span>
             </h1>
 
-            <p className="reveal reveal-delay-2 text-[var(--ink-500)] text-lg mt-7 leading-[1.8] max-w-lg">
+            <p className="reveal reveal-delay-2 text-[var(--ink-800)] text-lg mt-7 leading-[1.8] max-w-lg">
               Structured cricket training for ages 6–16 across California.
               Build skills, confidence, and competitive spirit with
               professional coaches who truly care.
             </p>
+
+            <button
+              type="button"
+              onClick={() => setVideoOpen(true)}
+              className="reveal reveal-delay-2 mt-5 inline-flex items-center gap-2 rounded-full border border-[var(--cca-red)]/25 bg-white/70 px-4 py-2 text-md font-semibold text-[var(--cca-red)] shadow-sm backdrop-blur-sm transition hover:border-[var(--cca-red)] hover:bg-white"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--cca-red)] text-xs text-white">▶</span>
+              New to CCA? Watch Our 2-Min Intro Video
+            </button>
 
             {/* CTA buttons */}
             <div className="reveal reveal-delay-3 flex flex-wrap gap-3 mt-9">
@@ -114,12 +137,15 @@ export default function Hero() {
               <button
                 onClick={() => document.querySelector("#programs")?.scrollIntoView({ behavior: "smooth" })}
                 className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
-                style={{ borderColor: "var(--gold)", color: "var(--gold)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--gold)"; e.currentTarget.style.color = "var(--outfield)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--gold)"; }}
+                style={{ borderColor: "var(--cca-red)", color: "var(--cca-red)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--cca-red)"; e.currentTarget.style.color = "var(--white)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--cca-red)"; }}
               >
                 Register Now
               </button>
+
+
+           
             </div>
 
             {/* Social proof strip */}
@@ -200,8 +226,8 @@ export default function Hero() {
                 {/* Enrolment CTA strip */}
                 <div className="mt-6 rounded-2xl p-5 flex items-center justify-between shadow-lg" style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-light))" }}>
                   <div>
-                    <p className="font-semibold text-sm" style={{ color: "var(--outfield)" }}>Next Enrollment Open</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--outfield-soft)" }}>Summer 2026 Season</p>
+                    <p className="font-semibold text-md" style={{ color: "var(--outfield)" }}>Fall 2026 Enrollment Open</p>
+
                   </div>
                   <button
                     onClick={() => navigate("/programs")}
@@ -238,15 +264,52 @@ export default function Hero() {
             "⚡ ICC Certified Coaches",
             "🏆 3,000+ Players Trained",
             "📍 10+ Locations Across California",
-            "🇺🇸 100+ USA Cricket Representatives",
+            "&#x1f1fa;&#x1f1f8; 100+ USA Cricket Representatives",
             "🌟 California's #1 Youth Cricket Academy",
           ].map((item, i) => (
-            <span key={i} className="mx-8 text-xs font-semibold text-white/70 whitespace-nowrap tracking-wide">
+            <span key={i} className="mx-8 text-lg font-semibold text-white/90 whitespace-nowrap tracking-wide">
               {item}
             </span>
           ))}
         </div>
       </div>
+
+      {videoOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
+          <button
+            type="button"
+            aria-label="Close intro video"
+            className="absolute inset-0 h-full w-full"
+            onClick={() => setVideoOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/20">
+            <div className="flex items-center justify-between bg-white px-4 py-3 sm:px-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A33B2B]">CCA Intro</p>
+                <h2 className="text-base font-bold text-[#0F172A] sm:text-lg">New to CCA?</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVideoOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-xl leading-none text-slate-500 transition hover:bg-slate-50"
+                aria-label="Close video"
+              >
+                ×
+              </button>
+            </div>
+            <div className="aspect-video w-full bg-black">
+              <iframe
+                className="h-full w-full"
+                src="https://www.youtube.com/embed/rxJdJeBPWaY?si=WRt-fFh_nSasy1C8&info=0"
+                title="CCA intro video"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

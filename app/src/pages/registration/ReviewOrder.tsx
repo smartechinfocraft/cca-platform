@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import {
 } from "react-icons/hi2";
 import { useRegistration } from "../../context/RegistrationContext";
 import { useAuth } from "../../context/AuthContext";
+import { useCart } from "../../context/CartContext";
 import api from "../../api/axios";
 
 function ReviewOrder() {
@@ -26,6 +27,8 @@ function ReviewOrder() {
     setCouponDiscount,
   } = useRegistration();
   const { user } = useAuth();
+  const { items: cartItems, addItem } = useCart();
+  const cartSyncedRef = useRef(false);
 
   const [editingBilling, setEditingBilling] = useState(false);
 
@@ -36,6 +39,61 @@ function ReviewOrder() {
 
   // Available coupons
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (cartSyncedRef.current || !selectedProgram || !selectedBatch) return;
+
+    const cartStudents = students
+      .filter((student) => student.firstName.trim() && student.lastName.trim())
+      .map((student) => ({
+        firstName: student.firstName,
+        lastName: student.lastName,
+        dob: student.dob,
+        gender: student.gender,
+        schoolName: student.schoolName,
+        medicalNotes: student.medicalNotes,
+      }));
+
+    if (cartStudents.length === 0) return;
+
+    const batchId = selectedBatch._id ?? selectedBatch.name ?? "selected-batch";
+    const selectedMonth = (selectedBatch as any).selectedMonth?.label ?? "";
+    const selectedDays = selectedBatch.days ?? selectedBatch.timing ?? "";
+    const sameRegistrationExists = cartItems.some((item) => {
+      const sameStudents =
+        item.students.length === cartStudents.length &&
+        item.students.every((student, index) =>
+          student.firstName === cartStudents[index]?.firstName &&
+          student.lastName === cartStudents[index]?.lastName &&
+          student.dob === cartStudents[index]?.dob
+        );
+
+      return (
+        item.programId === selectedProgram._id &&
+        item.batchId === batchId &&
+        item.selectedMonth === selectedMonth &&
+        item.selectedDays === selectedDays &&
+        sameStudents
+      );
+    });
+
+    if (!sameRegistrationExists) {
+      addItem({
+        programId: selectedProgram._id,
+        programTitle: selectedProgram.title,
+        programImage: (selectedProgram as any).coverImageUrl,
+        batchId,
+        batchName: selectedBatch.name,
+        selectedMonth,
+        selectedDays,
+        sessionsPerWeek: selectedBatch.sessionsPerWeek ?? 1,
+        fee: selectedBatch.fee,
+        students: cartStudents,
+      });
+    }
+
+    cartSyncedRef.current = true;
+  }, [addItem, cartItems, selectedBatch, selectedProgram, students]);
 
   useEffect(() => {
     if (user) {
@@ -213,7 +271,7 @@ function ReviewOrder() {
                           ))}
                       </ul>
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--gold)]">${selectedBatch.fee} / student</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--gold)]">${selectedBatch.fee} </p>
                   </div>
                 )}
               </div>
@@ -223,7 +281,12 @@ function ReviewOrder() {
                 <div className="flex items-center justify-between gap-4 mb-4">
                   <div>
                     <p className="text-xs uppercase tracking-widest text-slate-500">Students Enrolled</p>
-                    <h2 className="mt-1 text-xl font-bold text-[#0F172A]">{students.length} Student{students.length > 1 ? "s" : ""}</h2>
+                    <h2 className="mt-1 text-xl font-bold text-[#0F172A] flex items-center gap-2">
+                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-600 text-sm font-bold text-white">
+                              {students.length} 
+              </span>
+   
+                      Student{students.length > 1 ? "s" : ""}</h2>
                   </div>
                   <button
                     type="button"

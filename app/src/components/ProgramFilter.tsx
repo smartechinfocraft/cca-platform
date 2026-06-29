@@ -212,7 +212,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
   }, []);
 
   return (
-    <div className="sticky top-4 z-20 bg-white/80 backdrop-blur-xl border border-white/70 shadow-lg shadow-slate-200/30 rounded-[24px] p-4 sm:p-5 transition duration-300">
+    <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border border-white/70 shadow-lg shadow-slate-200/30 rounded-[24px] p-4 sm:p-5 transition duration-300">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1.2fr_1.2fr_1.2fr_1.3fr] items-end">
 
         {/* ── Season custom dropdown ── */}

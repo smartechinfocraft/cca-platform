@@ -174,7 +174,7 @@ function Navbar() {
             {/* Rest of nav links */}
             {links.slice(1).map((link) => (
               <button key={link.label} onClick={() => handleNav(link.href)} className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--ink-500)] hover:text-[var(--outfield)] hover:bg-[var(--pitch-soft)] transition-all">
-                {link.label}
+               {link.label}
               </button>
             ))}
           </nav>

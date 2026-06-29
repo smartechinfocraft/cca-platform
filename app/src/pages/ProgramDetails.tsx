@@ -251,9 +251,9 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
 
       {/* ── STEP 1: Header ── */}
       <div>
-        <p className="text-sm tracking-[0.1em] text-[#A33B2B] font-semibold">Registration Details</p>
+        {/* <p className="text-sm tracking-[0.1em] text-[#A33B2B] font-semibold">Batch Details</p> */}
         {!batchConfirmed
-          ? <h2 className="mt-1 text-md font-bold text-[#0F172A]">Select Month & Batch</h2>
+          ? <h2 className="mt-1 text-md font-bold text-[#0F172A]">Select Batch Details</h2>
           : (
             <div className="flex items-center gap-2 mt-1">
               <button type="button" onClick={() => setBatchConfirmed(false)}
@@ -281,11 +281,11 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
             return (
               <div key={batch._id}
                 className={`rounded-2xl border transition ${isSelected
-                  ? "border-[#A33B2B] bg-[#FFF7ED] ring-2 ring-[#A33B2B]/20"
+                  ? "border-green-300 bg-green-50 "
                   : "border-slate-200 bg-slate-50"}`}
               >
                 {/* Batch name row */}
-                <div className="px-4 pt-4 pb-2">
+                {/* <div className="px-4 pt-4 pb-2">
                   <p className="text-xl font-bold text-[#0F172A]">
                     {batch.title || batch.name}
                   </p>
@@ -303,7 +303,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                       </p>
                     ) : null;
                   })()}
-                </div>
+                </div> */}
 
                 <div className="px-4 pb-4 space-y-4 border-t border-slate-200 pt-3">
                   {/* Select Month */}
@@ -316,8 +316,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                           return (
                             <label key={oi}
                               className={`flex items-center gap-1.5 cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-full border transition ${isChecked
-                                ? "border-[#A33B2B] bg-[#A33B2B] text-white"
-                                : "border-slate-300 bg-white text-slate-700 hover:border-[#A33B2B]/60"}`}
+                                ? "border-green-200 bg-green-800 text-white"
+                                : "border-slate-300 bg-white text-slate-700 hover:border-green-500"}`}
                             >
                               <input type="radio" name={`month-${batch._id}`} checked={isChecked}
                                 onChange={() => {
@@ -364,8 +364,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                             {bFreqOpts.map((n) => (
                               <label key={n}
                                 className={`flex items-center gap-1.5 cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-full border transition ${selectedFreq === n
-                                  ? "border-[#A33B2B] bg-[#A33B2B] text-white"
-                                  : "border-slate-300 bg-white text-slate-700 hover:border-[#A33B2B]/60"}`}
+                                   ? "border-green-200 bg-green-800 text-white"
+                                : "border-slate-300 bg-white text-slate-700 hover:border-green-500"}`}
                               >
                                 <input type="radio" name={`freq-${batch._id}`} checked={selectedFreq === n}
                                   onChange={() => { setSelectedFreq(n); setDaySlots(Array(n).fill(null)); }}
@@ -389,8 +389,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                                 const val = e.target.value || null;
                                 setDaySlots((prev) => { const next = [...prev]; next[di] = val; return next; });
                               }}
-                              className="w-full rounded-xl border px-3 py-2 text-sm bg-white text-slate-900 outline-none transition focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
-                              style={{ borderColor: daySlots[di] ? "#A33B2B" : "#e2e8f0" }}
+                              className="w-full rounded-xl border px-3 py-2 text-sm bg-white text-slate-900 outline-none transition focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
+                              style={{ borderColor: daySlots[di] ? "#07c245" : "#e2e8f0" }}
                             >
                               <option value="">Select Day {selectedFreq > 1 ? di + 1 : ""}</option>
                               {buildDaySlotOptions(batch)
@@ -403,12 +403,12 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
 
                       {/* Price + Confirm button */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                        <div>
+                        <div className="flex flex-col items-start">
                           <p className="text-xs text-slate-400 uppercase tracking-wide">Total</p>
                           <p className="text-xl font-bold text-[#0F172A]">${totalPrice || "—"}</p>
                         </div>
                         <button type="button" disabled={!canConfirm} onClick={handleConfirm}
-                          className="inline-flex items-center gap-2 rounded-full bg-[#A33B2B] px-5 py-2.5 text-md font-bold text-white shadow-md hover:bg-[#ea7a2e] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          className="inline-flex items-center gap-2 rounded-full bg-green-800 px-5 py-2.5 text-md font-semibold text-white shadow-md hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
                         >
                           Next — Student Details <HiOutlineArrowRight className="h-4 w-4" />
                         </button>
@@ -426,7 +426,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
       {batchConfirmed && student && (
         <div ref={studentFormRef} className="space-y-4">
           {/* Confirmed batch summary */}
-          <div className="rounded-xl bg-[#FFF7ED] border border-[#A33B2B]/30 px-4 py-3 flex items-center justify-between">
+          <div className="rounded-xl bg-green-50 border border-green-500 px-4 py-3 flex items-center justify-between">
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide">Selected</p>
               <p className="text-sm font-semibold text-[#0F172A]">
@@ -434,13 +434,16 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               </p>
               <p className="text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
             </div>
-            <p className="text-lg font-bold text-[#A33B2B]">${totalPrice}</p>
+            <p className="text-lg font-bold text-green-800">${totalPrice}</p>
           </div>
 
           {/* Student header */}
           <div>
-            <h2 className="text-lg font-bold text-[#0F172A]">
-              Student {currentStudentIndex + 1}{students.length > 1 ? ` of ${students.length}` : ""}
+            <h2 className="text-lg font-bold text-[#0F172A] flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-600 text-sm font-bold text-white">
+                {currentStudentIndex + 1}
+              </span>
+              <span>{students.length > 1 ? `of ${students.length} Students` : "Student"}</span>
             </h2>
             {students.length > 1 && (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -448,8 +451,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                   <button key={i} type="button"
                     onClick={() => { setCurrentStudentIndex(i); setDobError(""); }}
                     className={`h-8 w-8 rounded-full border text-xs font-bold transition ${i === currentStudentIndex
-                      ? "border-[#A33B2B] bg-[#A33B2B] text-white"
-                      : "border-slate-300 bg-white text-slate-600 hover:border-[#A33B2B]"}`}
+                      ? "border-slate-600 bg-slate-600 text-white"
+                      : "border-slate-300 bg-white text-slate-600 hover:border-slate-600"}`}
                   >{i + 1}</button>
                 ))}
               </div>
@@ -466,7 +469,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 <input type="text" value={student.firstName}
                   onChange={(e) => handleStudentChange("firstName", e.target.value)}
                   placeholder="Alex"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                 />
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -476,7 +479,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 <input type="text" value={student.lastName}
                   onChange={(e) => handleStudentChange("lastName", e.target.value)}
                   placeholder="Patel"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                 />
               </div>
             </div>
@@ -489,7 +492,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 <input type="date" value={student.dob}
                   max={new Date().toISOString().split("T")[0]}
                   onChange={(e) => handleDobChange(e.target.value)}
-                  className={`w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 ${dobError ? "border-red-400 focus:ring-red-400/15" : "border-slate-200 focus:border-[#A33B2B] focus:ring-[#A33B2B]/15"}`}
+                  className={`w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 ${dobError ? "border-red-400 focus:ring-red-400/15" : "border-slate-200 focus:border-slate-600 focus:ring-slate-600/15"}`}
                 />
                 {dobError && <p className="mt-1 text-xs font-semibold text-red-500">{dobError}</p>}
               </div>
@@ -499,7 +502,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 </label>
                 <select value={student.gender}
                   onChange={(e) => handleStudentChange("gender", e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                 >
                   <option value="">Choose gender</option>
                   <option value="Male">Male</option>
@@ -515,7 +518,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               <input type="text" value={student.schoolName}
                 onChange={(e) => handleStudentChange("schoolName", e.target.value)}
                 placeholder="Sunrise High School"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
               />
             </div>
 
@@ -524,7 +527,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               <textarea rows={2} value={student.medicalNotes}
                 onChange={(e) => handleStudentChange("medicalNotes", e.target.value)}
                 placeholder="Allergies or important health info..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15 resize-none"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15 resize-none"
               />
             </div>
 

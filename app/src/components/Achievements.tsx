@@ -16,7 +16,7 @@ function Achievements() {
             Our Track Record
           </span>
           <h2 className="font-display text-4xl font-bold text-[var(--outfield)]">
-            Trusted by Families Across California
+            Trusted by Thousands of Parents Across California
           </h2>
           <p className="text-slate-500 mt-3 max-w-lg mx-auto">
             Two decades of shaping young cricketers into confident athletes.

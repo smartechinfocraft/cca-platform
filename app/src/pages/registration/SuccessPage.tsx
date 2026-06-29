@@ -184,7 +184,7 @@ function SuccessPage() {
               </div>
 
               <div>
-                <h1 className="text-4xl font-bold tracking-tight text-[#0F172A] sm:text-5xl">
+                <h1 className="text-3xl font-bold tracking-tight text-[#0F172A] sm:text-4xl">
                   🎉 Your spot is reserved!
                 </h1>
                 <p className="mt-3 text-base leading-7 text-slate-600">

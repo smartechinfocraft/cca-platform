@@ -446,7 +446,7 @@ export default function CartPage() {
                         <h2 className="text-lg font-bold text-[#0F172A] leading-tight">{item.programTitle}</h2>
 
                         {/* Batch details */}
-                        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        <div className="mt-3 flex items-center gap-3 flex-wrap">
                           <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Batch</p>
                             <p className="mt-0.5 text-xs font-bold text-[#0F172A]">{item.batchName}</p>
@@ -465,7 +465,7 @@ export default function CartPage() {
                       {/* Price + Remove */}
                       <div className="flex flex-col items-end gap-3 shrink-0">
                         <div className="text-right">
-                          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Fee/Student</p>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total</p>
                           <p className="text-2xl font-bold mt-0.5" style={{ color: "var(--leather)" }}>${item.fee}</p>
                         </div>
                         <button

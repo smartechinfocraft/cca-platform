@@ -107,7 +107,7 @@ function Programs() {
     <>
       <Navbar />
       <div className="h-20" />
-      <section className="relative overflow-visible bg-[#f8fafc] py-14 md:py-20">
+      <section className="relative overflow-visible bg-[#f8fafc] py-10 md:py-14">
         <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.18),transparent_48%)] pointer-events-none" />
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-3xl mx-auto text-center">
@@ -128,12 +128,12 @@ function Programs() {
         </div>
       </section>
 
-      <section className="py-12 md:py-16 bg-slate-50">
+      <section className="py-8 md:py-12 bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Programs catalog</p>
-              <h2 className="mt-3 text-3xl font-semibold text-[#0F172A]">Premium coaching options for every level</h2>
+           
+              <h2 className="mt-3 text-3xl font-semibold text-[#0F172A]">Available Programs</h2>
             </div>
             <div className="rounded-full bg-white/70 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm border border-slate-200">
               Showing {filtered.length} {filtered.length === 1 ? "program" : "programs"}

@@ -135,7 +135,7 @@ function StudentDetails() {
                     value={student.firstName}
                     onChange={(e) => handleChange("firstName", e.target.value)}
                     placeholder="Alex"
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                   />
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -147,7 +147,7 @@ function StudentDetails() {
                     value={student.lastName}
                     onChange={(e) => handleChange("lastName", e.target.value)}
                     placeholder="Patel"
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                   />
                 </div>
               </div>
@@ -179,7 +179,7 @@ function StudentDetails() {
                   <select
                     value={student.gender}
                     onChange={(e) => handleChange("gender", e.target.value)}
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                   >
                     <option value="">Choose gender</option>
                     <option value="Male">Male</option>
@@ -197,7 +197,7 @@ function StudentDetails() {
                   value={student.schoolName}
                   onChange={(e) => handleChange("schoolName", e.target.value)}
                   placeholder="Sunrise High School"
-                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                 />
               </div>
 
@@ -208,7 +208,7 @@ function StudentDetails() {
                   value={student.medicalNotes}
                   onChange={(e) => handleChange("medicalNotes", e.target.value)}
                   placeholder="Allergies or important health info..."
-                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/15"
+                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
                 />
               </div>
 

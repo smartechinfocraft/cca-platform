@@ -15,12 +15,13 @@ function Home() {
       <Navbar />
       <div className="h-20" /> {/* Spacer for fixed navbar */}
       <Hero />
-      <Achievements />
+ 
       <ProgramsOverview />
       <WhyChooseCCA />
       <Locations />
       <Franchises />
       <Sponsors />
+           <Achievements />
       <CTA />
       <Footer />
     </div>

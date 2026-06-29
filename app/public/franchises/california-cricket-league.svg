@@ -1,0 +1,9 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="160" rx="34" fill="#1F2E1E"/>
+  <circle cx="80" cy="80" r="52" fill="#C9A227"/>
+  <circle cx="80" cy="80" r="43" fill="#F8FAFC"/>
+  <path d="M52 96C64 70 96 62 112 83" stroke="#A33B2B" stroke-width="8" stroke-linecap="round"/>
+  <path d="M50 104H112" stroke="#1F2E1E" stroke-width="7" stroke-linecap="round"/>
+  <path d="M80 45V113" stroke="#A33B2B" stroke-width="5" stroke-linecap="round" stroke-dasharray="4 7"/>
+  <text x="80" y="134" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#F8FAFC">CCL</text>
+</svg>

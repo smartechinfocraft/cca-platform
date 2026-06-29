@@ -36,9 +36,9 @@ function ProgramsOverview() {
               What We Offer
             </span>
             <h2 className="font-display text-4xl lg:text-5xl font-bold text-[var(--outfield)] leading-tight">
-              Programs for Every<br />Skill Level
+              Programs for Every Skill Level
             </h2>
-            <p className="text-slate-500 mt-4 max-w-md">
+            <p className="text-slate-500 mt-4">
               From first-timers to future national players—there's a CCA program built for your child.
             </p>
           </div>
@@ -78,13 +78,13 @@ function ProgramsOverview() {
                   </p>
                   <div className="flex items-center justify-between mt-5 pt-5 border-t border-slate-100">
                     {program.basePrice ? (
-                      <span className="text-[var(--gold)] font-bold text-lg">${program.basePrice}<span className="text-xs text-slate-400 font-normal">/season</span></span>
+                      <span className="text-[var(--gold)] font-bold text-lg">${program.basePrice}<span className="text-xs text-slate-400 font-normal"></span></span>
                     ) : <span />}
                     <button
                       onClick={() => navigate(`/programs/${program._id}`)}
                       className="text-sm font-semibold text-[var(--outfield)] hover:text-[var(--gold)] transition flex items-center gap-1"
                     >
-                      Learn More
+                     Program Details
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
                       </svg>
@@ -99,7 +99,7 @@ function ProgramsOverview() {
         <div className="text-center mt-10">
           <button
             onClick={() => navigate("/programs")}
-            className="bg-[var(--gold)] hover:bg-[var(--gold-light)] text-[var(--outfield)] px-10 py-3.5 rounded-full font-semibold text-sm shadow-md shadow-[var(--gold-glow)] hover:shadow-[var(--gold-glow)] transition-all hover:scale-105"
+            className="bg-[var(--gold)] hover:bg-[var(--gold-light)] text-[var(--white)] px-10 py-3.5 rounded-full font-semibold text-sm shadow-md shadow-[var(--gold-glow)] hover:shadow-[var(--gold-glow)] transition-all hover:scale-105"
           >
             View All Programs →
           </button>

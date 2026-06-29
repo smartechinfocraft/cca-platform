@@ -177,8 +177,32 @@ export default function ProgramSelection() {
   }, [id, setSelectedProgram]);
 
   useEffect(() => {
+    if (batchConfirmed && selectedBatch?.days) return;
     setDaySlots(Array(selectedFreq).fill(null));
-  }, [selectedFreq]);
+  }, [batchConfirmed, selectedBatch, selectedFreq]);
+
+  useEffect(() => {
+    if (!selectedBatch || batches.length === 0 || selectedBatchId || batchConfirmed) return;
+    const savedBatch = batches.find((batch) => batch._id === selectedBatch._id);
+    if (!savedBatch) return;
+
+    const savedMonth = (selectedBatch as any).selectedMonth ?? {
+      label: selectedBatch.name,
+      startDate: "",
+      endDate: "",
+      weeks: "",
+      price: selectedBatch.fee,
+    };
+    const savedFrequency = Number((selectedBatch as any).selectedFrequency ?? selectedBatch.sessionsPerWeek ?? 1);
+    const savedDays = selectedBatch.days ? selectedBatch.days.split(" + ") : [];
+
+    setSelectedBatchId(savedBatch._id);
+    setSelectedMonth(savedMonth);
+    setSelectedFreq(savedFrequency);
+    setDaySlots(savedDays.length > 0 ? savedDays : Array(savedFrequency).fill(null));
+    updateStudent(currentStudentIndex, { selectedBatch });
+    setBatchConfirmed(true);
+  }, [batchConfirmed, batches, currentStudentIndex, selectedBatch, selectedBatchId, updateStudent]);
 
   const activeBatch = batches.find((b) => b._id === selectedBatchId) ?? null;
   const pricePerSession = activeBatch ? getPricePerSession(activeBatch) : 0;
