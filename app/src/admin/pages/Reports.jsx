@@ -7,8 +7,9 @@ import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { reportsAPI, programsAPI, categoriesAPI, batchesAPI, locationsAPI, levelsAPI } from '../api/client';
+import { reportsAPI, programsAPI, categoriesAPI, locationsAPI, levelsAPI } from '../api/client';
 import { PageHeader, Btn, Card, FormField, Select, Input } from '../components/common/UI';
+import { buildCustomReportPdf } from '../../utils/pdfGenerators';
 import toast from 'react-hot-toast';
 
 const COLORS = ['#D4AF37','#22c55e','#3b82f6','#A33B2B','#a855f7','#ec4899'];
@@ -17,14 +18,13 @@ export default function Reports() {
   const [revenue, setRevenue]       = useState(null);
   const [programs, setPrograms]     = useState([]);
   const [categories, setCategories] = useState([]);
-  const [batches, setBatches]       = useState([]);
   const [locations, setLocations]   = useState([]);
   const [levels, setLevels]         = useState([]);
   const [loading, setLoading]       = useState(true);
 
   // Custom report state
   const [customFilters, setCustomFilters] = useState({
-    from: '', to: '', program: '', status: '', batch: '', location: '', level: ''
+    from: '', to: '', program: '', status: '', location: '', level: ''
   });
   const [customData, setCustomData]       = useState(null);
   const [customLoading, setCustomLoading] = useState(false);
@@ -34,14 +34,12 @@ export default function Reports() {
       reportsAPI.getRevenue(),
       programsAPI.getAll({ active: true }),
       categoriesAPI.getAll(),
-      batchesAPI.getAll(),
       locationsAPI.getAll(),
       levelsAPI.getAll(),
-    ]).then(([rev, progs, cats, bats, locs, lvls]) => {
+    ]).then(([rev, progs, cats, locs, lvls]) => {
       setRevenue(rev.data.data);
       setPrograms(progs.data.data);
       setCategories(cats.data.data);
-      setBatches(bats.data.data);
       setLocations(locs.data.data);
       setLevels(lvls.data.data);
     }).catch(console.error)
@@ -66,7 +64,6 @@ export default function Reports() {
       const params = {};
       if (customFilters.program)  params.program  = customFilters.program;
       if (customFilters.status)   params.status   = customFilters.status;
-      if (customFilters.batch)    params.batch    = customFilters.batch;
       if (customFilters.location) params.location = customFilters.location;
       if (customFilters.level)    params.level    = customFilters.level;
 
@@ -85,6 +82,27 @@ export default function Reports() {
       toast.success('CSV downloaded!');
     } catch (e) {
       toast.error('Download failed');
+    }
+  };
+
+  // Download as PDF — same data as the CSV report, rendered as a branded,
+  // presentation-ready PDF (header, filters applied, striped table, page
+  // numbers + "Generated on" footer on every page).
+  const downloadPDF = () => {
+    if (!customData) return;
+    try {
+      const filterLabels = {
+        program:  programs.find(p => p._id === customFilters.program)?.title,
+        location: locations.find(l => l._id === customFilters.location)?.title,
+        level:    levels.find(l => l._id === customFilters.level)?.title,
+        status:   customFilters.status,
+        from:     customFilters.from,
+        to:       customFilters.to,
+      };
+      buildCustomReportPdf(customData.rows, customData.totals, filterLabels, customData.generatedAt);
+      toast.success('PDF downloaded!');
+    } catch (e) {
+      toast.error('PDF generation failed');
     }
   };
 
@@ -179,13 +197,6 @@ export default function Reports() {
             </Select>
           </FormField>
 
-          <FormField label="Batch">
-            <Select value={customFilters.batch} onChange={e => setCustomFilters(p => ({ ...p, batch: e.target.value }))}>
-              <option value="">All Batches</option>
-              {batches.map(b => <option key={b._id} value={b._id}>{b.title}</option>)}
-            </Select>
-          </FormField>
-
           <FormField label="Location">
             <Select value={customFilters.location} onChange={e => setCustomFilters(p => ({ ...p, location: e.target.value }))}>
               <option value="">All Locations</option>
@@ -223,6 +234,7 @@ export default function Reports() {
             {customLoading ? 'Generating...' : '📊 Generate Report'}
           </Btn>
           {customData && <Btn onClick={downloadCSV} variant="success">⬇️ Download CSV</Btn>}
+          {customData && <Btn onClick={downloadPDF} variant="success">📄 Download PDF</Btn>}
         </div>
 
         {/* Custom report results */}
