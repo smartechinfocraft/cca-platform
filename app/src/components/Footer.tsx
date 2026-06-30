@@ -1,22 +1,72 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getPrograms } from "../services/programService";
+
+type FooterLink = { label: string; href: string };
 
 function Footer() {
   const navigate = useNavigate();
   const year = new Date().getFullYear();
 
-  const links = {
-    Programs: [
-      { label: "Beginner", href: "/programs" },
-      { label: "Intermediate", href: "/programs" },
-      { label: "Advanced", href: "/programs" },
-      { label: "Summer Camp", href: "/programs" },
-    ],
-    Locations: [
-      { label: "Fremont", href: "#locations" },
-      { label: "San Jose", href: "#locations" },
-      { label: "Dublin", href: "#locations" },
-      { label: "Sunnyvale", href: "#locations" },
-    ],
+  const [programLinks, setProgramLinks] = useState<FooterLink[]>([]);
+  const [locationLinks, setLocationLinks] = useState<FooterLink[]>([]);
+  const [levelLinks, setLevelLinks] = useState<FooterLink[]>([]);
+
+  // Same data source as the Training Programs page (ProgramFilter.tsx) and
+  // the Locations page: derive Programs / Locations / Levels directly from
+  // the live programs list, so the footer always stays in sync with the DB
+  // without any manual updates.
+  useEffect(() => {
+    getPrograms()
+      .then((data) => {
+        const progList: any[] = data ?? [];
+
+        // Programs: each program links to the listing filtered to just that program
+        const programs: FooterLink[] = progList
+          .filter((p) => p.title)
+          .map((p) => ({ label: p.title, href: `/programs?program=${p._id}` }));
+        setProgramLinks(programs);
+
+        // Locations: unique cities, same fallback logic as ProgramFilter
+        const allCities = new Set<string>();
+        progList.forEach((p) => {
+          if (Array.isArray(p.cities) && p.cities.length > 0) {
+            p.cities.forEach((c: string) => { if (c?.trim()) allCities.add(c.trim()); });
+          } else if (p.location?.city?.trim()) {
+            allCities.add(p.location.city.trim());
+          } else if (p.location?.title) {
+            const city = p.location.title.split(/[-–,]/)[0].trim();
+            if (city) allCities.add(city);
+          }
+        });
+        setLocationLinks(
+          Array.from(allCities)
+            .sort()
+            .map((city) => ({ label: city, href: `/programs?city=${encodeURIComponent(city)}` }))
+        );
+
+        // Levels: unique skillLevels across all programs
+        const allLevels = new Set<string>();
+        progList.forEach((p) => {
+          if (Array.isArray(p.skillLevels)) p.skillLevels.forEach((l: string) => { if (l) allLevels.add(l); });
+        });
+        setLevelLinks(
+          Array.from(allLevels)
+            .sort()
+            .map((level) => ({ label: level, href: `/programs?level=${encodeURIComponent(level)}` }))
+        );
+      })
+      .catch(() => {
+        setProgramLinks([]);
+        setLocationLinks([]);
+        setLevelLinks([]);
+      });
+  }, []);
+
+  const links: Record<string, FooterLink[]> = {
+    Programs: programLinks,
+    Locations: locationLinks,
+    Level: levelLinks,
     Company: [
       { label: "About CCA", href: "/about" },
       { label: "Media", href: "/media" },
@@ -28,7 +78,7 @@ function Footer() {
   return (
     <footer style={{ background: "var(--outfield)" }} className="text-white">
       <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="grid md:grid-cols-5 gap-10">
+        <div className="grid md:grid-cols-6 gap-10">
 
           {/* Brand */}
           <div className="md:col-span-2">
@@ -44,13 +94,6 @@ function Footer() {
             <p className="text-white/50 text-sm leading-6 mt-4 max-w-xs">
               California's premier youth cricket development program — building champions since 2004.
             </p>
-            {/* <div className="flex gap-3 mt-6">
-              {["📘", "📸", "🐦", "▶️"].map((icon, i) => (
-                <button key={i} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center justify-center text-sm">
-                  {icon}
-                </button>
-              ))}
-            </div> */}
           </div>
 
           {/* Links */}
@@ -58,27 +101,31 @@ function Footer() {
             <div key={heading}>
               <h4 className="font-semibold text-white text-sm mb-4">{heading}</h4>
               <ul className="space-y-2.5">
-                {items.map((item) => (
-                  <li key={item.label}>
-                    <button
-                      onClick={() => {
-                        if (item.href.startsWith("#")) {
-                          if (window.location.pathname !== "/") {
-                            navigate("/");
-                            setTimeout(() => document.querySelector(item.href)?.scrollIntoView({ behavior: "smooth" }), 200);
+                {items.length === 0 ? (
+                  <li className="text-sm text-white/30">—</li>
+                ) : (
+                  items.map((item) => (
+                    <li key={item.label}>
+                      <button
+                        onClick={() => {
+                          if (item.href.startsWith("#")) {
+                            if (window.location.pathname !== "/") {
+                              navigate("/");
+                              setTimeout(() => document.querySelector(item.href)?.scrollIntoView({ behavior: "smooth" }), 200);
+                            } else {
+                              document.querySelector(item.href)?.scrollIntoView({ behavior: "smooth" });
+                            }
                           } else {
-                            document.querySelector(item.href)?.scrollIntoView({ behavior: "smooth" });
+                            navigate(item.href);
                           }
-                        } else {
-                          navigate(item.href);
-                        }
-                      }}
-                      className="text-sm text-white/50 hover:text-white transition"
-                    >
-                      {item.label}
-                    </button>
-                  </li>
-                ))}
+                        }}
+                        className="text-sm text-white/50 hover:text-white transition"
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  ))
+                )}
               </ul>
             </div>
           ))}
