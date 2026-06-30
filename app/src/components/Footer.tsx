@@ -60,7 +60,7 @@ function Footer() {
 
         setLocationLinks([
           ...topCities,
-          { label: "All Locations", href: "#locations" },
+          { label: "All Locations", href: "/programs" },
         ]);
 
         // Levels: unique skillLevels across all programs (unchanged)
