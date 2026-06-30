@@ -2,30 +2,32 @@
 //  components/chatbot/ChatbotRegistrationFlow.tsx
 //
 //  The fully-automated in-chat flow: Login/Register → pick a
-//  Program → pick a Batch → enter player details → Review →
-//  Add to Cart OR Pay (PayPal/Check) → Done.
+//  Program (with search + location filter) → pick a Batch →
+//  enter player details → Review → Add to Cart OR Pay
+//  (PayPal/Check) → Done.
 //
 //  Every step calls the SAME real backend endpoints the normal
 //  website pages use (/public/auth/*, /public/programs,
-//  /public/batches, /public/paypal/*, /public/register), so every
-//  registration/payment made here shows up identically in the
-//  database and in the Admin panel — nothing here is "fake".
+//  /public/programs/:id for batches, /public/paypal/*,
+//  /public/register), so every registration/payment made here
+//  shows up identically in the database and in the Admin panel.
 // ============================================================
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { HiOutlineArrowLeft, HiOutlineCheckCircle, HiOutlineShoppingCart } from "react-icons/hi2";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import {
-  chatLoginParent,
   chatRegisterParent,
   fetchChatPrograms,
   fetchChatBatches,
+  fetchChatLocations,
   createChatPaypalOrder,
   captureChatPaypalOrder,
   submitChatRegistration,
   type ChatProgram,
   type ChatBatch,
+  type ChatLocation,
 } from "../../services/chatbotService";
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
@@ -99,6 +101,11 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const [batches, setBatches] = useState<ChatBatch[] | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<ChatBatch | null>(null);
 
+  // program filter / search
+  const [locations, setLocations] = useState<ChatLocation[] | null>(null);
+  const [locationFilter, setLocationFilter] = useState<string>(""); // "" = all
+  const [searchText, setSearchText] = useState("");
+
   // student
   const [student, setStudent] = useState({ firstName: "", lastName: "", dob: "", gender: "" });
 
@@ -110,12 +117,17 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
 
-  // ── Load programs when entering the program step ──
+  // ── Load programs + locations when entering the program step ──
   useEffect(() => {
-    if (step === "program" && !programs) {
-      fetchChatPrograms().then(setPrograms).catch(() => setError("Couldn't load programs right now."));
+    if (step === "program") {
+      if (!programs) {
+        fetchChatPrograms().then(setPrograms).catch(() => setError("Couldn't load programs right now."));
+      }
+      if (!locations) {
+        fetchChatLocations().then(setLocations).catch(() => setLocations([]));
+      }
     }
-  }, [step, programs]);
+  }, [step, programs, locations]);
 
   // ── If a program was pre-picked (from a suggestion card), jump straight to batch selection ──
   useEffect(() => {
@@ -291,6 +303,12 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
 
   const price = selectedBatch?.fee ?? selectedProgram?.discountedPrice ?? selectedProgram?.basePrice ?? 0;
 
+  const filteredPrograms = (programs || []).filter((p) => {
+    const matchesLocation = !locationFilter || p.location?._id === locationFilter;
+    const matchesSearch = !searchText.trim() || p.title.toLowerCase().includes(searchText.trim().toLowerCase());
+    return matchesLocation && matchesSearch;
+  });
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
@@ -332,19 +350,65 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
           </>
         )}
 
-        {/* ── PROGRAM ── */}
+        {/* ── PROGRAM (with search + location filter) ── */}
         {step === "program" && (
           <>
             <Bubble>Great, {user?.firstName || regForm.firstName || "there"}! Which program would you like to register for?</Bubble>
+
             {!programs && <p className="text-xs" style={{ color: "var(--ink-400)" }}>Loading programs…</p>}
-            {programs?.map((p) => (
-              <OptionButton
-                key={p._id}
-                label={p.title}
-                sub={p.discountedPrice ? `$${p.discountedPrice} (was $${p.basePrice})` : p.basePrice ? `$${p.basePrice}` : undefined}
-                onClick={() => handlePickProgram(p)}
-              />
-            ))}
+
+            {programs && (
+              <>
+                <input
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="Search programs…"
+                  className="w-full rounded-xl border-2 px-3 py-2 text-sm outline-none focus:border-[var(--gold)] bg-white mb-2"
+                  style={{ borderColor: "var(--pitch-deep)" }}
+                />
+
+                {locations && locations.length > 0 && (
+                  <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2" style={{ scrollbarWidth: "none" }}>
+                    <button
+                      onClick={() => setLocationFilter("")}
+                      className="px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0"
+                      style={{ background: locationFilter === "" ? "var(--gold)" : "var(--gold-glow)", color: "var(--outfield)" }}
+                    >
+                      All Locations
+                    </button>
+                    {locations.map((loc) => (
+                      <button
+                        key={loc._id}
+                        onClick={() => setLocationFilter(loc._id)}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0"
+                        style={{ background: locationFilter === loc._id ? "var(--gold)" : "var(--gold-glow)", color: "var(--outfield)" }}
+                      >
+                        {loc.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-[11px] mb-2" style={{ color: "var(--ink-400)" }}>
+                  {filteredPrograms.length} program{filteredPrograms.length !== 1 ? "s" : ""} found
+                </p>
+
+                {filteredPrograms.length === 0 && (
+                  <p className="text-xs" style={{ color: "var(--ink-400)" }}>
+                    No programs match that filter — try clearing the search or picking "All Locations".
+                  </p>
+                )}
+
+                {filteredPrograms.map((p) => (
+                  <OptionButton
+                    key={p._id}
+                    label={p.title}
+                    sub={`${p.location?.title ? `📍 ${p.location.title} — ` : ""}${p.discountedPrice ? `$${p.discountedPrice} (was $${p.basePrice})` : p.basePrice ? `$${p.basePrice}` : ""}`}
+                    onClick={() => handlePickProgram(p)}
+                  />
+                ))}
+              </>
+            )}
           </>
         )}
 
