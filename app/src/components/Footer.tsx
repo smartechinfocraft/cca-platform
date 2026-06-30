@@ -44,13 +44,13 @@ function Footer() {
             <p className="text-white/50 text-sm leading-6 mt-4 max-w-xs">
               California's premier youth cricket development program — building champions since 2004.
             </p>
-            <div className="flex gap-3 mt-6">
+            {/* <div className="flex gap-3 mt-6">
               {["📘", "📸", "🐦", "▶️"].map((icon, i) => (
                 <button key={i} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 transition flex items-center justify-center text-sm">
                   {icon}
                 </button>
               ))}
-            </div>
+            </div> */}
           </div>
 
           {/* Links */}
@@ -87,7 +87,7 @@ function Footer() {
         <div className="mt-14 pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-white/40">© {year} California Cricket Academy. All rights reserved.</p>
           <div className="flex items-center gap-6 text-xs text-white/40">
-            <span>hello@californiacricketacademy.org</span>
+            <span>hello@calcricket.org</span>
             <span>·</span>
             <span>(408) 555-0100</span>
           </div>

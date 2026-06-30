@@ -34,7 +34,7 @@ function FAQ() {
           </h2>
           <p className="text-slate-500 mt-4 max-w-md mx-auto">
             Everything parents ask us most. Can't find your answer?{" "}
-            <a href="mailto:hello@californiacricketacademy.org" className="text-[#A33B2B] font-semibold hover:underline">
+            <a href="mailto:hello@calcricket.org" className="text-[#A33B2B] font-semibold hover:underline">
               Email us
             </a>
           </p>

@@ -57,7 +57,7 @@ function FAQPage() {
             </h1>
             <p className="text-[var(--ink-500)] text-lg mt-5 leading-7">
               Everything parents ask before their child's first session. Can't find your answer here?{" "}
-              <a href="mailto:hello@californiacricketacademy.org" className="font-semibold hover:underline" style={{ color: "var(--grass)" }}>
+              <a href="mailto:hello@calcricket.org" className="font-semibold hover:underline" style={{ color: "var(--grass)" }}>
                 Email us directly
               </a>.
             </p>

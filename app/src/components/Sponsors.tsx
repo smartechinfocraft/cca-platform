@@ -33,7 +33,7 @@ function Sponsors() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-5">
           {loading
             ? [1,2,3,4].map(i => <div key={i} className="sponsor-logo animate-pulse bg-slate-100" />)
             : display.map((s) => (
@@ -42,10 +42,10 @@ function Sponsors() {
                   href={s.websiteUrl ?? "#"}
                   target="_blank"
                   rel="noreferrer"
-                  className="sponsor-logo"
+                  className="sponsor-logox  hover:scale-105 transition-transform"
                 >
                   {s.coverImageUrl ? (
-                    <img src={resolveUploadUrl(s.coverImageUrl)} alt={s.name} className="max-h-14 object-contain" />
+                    <img src={resolveUploadUrl(s.coverImageUrl)} alt={s.name} className="max-h-full object-contain" />
                   ) : (
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">🏏</div>
@@ -59,7 +59,7 @@ function Sponsors() {
 
         <p className="text-center text-sm text-slate-400 mt-10">
           Interested in sponsoring CCA?{" "}
-          <a href="mailto:hello@californiacricketacademy.org" className="text-[var(--gold)] font-semibold hover:underline">
+          <a href="mailto:hello@calcricket.org" className="text-[var(--gold)] font-semibold hover:underline">
             Get in touch
           </a>
         </p>
