@@ -6,6 +6,7 @@
 //    - buildIdCardPdf(...)    → student ID card (credit-card size)
 // ============================================================
 import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import type { Registration, ParentProfile } from "../types/parentDashboard";
 import type { StudentWithSummary } from "../types/parentDashboard";
 
@@ -384,4 +385,193 @@ async function generateQrDataUrl(text: string): Promise<string> {
     width: 256,
     color: { dark: "#0F172A", light: "#FFFFFF" },
   });
+}
+
+// ── Custom Report PDF ────────────────────────────────────────
+// Renders the Admin "Custom Report Builder" results (same data as
+// the CSV export) as a clean, presentation-ready PDF: branded
+// letterhead, the active filters, a totals strip, a striped
+// autoTable, and a page-numbered footer with a generated timestamp
+// on every page.
+export interface CustomReportRow {
+  _id?: string;
+  name?: string;
+  revenue: number;
+  count: number;
+  avgValue: number;
+  discount: number;
+}
+
+export interface CustomReportTotals {
+  revenue: number;
+  count: number;
+  discount: number;
+}
+
+export interface CustomReportFilterLabels {
+  program?: string;
+  location?: string;
+  level?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+}
+
+export function buildCustomReportPdf(
+  rows: CustomReportRow[],
+  totals: CustomReportTotals,
+  filters: CustomReportFilterLabels,
+  generatedAt?: string
+) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 40;
+
+  // ── Letterhead ──
+  doc.setFillColor(OUTFIELD);
+  doc.rect(0, 0, pageWidth, 80, "F");
+  doc.setFillColor(GOLD);
+  doc.rect(0, 80, pageWidth, 3, "F");
+
+  doc.setFillColor(GOLD);
+  doc.circle(marginX + 16, 38, 16, "F");
+  doc.setTextColor(OUTFIELD);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("CCA", marginX + 16, 41, { align: "center" });
+
+  doc.setTextColor("#FFFFFF");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text(ACADEMY.name, marginX + 42, 34);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(INK_LIGHT);
+  doc.text(ACADEMY.tagline, marginX + 42, 48);
+  doc.text(`${ACADEMY.address}  ·  ${ACADEMY.phone}  ·  ${ACADEMY.email}`, marginX + 42, 60);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(GOLD);
+  doc.text("CUSTOM REPORT", pageWidth - marginX, 36, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(INK_LIGHT);
+  doc.text(formatDate(generatedAt || new Date().toISOString()), pageWidth - marginX, 50, { align: "right" });
+
+  let y = 104;
+
+  // ── Filters applied ──
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(INK);
+  doc.text("FILTERS APPLIED", marginX, y);
+  y += 16;
+
+  const filterLines: string[] = [
+    `Program: ${filters.program || "All Programs"}`,
+    `Location: ${filters.location || "All Locations"}`,
+    `Level: ${filters.level || "All Levels"}`,
+    `Status: ${filters.status || "All Statuses"}`,
+    `From: ${filters.from || "—"}`,
+    `To: ${filters.to || "—"}`,
+  ];
+
+  // Stack each filter on its own line (instead of a fixed-width grid) so
+  // long values — e.g. a long Program title — never overlap the next
+  // filter's text. Each line is also wrapped to the available content
+  // width in case a single value is very long.
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(OUTFIELD);
+  const contentWidth = pageWidth - marginX * 2;
+  const lineHeight = 13;
+  filterLines.forEach((line) => {
+    const wrapped = doc.splitTextToSize(line, contentWidth);
+    doc.text(wrapped, marginX, y);
+    y += wrapped.length * lineHeight;
+  });
+  y += 10;
+
+  // ── Totals strip ──
+  doc.setFillColor(PITCH_SOFT);
+  doc.roundedRect(marginX, y, pageWidth - marginX * 2, 36, 6, 6, "F");
+  const totalsCols = [
+    { label: "Total Revenue", value: money(totals.revenue), color: GOLD },
+    { label: "Registrations", value: String(totals.count), color: GRASS },
+    { label: "Total Discounts", value: money(totals.discount), color: LEATHER },
+  ];
+  const totalsColWidth = (pageWidth - marginX * 2) / totalsCols.length;
+  totalsCols.forEach((t, i) => {
+    const cx = marginX + i * totalsColWidth + 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(INK);
+    doc.text(t.label.toUpperCase(), cx, y + 14);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12.5);
+    doc.setTextColor(t.color);
+    doc.text(t.value, cx, y + 28);
+  });
+
+  y += 56;
+
+  // ── Data table ──
+  const head = [["Program", "Revenue", "Count", "Avg Value", "Discount"]];
+  const body = rows.length
+    ? rows.map((r) => [
+        r.name || "—",
+        money(r.revenue),
+        String(r.count),
+        money(r.avgValue),
+        money(r.discount),
+      ])
+    : [["No matching records found for the selected filters.", "", "", "", ""]];
+
+  autoTable(doc, {
+    head,
+    body,
+    startY: y,
+    margin: { left: marginX, right: marginX },
+    styles: {
+      font: "helvetica",
+      fontSize: 9.5,
+      cellPadding: 8,
+      textColor: OUTFIELD,
+      lineColor: INK_LIGHT,
+      lineWidth: 0.5,
+    },
+    headStyles: {
+      fillColor: OUTFIELD,
+      textColor: "#FFFFFF",
+      fontStyle: "bold",
+      fontSize: 9,
+    },
+    alternateRowStyles: { fillColor: PITCH_SOFT },
+    columnStyles: {
+      0: { cellWidth: "auto" },
+      1: { halign: "right", cellWidth: 90 },
+      2: { halign: "right", cellWidth: 70 },
+      3: { halign: "right", cellWidth: 90 },
+      4: { halign: "right", cellWidth: 90 },
+    },
+    didDrawPage: () => {
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageCount = doc.getNumberOfPages();
+      const currentPage = doc.getCurrentPageInfo().pageNumber;
+
+      doc.setDrawColor(INK_LIGHT);
+      doc.line(marginX, pageHeight - 40, pageW - marginX, pageHeight - 40);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(INK);
+      doc.text(`Generated on ${formatDate(generatedAt || new Date().toISOString())}`, marginX, pageHeight - 24);
+      doc.text(`Page ${currentPage} of ${pageCount}`, pageW - marginX, pageHeight - 24, { align: "right" });
+    },
+  });
+
+  const dateStamp = new Date().toISOString().split("T")[0];
+  doc.save(`CCA_Report_${(filters.program || "All").replace(/\s+/g, "_")}_${dateStamp}.pdf`);
 }
