@@ -24,7 +24,7 @@ export default function Reports() {
 
   // Custom report state
   const [customFilters, setCustomFilters] = useState({
-    from: '', to: '', program: '', status: '', location: '', level: ''
+    from: '', to: '', category: '', program: '', status: '', location: '', level: ''
   });
   const [customData, setCustomData]       = useState(null);
   const [customLoading, setCustomLoading] = useState(false);
@@ -62,6 +62,7 @@ export default function Reports() {
   const downloadCSV = async () => {
     try {
       const params = {};
+      if (customFilters.category) params.category = customFilters.category;
       if (customFilters.program)  params.program  = customFilters.program;
       if (customFilters.status)   params.status   = customFilters.status;
       if (customFilters.location) params.location = customFilters.location;
@@ -74,7 +75,8 @@ export default function Reports() {
       const link = document.createElement('a');
       // Auto-generate filename with date and filters
       const date = new Date().toISOString().split('T')[0];
-      const prog = programs.find(p => p._id === customFilters.program)?.title || 'All';
+      const cat  = categories.find(c => c._id === customFilters.category)?.title;
+      const prog = programs.find(p => p._id === customFilters.program)?.title || cat || 'All';
       link.href  = url;
       link.download = `CCA_Report_${prog.replace(/\s+/g,'_')}_${date}.csv`;
       link.click();
@@ -92,6 +94,7 @@ export default function Reports() {
     if (!customData) return;
     try {
       const filterLabels = {
+        category: categories.find(c => c._id === customFilters.category)?.title,
         program:  programs.find(p => p._id === customFilters.program)?.title,
         location: locations.find(l => l._id === customFilters.location)?.title,
         level:    levels.find(l => l._id === customFilters.level)?.title,
@@ -190,10 +193,22 @@ export default function Reports() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+          <FormField label="Category (Season)">
+            <Select
+              value={customFilters.category}
+              onChange={e => setCustomFilters(p => ({ ...p, category: e.target.value, program: '' }))}
+            >
+              <option value="">All Categories</option>
+              {categories.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
+            </Select>
+          </FormField>
+
           <FormField label="Program">
             <Select value={customFilters.program} onChange={e => setCustomFilters(p => ({ ...p, program: e.target.value }))}>
               <option value="">All Programs</option>
-              {programs.map(p => <option key={p._id} value={p._id}>{p.title}</option>)}
+              {programs
+                .filter(p => !customFilters.category || p.category?._id === customFilters.category)
+                .map(p => <option key={p._id} value={p._id}>{p.title}</option>)}
             </Select>
           </FormField>
 
