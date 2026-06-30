@@ -23,7 +23,6 @@ import { useCart } from "../../context/CartContext";
 import {
   fetchChatPrograms,
   fetchChatBatches,
-  fetchChatLocationsCompat,
   fetchChatCategories,
   createChatPaypalOrder,
   captureChatPaypalOrder,
