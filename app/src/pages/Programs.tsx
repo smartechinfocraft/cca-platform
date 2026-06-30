@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -12,12 +12,16 @@ const PAGE_SIZE = 6;
 function Programs() {
   const [searchParams] = useSearchParams();
 
+  // Footer (and other entry points) can deep-link here with ?city=, ?level=
+  // and/or ?program= so the listing arrives pre-filtered for that specific
+  // Program / Location / Level that was clicked.
   const [filters, setFilters] = useState<Filters>({
     season: searchParams.get("season") ?? "",
-    cities: [],
-    levels: [],
+    cities: searchParams.get("city") ? [searchParams.get("city") as string] : [],
+    levels: searchParams.get("level") ? [searchParams.get("level") as string] : [],
     ageGroups: [],
   });
+  const [programId] = useState<string>(searchParams.get("program") ?? "");
 
   const [page, setPage] = useState(1);
   const [programs, setPrograms] = useState<any[]>([]);
@@ -42,6 +46,11 @@ function Programs() {
 
   const filtered = useMemo(() => {
     let list = programs;
+
+    // Specific Program deep-link from Footer ("?program=<id>")
+    if (programId) {
+      list = list.filter((p) => p._id === programId);
+    }
 
     // Season: match against populated category title
     if (filters.season) {
@@ -84,7 +93,7 @@ function Programs() {
     }
 
     return list;
-  }, [filters, programs]);
+  }, [filters, programs, programId]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
