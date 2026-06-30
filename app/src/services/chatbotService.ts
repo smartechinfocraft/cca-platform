@@ -105,6 +105,7 @@ export interface ChatProgram {
   shortDescription?: string;
   coverImageUrl?: string;
   ageGroups?: string[];
+  category?: { _id?: string; title?: string };
   location?: { _id?: string; title?: string; city?: string };
 }
 
@@ -113,41 +114,42 @@ export const fetchChatPrograms = async (): Promise<ChatProgram[]> => {
   return res.data.data || [];
 };
 
-// ── Locations, used for the filter chips in the program list ──
-export interface ChatLocation {
+// ── Categories (= "Seasons" in this app, e.g. Summer 2026) ──
+export interface ChatCategory {
   _id: string;
   title: string;
-  city?: string;
 }
 
-export const fetchChatLocations = async (): Promise<ChatLocation[]> => {
-  try {
-    const res = await api.get("/public/locations");
-    if (res.data?.data?.length) return res.data.data;
-  } catch {
-    // fall through to the derived fallback below
-  }
-  const programs = await fetchChatPrograms();
-  const seen = new Set<string>();
-  const out: ChatLocation[] = [];
-  for (const p of programs) {
-    if (p.location?._id && !seen.has(p.location._id)) {
-      seen.add(p.location._id);
-      out.push({ _id: p.location._id, title: p.location.title || "Location", city: p.location.city });
-    }
-  }
-  return out;
+export const fetchChatCategories = async (): Promise<ChatCategory[]> => {
+  const res = await api.get("/public/categories");
+  return res.data.data || [];
 };
+
+export interface ChatMonthOption {
+  label: string;
+  startDate?: string;
+  endDate?: string;
+  weeks?: string | number;
+  price?: string | number;
+}
+
+export interface ChatTimeSlot {
+  startTime: string;
+  endTime: string;
+}
 
 export interface ChatBatch {
   _id: string;
   name?: string;
   title?: string;
-  days?: string;
-  timing?: string;
-  fee: number;
+  dayOfWeek?: string;
+  multiDays?: string[];
+  timeSlots?: ChatTimeSlot[];
+  fee: number;                       // fallback fee when there are no monthOptions
   seats?: number;
-  sessionsPerWeek?: number;
+  sessionsPerWeek?: number;          // MAX times/week selectable for this batch
+  monthOptions?: ChatMonthOption[];
+  locationLabel?: string;
 }
 
 // ── Batches come from /public/programs/:id, NOT /public/batches ──
@@ -155,23 +157,38 @@ export interface ChatBatch {
 // most programs here store their schedule on Program.scheduleDays
 // instead. /public/programs/:id has the fallback logic that builds
 // a "synthetic" batch from scheduleDays when no real Batch docs
-// exist — this is what the real ProgramDetails.tsx page uses, so we
-// mirror the same mapping here.
+// exist — this mirrors the exact mapping ProgramDetails.tsx uses,
+// including month options, frequency, and day-slot data.
 export const fetchChatBatches = async (programId: string): Promise<ChatBatch[]> => {
   const res = await api.get(`/public/programs/${programId}`);
   if (!res.data.success) throw new Error(res.data.message || "Couldn't load batches.");
   const rawBatches: any[] = Array.isArray(res.data.data?.batches) ? res.data.data.batches : [];
 
-  return rawBatches.map((b) => ({
-    _id: b._id,
-    name: b.name ?? b.title ?? `Batch ${b._id}`,
-    title: b.title ?? b.name,
-    days: b.days || (Array.isArray(b.multiDays) && b.multiDays.length ? b.multiDays.join(" + ") : b.dayOfWeek) || "",
-    timing: b.timing || (b.startTime && b.endTime ? `${b.startTime} - ${b.endTime}` : ""),
-    fee: Number(b.price ?? b.fee ?? b.pricePerSession ?? 0),
-    seats: Math.max(0, Number(b.maxCapacity ?? b.seats ?? 0) - Number(b.currentCapacity ?? 0)),
-    sessionsPerWeek: b.sessionsPerWeek,
-  }));
+  return rawBatches.map((b) => {
+    let timeSlots: ChatTimeSlot[] = Array.isArray(b.timeSlots) && b.timeSlots.length ? b.timeSlots : [];
+    if (timeSlots.length === 0 && b.timing) {
+      const parts = String(b.timing).split(" - ");
+      if (parts.length === 2) timeSlots = [{ startTime: parts[0].trim(), endTime: parts[1].trim() }];
+    } else if (timeSlots.length === 0 && b.startTime && b.endTime) {
+      timeSlots = [{ startTime: b.startTime, endTime: b.endTime }];
+    }
+
+    const locationLabel = b.location?.address || b.location?.city || b.location?.title || b.groundLocationNote || "";
+
+    return {
+      _id: b._id,
+      name: b.name ?? b.title ?? `Batch ${b._id}`,
+      title: b.title ?? b.name,
+      dayOfWeek: b.dayOfWeek,
+      multiDays: Array.isArray(b.multiDays) ? b.multiDays : undefined,
+      timeSlots,
+      fee: Number(b.price ?? b.fee ?? b.pricePerSession ?? 0),
+      seats: Math.max(0, Number(b.maxCapacity ?? b.seats ?? 0) - Number(b.currentCapacity ?? 0)),
+      sessionsPerWeek: Number(b.sessionsPerWeek ?? 1) || 1,
+      monthOptions: Array.isArray(b.monthOptions) ? b.monthOptions : [],
+      locationLabel,
+    };
+  });
 };
 
 export const validateChatCoupon = async (payload: {
@@ -227,7 +244,7 @@ export interface ChatRegistrationPayload {
     schoolName?: string;
     medicalNotes?: string;
   }>;
-  parent: { parentName: string; email: string; phone: string; city?: string };
+  parent: { parentName: string; email: string; phone: string; address?: string; city?: string; state?: string; zip?: string };
   parentId?: string;
   sessionsPerWeek?: number;
   paymentMethod: "PayPal" | "Check";
