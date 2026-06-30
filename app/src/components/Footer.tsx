@@ -13,39 +13,57 @@ function Footer() {
   const [levelLinks, setLevelLinks] = useState<FooterLink[]>([]);
 
   // Same data source as the Training Programs page (ProgramFilter.tsx) and
-  // the Locations page: derive Programs / Locations / Levels directly from
-  // the live programs list, so the footer always stays in sync with the DB
-  // without any manual updates.
+  // the Locations page: derive Programs(Seasons) / Locations / Levels directly
+  // from the live programs list, so the footer always stays in sync with the
+  // DB without any manual updates.
   useEffect(() => {
     getPrograms()
       .then((data) => {
         const progList: any[] = data ?? [];
 
-        // Programs: each program links to the listing filtered to just that program
-        const programs: FooterLink[] = progList
-          .filter((p) => p.title)
-          .map((p) => ({ label: p.title, href: `/programs?program=${p._id}` }));
-        setProgramLinks(programs);
-
-        // Locations: unique cities, same fallback logic as ProgramFilter
-        const allCities = new Set<string>();
+        // Programs column -> Season name only (e.g. "Summer 2025"), not the
+        // full program title. Dedup by category title, link filters /programs
+        // by that season.
+        const seasonsSeen = new Set<string>();
+        const seasons: FooterLink[] = [];
         progList.forEach((p) => {
-          if (Array.isArray(p.cities) && p.cities.length > 0) {
-            p.cities.forEach((c: string) => { if (c?.trim()) allCities.add(c.trim()); });
-          } else if (p.location?.city?.trim()) {
-            allCities.add(p.location.city.trim());
-          } else if (p.location?.title) {
-            const city = p.location.title.split(/[-–,]/)[0].trim();
-            if (city) allCities.add(city);
+          const seasonTitle = p.category?.title;
+          if (seasonTitle && !seasonsSeen.has(seasonTitle)) {
+            seasonsSeen.add(seasonTitle);
+            seasons.push({ label: seasonTitle, href: `/programs?season=${encodeURIComponent(seasonTitle)}` });
           }
         });
-        setLocationLinks(
-          Array.from(allCities)
-            .sort()
-            .map((city) => ({ label: city, href: `/programs?city=${encodeURIComponent(city)}` }))
-        );
+        setProgramLinks(seasons);
 
-        // Levels: unique skillLevels across all programs
+        // Locations: count programs per city (same fallback logic as
+        // ProgramFilter), then keep only the top 5 busiest locations.
+        const cityCounts = new Map<string, number>();
+        progList.forEach((p) => {
+          const citiesForProgram = new Set<string>();
+          if (Array.isArray(p.cities) && p.cities.length > 0) {
+            p.cities.forEach((c: string) => { if (c?.trim()) citiesForProgram.add(c.trim()); });
+          } else if (p.location?.city?.trim()) {
+            citiesForProgram.add(p.location.city.trim());
+          } else if (p.location?.title) {
+            const city = p.location.title.split(/[-–,]/)[0].trim();
+            if (city) citiesForProgram.add(city);
+          }
+          citiesForProgram.forEach((city) => {
+            cityCounts.set(city, (cityCounts.get(city) ?? 0) + 1);
+          });
+        });
+
+        const topCities = Array.from(cityCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([city]) => ({ label: city, href: `/programs?city=${encodeURIComponent(city)}` }));
+
+        setLocationLinks([
+          ...topCities,
+          { label: "All Locations", href: "#locations" },
+        ]);
+
+        // Levels: unique skillLevels across all programs (unchanged)
         const allLevels = new Set<string>();
         progList.forEach((p) => {
           if (Array.isArray(p.skillLevels)) p.skillLevels.forEach((l: string) => { if (l) allLevels.add(l); });
