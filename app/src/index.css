@@ -507,6 +507,30 @@ body {
   color: var(--outfield);
   box-shadow: 0 2px 10px rgba(31,46,30,0.05);
 }
+.cca-flow-btn {
+  width: 100%;
+  border-radius: 9999px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  background: var(--gold);
+  color: var(--outfield);
+  transition: transform 0.15s ease;
+}
+.cca-flow-btn:hover { transform: scale(1.02); }
+.cca-flow-btn:disabled { opacity: 0.5; }
+
+.cca-flow-btn-outline {
+  width: 100%;
+  border-radius: 9999px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 2px solid var(--pitch-deep);
+  color: var(--outfield);
+  background: transparent;
+}
 .cca-bubble-user {
   background: linear-gradient(135deg, var(--outfield), var(--outfield-soft));
   border-radius: 18px 18px 4px 18px;
