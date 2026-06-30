@@ -67,9 +67,9 @@ export const calculateBmi = async (
 };
 
 // ============================================================
-//  NEW — In-chat registration + payment flow helpers
-//  These just call the SAME public endpoints the normal site uses,
-//  so anything done here shows up identically in the database and
+//  In-chat registration + payment flow helpers
+//  These call the SAME public endpoints the normal site uses, so
+//  anything done here shows up identically in the database and
 //  in the admin panel.
 // ============================================================
 
@@ -104,11 +104,39 @@ export interface ChatProgram {
   discountedPrice?: number;
   shortDescription?: string;
   coverImageUrl?: string;
+  ageGroups?: string[];
+  location?: { _id?: string; title?: string; city?: string };
 }
 
 export const fetchChatPrograms = async (): Promise<ChatProgram[]> => {
   const res = await api.get("/public/programs");
   return res.data.data || [];
+};
+
+// ── Locations, used for the filter chips in the program list ──
+export interface ChatLocation {
+  _id: string;
+  title: string;
+  city?: string;
+}
+
+export const fetchChatLocations = async (): Promise<ChatLocation[]> => {
+  try {
+    const res = await api.get("/public/locations");
+    if (res.data?.data?.length) return res.data.data;
+  } catch {
+    // fall through to the derived fallback below
+  }
+  const programs = await fetchChatPrograms();
+  const seen = new Set<string>();
+  const out: ChatLocation[] = [];
+  for (const p of programs) {
+    if (p.location?._id && !seen.has(p.location._id)) {
+      seen.add(p.location._id);
+      out.push({ _id: p.location._id, title: p.location.title || "Location", city: p.location.city });
+    }
+  }
+  return out;
 };
 
 export interface ChatBatch {
@@ -122,9 +150,28 @@ export interface ChatBatch {
   sessionsPerWeek?: number;
 }
 
+// ── Batches come from /public/programs/:id, NOT /public/batches ──
+// /public/batches only reads the separate `Batch` collection, but
+// most programs here store their schedule on Program.scheduleDays
+// instead. /public/programs/:id has the fallback logic that builds
+// a "synthetic" batch from scheduleDays when no real Batch docs
+// exist — this is what the real ProgramDetails.tsx page uses, so we
+// mirror the same mapping here.
 export const fetchChatBatches = async (programId: string): Promise<ChatBatch[]> => {
-  const res = await api.get("/public/batches", { params: { program: programId } });
-  return res.data.data || [];
+  const res = await api.get(`/public/programs/${programId}`);
+  if (!res.data.success) throw new Error(res.data.message || "Couldn't load batches.");
+  const rawBatches: any[] = Array.isArray(res.data.data?.batches) ? res.data.data.batches : [];
+
+  return rawBatches.map((b) => ({
+    _id: b._id,
+    name: b.name ?? b.title ?? `Batch ${b._id}`,
+    title: b.title ?? b.name,
+    days: b.days || (Array.isArray(b.multiDays) && b.multiDays.length ? b.multiDays.join(" + ") : b.dayOfWeek) || "",
+    timing: b.timing || (b.startTime && b.endTime ? `${b.startTime} - ${b.endTime}` : ""),
+    fee: Number(b.price ?? b.fee ?? b.pricePerSession ?? 0),
+    seats: Math.max(0, Number(b.maxCapacity ?? b.seats ?? 0) - Number(b.currentCapacity ?? 0)),
+    sessionsPerWeek: b.sessionsPerWeek,
+  }));
 };
 
 export const validateChatCoupon = async (payload: {
