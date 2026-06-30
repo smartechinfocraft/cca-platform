@@ -77,7 +77,7 @@ exports.getRevenueSummary = async (req, res) => {
 
 // ─── POST /api/reports/custom ─────────────────────────────────────────────────
 // Build a custom report with any combination of filters
-// Body: { filters: { program, batch, location, level, status, from, to }, groupBy }
+// Body: { filters: { category, program, batch, location, level, status, from, to }, groupBy }
 exports.buildCustomReport = async (req, res) => {
   try {
     const { filters = {}, groupBy = 'program' } = req.body;
@@ -100,6 +100,24 @@ exports.buildCustomReport = async (req, res) => {
     if (filters.batch)    match.batchId    = new mongoose.Types.ObjectId(filters.batch);
     if (filters.location) match.locationId = new mongoose.Types.ObjectId(filters.location);
     if (filters.level)    match.levelId    = new mongoose.Types.ObjectId(filters.level);
+
+    // Category (a.k.a "Season", e.g. "Fall 2026") lives on the Program, not
+    // directly on the Registration, so resolve it to a set of Program IDs
+    // first and intersect with any Program filter already selected.
+    if (filters.category) {
+      const Program = mongoose.model('Program');
+      const categoryProgramIds = await Program.find({ category: filters.category }).distinct('_id');
+
+      if (match.programId) {
+        // A specific Program was also selected — only keep it if it
+        // actually belongs to the selected category, otherwise the
+        // report should come back empty rather than ignoring the filter.
+        const matches = categoryProgramIds.some((id) => id.equals(match.programId));
+        match.programId = matches ? match.programId : new mongoose.Types.ObjectId('000000000000000000000000');
+      } else {
+        match.programId = { $in: categoryProgramIds };
+      }
+    }
 
     const data = await getReg().aggregate([
       { $match: match },
@@ -153,6 +171,20 @@ exports.exportCSV = async (req, res) => {
     const match = {};
     if (req.query.status)  match.status    = req.query.status;
     if (req.query.program) match.programId = new mongoose.Types.ObjectId(req.query.program);
+
+    // Category (a.k.a "Season", e.g. "Fall 2026") lives on the Program, not
+    // directly on the Registration — resolve it to Program IDs first.
+    if (req.query.category) {
+      const Program = mongoose.model('Program');
+      const categoryProgramIds = await Program.find({ category: req.query.category }).distinct('_id');
+
+      if (match.programId) {
+        const matches = categoryProgramIds.some((id) => id.equals(match.programId));
+        match.programId = matches ? match.programId : new mongoose.Types.ObjectId('000000000000000000000000');
+      } else {
+        match.programId = { $in: categoryProgramIds };
+      }
+    }
 
     // Registration links to batches via the `batches` array (refs Batch),
     // not a single batchId. Location lives on the Batch, not the Registration.
@@ -224,4 +256,4 @@ exports.exportCSV = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
-};  
+};
