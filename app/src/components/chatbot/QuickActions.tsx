@@ -14,7 +14,7 @@ interface QuickActionsProps {
 
 function QuickActions({ onAction, isLoggedIn }: QuickActionsProps) {
   const actions = [
-    { key: "register", label: isLoggedIn ? "Browse Programs" : "Register", icon: HiOutlineUserPlus },
+    { key: "register", label: isLoggedIn ? "Register & Pay" : "Sign Up & Register", icon: HiOutlineUserPlus },
     { key: "faq", label: "FAQs", icon: HiOutlineQuestionMarkCircle },
     { key: "profile", label: "My Profile", icon: HiOutlineUserCircle },
     { key: "coach", label: "Message Coach", icon: HiOutlineChatBubbleLeftRight },
