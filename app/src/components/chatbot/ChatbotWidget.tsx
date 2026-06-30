@@ -3,10 +3,10 @@
 //
 //  "CCA" — the academy's animated assistant chatbot. Mounted once
 //  globally (see App.tsx). Talks via the Groq-backed
-//  /api/public/chatbot/* routes. Anything it tells the user about
-//  programs/FAQs is grounded in real data (see chatbot.js backend
-//  route), and any action it takes (register, message a coach)
-//  hands off to the app's real flows — it never fakes a result.
+//  /api/public/chatbot/* routes for free chat, and now also runs a
+//  fully in-chat registration + payment flow (see
+//  ChatbotRegistrationFlow.tsx) so a parent can sign up/log in,
+//  pick a program, pay, or add to cart — all without leaving the chat.
 // ============================================================
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -20,31 +20,24 @@ import { sendChatMessage, type ChatMessage } from "../../services/chatbotService
 import QuickActions from "./QuickActions";
 import FitnessPanel from "./FitnessPanel";
 import ProgramSuggestions from "./ProgramSuggestions";
-import AccountDetailsPanel, { type AccountDetails } from "./AccountDetailsPanel";
+import ChatbotRegistrationFlow from "./ChatbotRegistrationFlow";
 
 export interface BotMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  // Set on an assistant message when we detected age+skill in the
-  // PRECEDING user message — renders program cards right after it,
-  // once, instead of re-scanning the whole transcript every render.
   suggest?: { age: number; skillLevel: string };
 }
 
 const WELCOME = (name?: string) =>
   name
-    ? `Hey ${name}! 👋 I'm CCA, your assistant here. Want help finding a program, checking your registration, or anything else?`
-    : `Hyy! 👋 I'm CCA — California Cricket Academy's assistant. I can help you find the right program, walk you through registering, answer FAQs, or even help with fitness tips. What's up?`;
+    ? `Hey ${name}! 👋 I'm CCA, your assistant here. Want help finding a program, registering & paying right here in chat, or anything else?`
+    : `Hyy! 👋 I'm CCA — California Cricket Academy's assistant. I can help you find the right program, register AND pay right here in chat, answer FAQs, or help with fitness tips. What's up?`;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// Light heuristic: does this message contain a plausible player age
-// AND some skill-level language? If so we attach a suggestion card
-// to the NEXT assistant reply. This never replaces the LLM's own
-// answer — it just adds real, deterministic program cards alongside it.
 function detectAgeAndSkill(text: string): { age: number; skillLevel: string } | null {
   const ageMatch = text.match(/\b(\d{1,2})\b/);
   if (!ageMatch) return null;
@@ -61,7 +54,6 @@ function detectAgeAndSkill(text: string): { age: number; skillLevel: string } | 
   return { age, skillLevel };
 }
 
-// Pages where the widget shouldn't appear — staff have their own tools.
 function isHiddenOnPath(pathname: string) {
   return pathname.startsWith("/admin") || pathname.startsWith("/coach");
 }
@@ -72,7 +64,7 @@ function ChatbotWidget() {
   const location = useLocation();
 
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<"chat" | "fitness" | "account">("chat");
+  const [view, setView] = useState<"chat" | "fitness" | "registration">("chat");
   const [pendingProgramId, setPendingProgramId] = useState<string | null>(null);
   const [messages, setMessages] = useState<BotMessage[]>(() => [
     { id: uid(), role: "assistant", content: WELCOME(user?.firstName) },
@@ -85,8 +77,6 @@ function ChatbotWidget() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending, view]);
 
-  // Lock page scroll while the panel is open — the blur backdrop
-  // handles the visual side, this stops the page scrolling behind it.
   useEffect(() => {
     if (open) {
       const prev = document.body.style.overflow;
@@ -100,9 +90,14 @@ function ChatbotWidget() {
   const pushMessage = (m: Omit<BotMessage, "id">) =>
     setMessages((prev) => [...prev, { ...m, id: uid() }]);
 
+  // Used by the registration flow to post plain confirmation bubbles
+  // back into the main transcript (e.g. "Added to cart", "Logged in").
+  const pushAssistantText = (content: string) => pushMessage({ role: "assistant", content });
+
   const handleReset = () => {
     setMessages([{ id: uid(), role: "assistant", content: WELCOME(user?.firstName) }]);
     setView("chat");
+    setPendingProgramId(null);
   };
 
   const askGroq = async (history: BotMessage[], pendingSuggest?: { age: number; skillLevel: string } | null) => {
@@ -135,18 +130,8 @@ function ChatbotWidget() {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "register":
-        if (isLoggedIn) {
-          pushMessage({ role: "assistant", content: "You're already logged in! Head to Programs and pick one — registration continues right from there." });
-          setOpen(false);
-          navigate("/programs");
-        } else {
-          pushMessage({ role: "user", content: "I want to register" });
-          pushMessage({
-            role: "assistant",
-            content:
-              "Awesome 🏏 Let's get the player's details first, then I'll suggest a good program for them. Tap below whenever you're ready.",
-          });
-        }
+        setPendingProgramId(null);
+        setView("registration");
         break;
       case "faq": {
         const askText = "Can you answer some frequently asked questions about CCA based on the real FAQ list?";
@@ -157,7 +142,7 @@ function ChatbotWidget() {
       }
       case "profile":
         if (!isLoggedIn) {
-          pushMessage({ role: "assistant", content: "You'll need to log in first to see your profile and registration status. Tap below to log in." });
+          pushMessage({ role: "assistant", content: "You'll need to log in or register first — tap 'Register & Pay' below and I'll get you set up." });
         } else {
           setOpen(false);
           navigate("/dashboard");
@@ -186,14 +171,11 @@ function ChatbotWidget() {
     }
   };
 
+  // Suggestion cards from the LLM reply jump straight into the
+  // registration flow at the batch-selection step for that program.
   const handlePickProgram = (programId: string) => {
-    if (isLoggedIn) {
-      setOpen(false);
-      navigate(`/register-program/${programId}`);
-    } else {
-      setPendingProgramId(programId);
-      setView("account");
-    }
+    setPendingProgramId(programId);
+    setView("registration");
   };
 
   return createPortal(
@@ -274,19 +256,17 @@ function ChatbotWidget() {
               {/* Body */}
               {view === "fitness" ? (
                 <FitnessPanel onBack={() => setView("chat")} />
-              ) : view === "account" ? (
-                <AccountDetailsPanel
-                  onBack={() => setView("chat")}
-                  onSubmit={(details: AccountDetails) => {
-                    setOpen(false);
-                    const target = pendingProgramId ? `/register-program/${pendingProgramId}` : "/dashboard";
-                    navigate("/login", { state: { mode: "parent-register", from: target, prefill: details } });
-                  }}
+              ) : view === "registration" ? (
+                <ChatbotRegistrationFlow
+                  onBack={() => { setView("chat"); setPendingProgramId(null); }}
+                  onClose={() => { setView("chat"); setPendingProgramId(null); }}
+                  pushMessage={pushAssistantText}
+                  initialProgramId={pendingProgramId}
                 />
               ) : (
                 <>
                   <div ref={scrollRef} className="cca-chat-scroll flex-1 overflow-y-auto px-4 py-4 space-y-3">
-                    {messages.map((m, idx) => (
+                    {messages.map((m) => (
                       <div key={m.id}>
                         <motion.div
                           initial={{ opacity: 0, y: 10 }}
@@ -310,19 +290,6 @@ function ChatbotWidget() {
                         {m.role === "assistant" && m.suggest && (
                           <div className="mt-2 ml-9">
                             <ProgramSuggestions age={m.suggest.age} skillLevel={m.suggest.skillLevel} onPick={handlePickProgram} />
-                          </div>
-                        )}
-
-                        {/* One-off CTA chip right after the "let's get details" register prompt */}
-                        {m.role === "assistant" && idx === messages.length - 1 && !isLoggedIn && m.content.includes("Tap below whenever you're ready") && (
-                          <div className="mt-2 ml-9">
-                            <button
-                              onClick={() => setView("account")}
-                              className="rounded-full px-4 py-2 text-xs font-semibold"
-                              style={{ background: "var(--gold)", color: "var(--outfield)" }}
-                            >
-                              Enter Player &amp; Parent Details →
-                            </button>
                           </div>
                         )}
                       </div>
