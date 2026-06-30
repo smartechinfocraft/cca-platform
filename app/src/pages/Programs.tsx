@@ -12,21 +12,38 @@ const PAGE_SIZE = 6;
 function Programs() {
   const [searchParams] = useSearchParams();
 
-  // Footer (and other entry points) can deep-link here with ?city=, ?level=
-  // and/or ?program= so the listing arrives pre-filtered for that specific
-  // Program / Location / Level that was clicked.
+  // Footer (and other entry points) can deep-link here with ?city=, ?level=,
+  // ?season= and/or ?program= so the listing arrives pre-filtered for that
+  // specific Program / Location / Level that was clicked.
   const [filters, setFilters] = useState<Filters>({
     season: searchParams.get("season") ?? "",
     cities: searchParams.get("city") ? [searchParams.get("city") as string] : [],
     levels: searchParams.get("level") ? [searchParams.get("level") as string] : [],
     ageGroups: [],
   });
-  const [programId] = useState<string>(searchParams.get("program") ?? "");
-
+  const [programId, setProgramId] = useState<string>(searchParams.get("program") ?? "");
   const [page, setPage] = useState(1);
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Re-sync filters whenever the URL's query params change. Without this,
+  // clicking a second footer link (e.g. another location) while already on
+  // /programs would not update the list — React Router updates the URL but
+  // does not remount this component, so the useState initial value above
+  // only ever ran once. Watching searchParams.toString() picks up every
+  // subsequent navigation, including repeat clicks on the same link type.
+  useEffect(() => {
+    setFilters({
+      season: searchParams.get("season") ?? "",
+      cities: searchParams.get("city") ? [searchParams.get("city") as string] : [],
+      levels: searchParams.get("level") ? [searchParams.get("level") as string] : [],
+      ageGroups: [],
+    });
+    setProgramId(searchParams.get("program") ?? "");
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
 
   useEffect(() => {
     const fetchPrograms = async () => {
