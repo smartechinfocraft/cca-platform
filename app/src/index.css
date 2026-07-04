@@ -209,7 +209,7 @@ body {
   background: white;
   border: 1px solid var(--pitch-deep);
   border-radius: var(--radius-card);
-  padding: 32px;
+  padding: 18px;
   transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease, border-color 0.25s ease;
 }
 .why-card:hover {

@@ -7,6 +7,8 @@ import api from "../../api/axios";
 import { useRegistration, type PaymentMethod } from "../../context/RegistrationContext";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
+import WaiverConsent from "../../components/registration/WaiverConsent";
+import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
 
 // PayPal SDK types are declared globally in src/types/paypal.d.ts
 
@@ -29,6 +31,10 @@ function PaymentPage() {
   const [error, setError]               = useState<string | null>(null);
   const [checkPayableTo, setCheckPayableTo] = useState("California Cricket Academy");
   const [checkNumber, setCheckNumber]   = useState("");
+  const [waiverAccepted, setWaiverAccepted] = useState(false);
+  const [waiverSignature, setWaiverSignature] = useState("");
+  const [waiverDrawnSignature, setWaiverDrawnSignature] = useState("");
+  const [waiverError, setWaiverError] = useState<string | null>(null);
   const paypalRef    = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
   const [serverConfirmedAmount, setServerConfirmedAmount] = useState<number | null>(null);
@@ -40,6 +46,7 @@ function PaymentPage() {
   const perStudentFee  = selectedBatch?.fee ?? selectedProgram?.basePrice ?? 0; // for display fallback
   const estimatedTotal = totalAmount || Math.max(0, studentFees.reduce((sum: number, f: number) => sum + f, 0) - couponDiscount);
   const grandTotal     = serverConfirmedAmount ?? estimatedTotal;
+  const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
 
   // Load PayPal SDK
   useEffect(() => {
@@ -53,7 +60,7 @@ function PaymentPage() {
 
   // Render PayPal buttons when tab selected
   useEffect(() => {
-    if (paymentMethod !== "PayPal" || paypalLoaded.current) return;
+    if (paymentMethod !== "PayPal" || !waiverValid || paypalLoaded.current) return;
     if (!paypalRef.current) return;
 
     const tryRender = () => {
@@ -104,7 +111,7 @@ function PaymentPage() {
     };
 
     tryRender();
-  }, [paymentMethod, grandTotal]);
+  }, [paymentMethod, grandTotal, waiverValid]);
 
   // Reset paypal when switching away and back
   useEffect(() => {
@@ -112,7 +119,12 @@ function PaymentPage() {
   }, [paymentMethod]);
 
   const submitRegistration = async (method: string, transactionId?: string) => {
+    if (!waiverValid) {
+      setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+      return;
+    }
     setError(null);
+    setWaiverError(null);
     setLoading(true);
     try {
       const parentInfo = user
@@ -133,6 +145,12 @@ function PaymentPage() {
           checkNumber:     method === "Check" ? checkNumber : undefined,
           checkoutMode,
           couponCode:      appliedCoupon?.code ?? undefined,   // ← pass coupon to backend
+          waiverConsent: {
+            accepted: waiverAccepted,
+            signature: waiverSignature.trim(),
+            drawnSignature: waiverDrawnSignature,
+            agreementVersion: WAIVER_AGREEMENT_VERSION,
+          },
         },
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
@@ -148,6 +166,10 @@ function PaymentPage() {
   };
 
   const submitCheck = async () => {
+    if (!waiverValid) {
+      setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+      return;
+    }
     if (!checkPayableTo.trim()) { setError("Please fill check details."); return; }
     await submitRegistration("Check");
   };
@@ -172,7 +194,7 @@ function PaymentPage() {
             <div className="rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">🔒 Secure Checkout</div>
           </div>
           <div className="mt-6 overflow-hidden rounded-full bg-slate-100 h-2">
-            <div className="h-2 rounded-full bg-[#A33B2B]" style={{ width: "100%" }} />
+            <div className="h-2 rounded-full bg-green-500" style={{ width: "100%" }} />
           </div>
           <p className="mt-2 text-xs text-right text-slate-400">Final Step</p>
         </div>
@@ -181,13 +203,42 @@ function PaymentPage() {
       <section className="max-w-7xl mx-auto px-6 pb-16">
         <div className="grid gap-8 xl:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-6">
+            <WaiverConsent
+              accepted={waiverAccepted}
+              signature={waiverSignature}
+              drawnSignature={waiverDrawnSignature}
+              guardianName={parentDetails.parentName || (user ? `${user.firstName} ${user.lastName}` : "")}
+              error={waiverError}
+              onAcceptedChange={(accepted) => {
+                setWaiverAccepted(accepted);
+                if (accepted) setWaiverError(null);
+              }}
+              onSignatureChange={(signature) => {
+                setWaiverSignature(signature);
+                if (signature.trim()) setWaiverError(null);
+              }}
+              onDrawnSignatureChange={(signature) => {
+                setWaiverDrawnSignature(signature);
+                if (signature) setWaiverError(null);
+              }}
+            />
+
             {/* Method Selection */}
             <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
               <p className="text-sm uppercase tracking-widest text-slate-500">Payment Method</p>
               <h2 className="mt-2 text-xl font-semibold text-[#0F172A]">Choose how to pay</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {(["PayPal", "Check"] as PaymentMethod[]).map(method => (
-                  <button key={method} type="button" onClick={() => setPaymentMethod(method)}
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => {
+                      if (!waiverValid) {
+                        setWaiverError("Please complete the waiver consent, typed e-signature, and drawn digital signature before choosing payment.");
+                        return;
+                      }
+                      setPaymentMethod(method);
+                    }}
                     className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[#A33B2B] bg-[#A33B2B]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[#A33B2B]"}`}>
                     <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : "bg-slate-700"}`}>
                       {method === "PayPal" ? "P" : "✉"}
@@ -205,9 +256,15 @@ function PaymentPage() {
             {paymentMethod === "PayPal" && (
               <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
                 <p className="text-sm uppercase tracking-widest text-slate-500 mb-3">PayPal — Click to Pay</p>
-                <div ref={paypalRef} className="min-h-[120px] flex items-center justify-center">
-                  <p className="text-slate-400 text-sm">Loading PayPal...</p>
-                </div>
+                {waiverValid ? (
+                  <div ref={paypalRef} className="min-h-[120px] flex items-center justify-center">
+                    <p className="text-slate-400 text-sm">Loading PayPal...</p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Accept the waiver, type your e-signature, and draw your digital signature to unlock PayPal checkout.
+                  </div>
+                )}
                 <div className="mt-4 rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-700">
                   Click the PayPal button above. You'll be redirected to PayPal to complete payment securely.
                 </div>
@@ -232,7 +289,7 @@ function PaymentPage() {
                 <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
                   <strong>Instructions:</strong> Mail your check within 5 business days. Your spot is held for 7 days.
                 </div>
-                <button type="button" onClick={submitCheck} disabled={loading || !checkPayableTo.trim()}
+                <button type="button" onClick={submitCheck} disabled={loading || !checkPayableTo.trim() || !waiverValid}
                   className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-[#A33B2B] px-8 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 transition w-full">
                   {loading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processing...</> : `Submit — $${grandTotal.toFixed(2)}`}
                 </button>

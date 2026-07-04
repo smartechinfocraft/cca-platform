@@ -206,6 +206,43 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
     y += 18;
   });
 
+  y += 34;
+
+  if (y > pageHeight - 210) {
+    doc.addPage();
+    y = 60;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(INK);
+  doc.text("WAIVER & CONSENT", marginX, y);
+  y += 16;
+
+  doc.setFillColor(PITCH_SOFT);
+  doc.roundedRect(marginX, y - 10, pageWidth - marginX * 2, 94, 8, 8, "F");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(OUTFIELD);
+  doc.text(`Consent Accepted: ${registration.waiverAccepted ? "Yes" : "No"}`, marginX + 14, y + 6);
+  doc.text(`Typed Signature: ${registration.waiverSignature || "Not captured"}`, marginX + 14, y + 22);
+  doc.text(`Accepted At: ${formatDate(registration.waiverAcceptedAt || registration.createdAt)}`, marginX + 14, y + 38);
+  doc.text(`Agreement Version: ${registration.waiverAgreementVersion || "Not captured"}`, marginX + 14, y + 54);
+
+  if (registration.waiverDrawnSignature?.startsWith("data:image")) {
+    doc.setTextColor(INK);
+    doc.text("Drawn Signature:", pageWidth - marginX - 190, y + 6);
+    try {
+      doc.addImage(registration.waiverDrawnSignature, "PNG", pageWidth - marginX - 190, y + 14, 176, 50);
+    } catch {
+      doc.setTextColor(LEATHER);
+      doc.text("Drawn signature could not be rendered.", pageWidth - marginX - 190, y + 26);
+    }
+  } else {
+    doc.setTextColor(INK);
+    doc.text("Drawn Signature: Not captured", pageWidth - marginX - 190, y + 22);
+  }
+
   doc.setDrawColor(INK_LIGHT);
   doc.line(totalsX, y, pageWidth - marginX, y);
   y += 20;

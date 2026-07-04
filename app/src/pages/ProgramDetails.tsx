@@ -507,8 +507,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                   <option value="">Choose gender</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
-                  <option value="Non-binary">Non-binary</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
+                  {/* <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option> */}
                 </select>
               </div>
             </div>

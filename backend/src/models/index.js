@@ -297,6 +297,10 @@ const registrationSchema = new mongoose.Schema(
 
     // Consent checkboxes (captured during registration flow)
     waiverAccepted:  { type: Boolean, default: false },
+    waiverSignature: { type: String },
+    waiverDrawnSignature: { type: String },
+    waiverAcceptedAt:{ type: Date },
+    waiverAgreementVersion: { type: String },
     mediaConsent:    { type: Boolean, default: false },
     medicalConsent:  { type: Boolean, default: false },
     whatsappOptIn:   { type: Boolean, default: false },

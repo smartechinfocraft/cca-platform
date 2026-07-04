@@ -251,6 +251,12 @@ export interface ChatRegistrationPayload {
   transactionId?: string;
   checkNumber?: string;
   couponCode?: string;
+  waiverConsent?: {
+    accepted: boolean;
+    signature: string;
+    drawnSignature: string;
+    agreementVersion: string;
+  };
 }
 
 export const submitChatRegistration = async (

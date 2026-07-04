@@ -320,8 +320,23 @@ router.post('/register', async (req, res) => {
       couponCode,   // NEW — optional coupon applied at checkout
     } = req.body;
 
+    const waiverConsent = req.body.waiverConsent;
+    const waiverSignature = typeof waiverConsent?.signature === 'string'
+      ? waiverConsent.signature.trim()
+      : '';
+    const waiverDrawnSignature = typeof waiverConsent?.drawnSignature === 'string'
+      ? waiverConsent.drawnSignature.trim()
+      : '';
+
     if (!selectedProgram?._id)
       return res.status(400).json({ success: false, message: 'Program is required.' });
+
+    if (waiverConsent?.accepted !== true || !waiverSignature || !waiverDrawnSignature) {
+      return res.status(400).json({
+        success: false,
+        message: 'Waiver consent, typed e-signature, and drawn digital signature are required before registration.',
+      });
+    }
 
     const studentInputs = Array.isArray(students) && students.length
       ? students
@@ -517,7 +532,12 @@ router.post('/register', async (req, res) => {
       customerNote: studentNote,
       adminNote: verificationNote || undefined,
       waiverAccepted: true,
+      waiverSignature,
+      waiverDrawnSignature,
+      waiverAcceptedAt: new Date(),
+      waiverAgreementVersion: waiverConsent.agreementVersion || 'CCA-WAIVER-2025-10-30',
       mediaConsent: true,
+      medicalConsent: true,
     });
 
     await reg.save();

@@ -16,7 +16,7 @@ function Home() {
       <div className="h-20" /> {/* Spacer for fixed navbar */}
       <Hero />
  
-      <ProgramsOverview />
+      {/* <ProgramsOverview /> */}
       <WhyChooseCCA />
       <Locations />
       <Franchises />

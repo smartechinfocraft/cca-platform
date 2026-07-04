@@ -218,6 +218,8 @@ exports.exportCSV = async (req, res) => {
     const headers = [
       'Registration #', 'Status', 'Program', 'Batch', 'Location',
       'Total Amount', 'Discount', 'Payment Method', 'Payment Status', 'Created At',
+      'Waiver Accepted', 'Waiver Typed Signature', 'Waiver Drawn Signature Captured',
+      'Waiver Accepted At', 'Waiver Agreement Version',
     ];
 
     const rows = registrations.map((r) => {
@@ -239,6 +241,11 @@ exports.exportCSV = async (req, res) => {
         r.paymentMethod,
         r.paymentStatus,
         new Date(r.createdAt).toLocaleDateString(),
+        r.waiverAccepted ? 'Yes' : 'No',
+        r.waiverSignature || '',
+        r.waiverDrawnSignature ? 'Yes' : 'No',
+        r.waiverAcceptedAt ? new Date(r.waiverAcceptedAt).toLocaleString() : '',
+        r.waiverAgreementVersion || '',
       ];
     });
 

@@ -10,6 +10,8 @@ import Footer from "../../components/Footer";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../api/axios";
+import WaiverConsent from "../../components/registration/WaiverConsent";
+import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
 import {
   HiOutlineTrash, HiOutlineTag, HiOutlineXCircle,
   HiOutlineArrowRight, HiOutlineShoppingCart, HiOutlineTicket,
@@ -133,6 +135,10 @@ export default function CartPage() {
   const [payError, setPayError] = useState<string | null>(null);
   const [checkPayableTo, setCheckPayableTo] = useState("California Cricket Academy");
   const [checkNumber, setCheckNumber] = useState("");
+  const [waiverAccepted, setWaiverAccepted] = useState(false);
+  const [waiverSignature, setWaiverSignature] = useState("");
+  const [waiverDrawnSignature, setWaiverDrawnSignature] = useState("");
+  const [waiverError, setWaiverError] = useState<string | null>(null);
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
   const [serverConfirmedAmount, setServerConfirmedAmount] = useState<number | null>(null);
@@ -165,6 +171,7 @@ export default function CartPage() {
     parentDetails.phone.trim() &&
     parentDetails.address.trim()
   );
+  const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
 
   // ── Coupon handling ──
   const handleApplyCoupon = async () => {
@@ -211,7 +218,12 @@ export default function CartPage() {
 
   // ── Submit the registration to the backend, then clear the cart ──
   const submitRegistration = async (method: string, transactionId?: string) => {
+    if (!waiverValid) {
+      setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+      return;
+    }
     setPayError(null);
+    setWaiverError(null);
     setPaying(true);
     try {
       const parentInfo = user
@@ -258,6 +270,12 @@ export default function CartPage() {
           checkNumber: method === "Check" ? checkNumber : undefined,
           checkoutMode: user ? "account" : "guest",
           couponCode: coupon?.code ?? undefined,
+          waiverConsent: {
+            accepted: waiverAccepted,
+            signature: waiverSignature.trim(),
+            drawnSignature: waiverDrawnSignature,
+            agreementVersion: WAIVER_AGREEMENT_VERSION,
+          },
         },
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
@@ -272,6 +290,10 @@ export default function CartPage() {
 
   const submitCheck = async () => {
     if (!parentValid) { setParentTouched(true); return; }
+    if (!waiverValid) {
+      setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+      return;
+    }
     if (!checkPayableTo.trim()) { setPayError("Please fill check details."); return; }
     await submitRegistration("Check");
   };
@@ -288,7 +310,7 @@ export default function CartPage() {
 
   // Render PayPal buttons when the tab is selected and parent details are valid
   useEffect(() => {
-    if (paymentMethod !== "PayPal" || !parentValid || paypalLoaded.current) return;
+    if (paymentMethod !== "PayPal" || !parentValid || !waiverValid || paypalLoaded.current) return;
     if (!paypalRef.current || !firstItem) return;
 
     const tryRender = () => {
@@ -339,7 +361,7 @@ export default function CartPage() {
 
     tryRender();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentMethod, parentValid]);
+  }, [paymentMethod, parentValid, waiverValid]);
 
   // Reset PayPal render flag when switching away so it can re-render later
   useEffect(() => {
@@ -351,6 +373,11 @@ export default function CartPage() {
     if (!parentValid) {
       setParentTouched(true);
       document.getElementById("parent-guardian-box")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (!waiverValid) {
+      setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before choosing payment.");
+      document.getElementById("waiver-consent-box")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     document.getElementById("payment-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -597,6 +624,30 @@ export default function CartPage() {
 
               {/* ── Payment — embedded, no separate page ── */}
               {isLoggedIn && (
+                <div id="waiver-consent-box">
+                  <WaiverConsent
+                    accepted={waiverAccepted}
+                    signature={waiverSignature}
+                    drawnSignature={waiverDrawnSignature}
+                    guardianName={parentDetails.parentName || (user ? `${user.firstName} ${user.lastName}` : "")}
+                    error={waiverError}
+                    onAcceptedChange={(accepted) => {
+                      setWaiverAccepted(accepted);
+                      if (accepted) setWaiverError(null);
+                    }}
+                    onSignatureChange={(signature) => {
+                      setWaiverSignature(signature);
+                      if (signature.trim()) setWaiverError(null);
+                    }}
+                    onDrawnSignatureChange={(signature) => {
+                      setWaiverDrawnSignature(signature);
+                      if (signature) setWaiverError(null);
+                    }}
+                  />
+                </div>
+              )}
+
+              {isLoggedIn && (
                 <div id="payment-box" className="rounded-[24px] bg-white shadow-md ring-1 ring-slate-200/60 p-6">
                   <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--gold)" }}>Payment</p>
                   <h2 className="mt-1 text-xl font-bold text-[#0F172A]">Choose how to pay</h2>
@@ -608,6 +659,7 @@ export default function CartPage() {
                         type="button"
                         onClick={() => {
                           if (!parentValid) { setParentTouched(true); document.getElementById("parent-guardian-box")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+                          if (!waiverValid) { setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before choosing payment."); document.getElementById("waiver-consent-box")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
                           setPaymentMethod(method);
                         }}
                         className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[var(--gold)] bg-[var(--gold)]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[var(--gold)]"}`}
@@ -628,7 +680,7 @@ export default function CartPage() {
                   )}
 
                   {/* PayPal Buttons */}
-                  {paymentMethod === "PayPal" && parentValid && (
+                  {paymentMethod === "PayPal" && parentValid && waiverValid && (
                     <div className="mt-5 rounded-2xl border border-slate-200 p-5">
                       <p className="text-sm uppercase tracking-widest text-slate-500 mb-3">PayPal — Click to Pay</p>
                       <div ref={paypalRef} className="min-h-[120px] flex items-center justify-center">
@@ -641,7 +693,7 @@ export default function CartPage() {
                   )}
 
                   {/* Check Form */}
-                  {paymentMethod === "Check" && parentValid && (
+                  {paymentMethod === "Check" && parentValid && waiverValid && (
                     <div className="mt-5 rounded-2xl border border-slate-200 p-5">
                       <h3 className="text-base font-semibold text-[#0F172A]">Check Information</h3>
                       <div className="mt-4 space-y-4">

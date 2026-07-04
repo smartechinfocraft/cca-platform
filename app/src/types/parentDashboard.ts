@@ -54,6 +54,11 @@ export interface Registration {
   transactionId?: string;
   checkNumber?: string;
   customerNote?: string;
+  waiverAccepted?: boolean;
+  waiverSignature?: string;
+  waiverDrawnSignature?: string;
+  waiverAcceptedAt?: string;
+  waiverAgreementVersion?: string;
   createdAt: string;
   updatedAt?: string;
 }

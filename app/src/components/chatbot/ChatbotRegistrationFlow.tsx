@@ -20,6 +20,8 @@ import { motion } from "framer-motion";
 import { HiOutlineArrowLeft, HiOutlineCheckCircle, HiOutlineShoppingCart } from "react-icons/hi2";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
+import WaiverConsent from "../registration/WaiverConsent";
+import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
 import {
   fetchChatPrograms,
   fetchChatBatches,
@@ -227,6 +229,11 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const [paymentMethod, setPaymentMethod] = useState<"PayPal" | "Check" | null>(null);
   const [checkNumber, setCheckNumber] = useState("");
   const [result, setResult] = useState<{ registrationNumber: string; programName: string; totalAmount: number; paymentStatus: string } | null>(null);
+  const [waiverAccepted, setWaiverAccepted] = useState(false);
+  const [waiverSignature, setWaiverSignature] = useState("");
+  const [waiverDrawnSignature, setWaiverDrawnSignature] = useState("");
+  const [waiverError, setWaiverError] = useState<string | null>(null);
+  const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
 
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
@@ -414,8 +421,14 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   // ── Final submit (Check, or after PayPal capture) ──
   const finishRegistration = async (method: "PayPal" | "Check", transactionId?: string) => {
     if (!selectedProgram) return;
+    if (!waiverValid) {
+      setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+      setStep("review");
+      return;
+    }
     setSubmitting(true);
     setError(null);
+    setWaiverError(null);
     try {
       const parentInfo = {
         parentName: user ? `${user.firstName} ${user.lastName}` : `${regForm.firstName} ${regForm.lastName}`,
@@ -440,6 +453,12 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
           paymentMethod: method,
           transactionId,
           checkNumber: method === "Check" ? checkNumber : undefined,
+          waiverConsent: {
+            accepted: waiverAccepted,
+            signature: waiverSignature.trim(),
+            drawnSignature: waiverDrawnSignature,
+            agreementVersion: WAIVER_AGREEMENT_VERSION,
+          },
         },
         token
       );
@@ -773,7 +792,38 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
               <p><strong>Billing:</strong> {[billing.address, billing.city, billing.state, billing.zip].filter(Boolean).join(", ") || "—"}</p>
               <p><strong>Total:</strong> ${computedFee}</p>
             </div>
-            <button onClick={() => goTo("payment")} className="cca-flow-btn">Pay & Register Now</button>
+            <WaiverConsent
+              accepted={waiverAccepted}
+              signature={waiverSignature}
+              drawnSignature={waiverDrawnSignature}
+              guardianName={user ? `${user.firstName} ${user.lastName}` : `${regForm.firstName} ${regForm.lastName}`.trim()}
+              error={waiverError}
+              onAcceptedChange={(accepted) => {
+                setWaiverAccepted(accepted);
+                if (accepted) setWaiverError(null);
+              }}
+              onSignatureChange={(signature) => {
+                setWaiverSignature(signature);
+                if (signature.trim()) setWaiverError(null);
+              }}
+              onDrawnSignatureChange={(signature) => {
+                setWaiverDrawnSignature(signature);
+                if (signature) setWaiverError(null);
+              }}
+            />
+            <button
+              onClick={() => {
+                if (!waiverValid) {
+                  setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+                  return;
+                }
+                goTo("payment");
+              }}
+              disabled={!waiverValid}
+              className="cca-flow-btn"
+            >
+              Pay & Register Now
+            </button>
             <button onClick={handleAddToCart} className="cca-flow-btn-outline flex items-center justify-center gap-2">
               <HiOutlineShoppingCart className="w-4 h-4" /> Add to Cart Instead
             </button>
