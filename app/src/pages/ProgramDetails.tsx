@@ -13,6 +13,7 @@ import Footer from "../components/Footer";
 import { useRegistration } from "../context/RegistrationContext";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import GenderSelect from "../components/registration/GenderSelect";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface TimeSlot { startTime: string; endTime: string; }
@@ -500,16 +501,11 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   Gender <span className="text-red-500">*</span>
                 </label>
-                <select value={student.gender}
-                  onChange={(e) => handleStudentChange("gender", e.target.value)}
+                <GenderSelect
+                  value={student.gender}
+                  onChange={(value) => handleStudentChange("gender", value)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
-                >
-                  <option value="">Choose gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  {/* <option value="Non-binary">Non-binary</option>
-                  <option value="Prefer not to say">Prefer not to say</option> */}
-                </select>
+                />
               </div>
             </div>
 
