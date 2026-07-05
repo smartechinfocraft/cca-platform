@@ -1,4 +1,4 @@
-﻿import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -13,6 +13,7 @@ import { HiOutlineArrowRight, HiOutlinePlusCircle, HiOutlineTrash } from "react-
 import { useAuth } from "../context/AuthContext";
 import { useRegistration } from "../context/RegistrationContext";
 import { getProgramById } from "../services/programService";
+import GenderSelect from "./registration/GenderSelect";
 
 type ProgramCardProps = {
   program: {
@@ -632,13 +633,11 @@ function QuickRegisterDrawer({
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">Gender *</label>
-                    <select value={student.gender} onChange={(e) => handleStudentChange("gender", e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]">
-                      <option value="">Choose gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      {/* <option value="Non-binary">Non-binary</option>
-                      <option value="Prefer not to say">Prefer not to say</option> */}
-                    </select>
+                    <GenderSelect
+                      value={student.gender}
+                      onChange={(value) => handleStudentChange("gender", value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]"
+                    />
                   </div>
                 </div>
 
