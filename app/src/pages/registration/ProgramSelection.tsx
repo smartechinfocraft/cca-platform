@@ -6,6 +6,7 @@ import { HiOutlineArrowLeft, HiOutlineArrowRight, HiOutlinePlusCircle, HiOutline
 import { useRegistration } from "../../context/RegistrationContext";
 import { getProgramById } from "../../services/programService";
 import type { Program } from "../../types/program";
+import GenderSelect from "../../components/registration/GenderSelect";
 
 // ─── DOB validator (same logic as StudentDetails) ─────────────────────────────
 function getDobError(value: string): string {
@@ -718,18 +719,12 @@ export default function ProgramSelection() {
                     <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--ink-400)" }}>
                       Gender <span style={{ color: "#ef4444" }}>*</span>
                     </label>
-                    <select
+                    <GenderSelect
                       value={student.gender}
-                      onChange={(e) => handleStudentChange("gender", e.target.value)}
+                      onChange={(value) => handleStudentChange("gender", value)}
                       className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition"
                       style={{ borderColor: "var(--pitch-deep)", background: "#fafaf8", color: "var(--outfield)" }}
-                    >
-                      <option value="">Choose gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      {/* <option value="Non-binary">Non-binary</option>
-                      <option value="Prefer not to say">Prefer not to say</option> */}
-                    </select>
+                    />
                   </div>
                 </div>
 
