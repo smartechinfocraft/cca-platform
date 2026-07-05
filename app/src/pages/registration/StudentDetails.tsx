@@ -4,6 +4,7 @@ import Footer from "../../components/Footer";
 import { useNavigate } from "react-router-dom";
 import { HiOutlineArrowLeft, HiOutlineArrowRight, HiOutlinePlusCircle, HiOutlineTrash } from "react-icons/hi2";
 import { useRegistration } from "../../context/RegistrationContext";
+import GenderSelect from "../../components/registration/GenderSelect";
 
 // Returns an error message if the given "YYYY-MM-DD" date string is in the future, otherwise ""
 function getDobError(value: string): string {
@@ -176,17 +177,11 @@ function StudentDetails() {
                   <label className="block text-sm font-semibold text-slate-700">
                     Gender <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  <GenderSelect
                     value={student.gender}
-                    onChange={(e) => handleChange("gender", e.target.value)}
+                    onChange={(value) => handleChange("gender", value)}
                     className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-600/15"
-                  >
-                    <option value="">Choose gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    {/* <option value="Non-binary">Non-binary</option>
-                    <option value="Prefer not to say">Prefer not to say</option> */}
-                  </select>
+                  />
                 </div>
               </div>
 
