@@ -1,8 +1,10 @@
 // ============================================================
 //  AuthContext — Parent user auth (register / login / logout)
+//  SECURITY: access token lives in memory only (api/axios.ts);
+//  the refresh token lives in an HttpOnly cookie set by the server.
 // ============================================================
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import api from "../api/axios";
+import api, { setAccessToken, silentRefresh } from "../api/axios";
 
 interface ParentUser {
   id: string;
@@ -39,25 +41,36 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<ParentUser | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("cca_parent_token"));
-  const [loading, setLoading] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Restore session on mount
+  // Restore session on mount by exchanging the HttpOnly refresh cookie
+  // (if present) for a fresh access token — replaces the old
+  // "read token from localStorage" flow.
   useEffect(() => {
-    if (token) {
-      api.get("/public/auth/me", { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => setUser(res.data.parent))
-        .catch(() => { setToken(null); localStorage.removeItem("cca_parent_token"); });
-    }
+    (async () => {
+      const newToken = await silentRefresh();
+      if (newToken) {
+        setToken(newToken);
+        try {
+          const res = await api.get("/public/auth/me");
+          setUser(res.data.parent);
+        } catch {
+          setAccessToken(null);
+          setToken(null);
+        }
+      }
+      setLoading(false);
+    })();
   }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
       const res = await api.post("/public/auth/login", { email, password });
+      setAccessToken(res.data.token);
       setToken(res.data.token);
       setUser(res.data.parent);
-      localStorage.setItem("cca_parent_token", res.data.token);
     } finally {
       setLoading(false);
     }
@@ -67,18 +80,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const res = await api.post("/public/auth/register", data);
+      setAccessToken(res.data.token);
       setToken(res.data.token);
       setUser(res.data.parent);
-      localStorage.setItem("cca_parent_token", res.data.token);
     } finally {
       setLoading(false);
     }
   };
 
   const logout = () => {
+    // Fire-and-forget: revokes the refresh token + clears the cookie
+    // server-side. UI state is cleared immediately regardless.
+    api.post("/public/auth/logout").catch(() => {});
     setUser(null);
     setToken(null);
-    localStorage.removeItem("cca_parent_token");
+    setAccessToken(null);
   };
 
   // Merge a partial patch into the current parent user — used after the
