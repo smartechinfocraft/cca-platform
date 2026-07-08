@@ -3,6 +3,7 @@
 // ============================================================
 const User = require('../models/User');
 const { verifyAccessToken } = require('../utils/tokenService');
+const { requireRole } = require('./rbac');
 
 // ─── protect ─────────────────────────────────────────────────────────────────
 // Verifies the short-lived Access Token Bearer header on every protected
@@ -44,23 +45,10 @@ const protect = async (req, res, next) => {
 
 // ─── superAdminOnly ───────────────────────────────────────────────────────────
 // Use AFTER protect(). Blocks normal admins from super-admin routes.
-const superAdminOnly = (req, res, next) => {
-  if (req.user && req.user.role === 'SUPER_ADMIN') {
-    return next();
-  }
-  return res.status(403).json({
-    success: false,
-    message: 'Access denied — Super Admin only',
-  });
-};
+const superAdminOnly = requireRole('SUPER_ADMIN');
 
 // ─── adminOrSuperAdmin ────────────────────────────────────────────────────────
 // Both ADMIN and SUPER_ADMIN can access
-const adminOrSuperAdmin = (req, res, next) => {
-  if (req.user && ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
-    return next();
-  }
-  return res.status(403).json({ success: false, message: 'Access denied' });
-};
+const adminOrSuperAdmin = requireRole(['ADMIN', 'SUPER_ADMIN']);
 
 module.exports = { protect, superAdminOnly, adminOrSuperAdmin };
