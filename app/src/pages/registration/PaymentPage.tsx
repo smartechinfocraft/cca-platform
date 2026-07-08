@@ -9,6 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import WaiverConsent from "../../components/registration/WaiverConsent";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
+import StripePaymentBox from "../../components/payments/StripePaymentBox";
 
 // PayPal SDK types are declared globally in src/types/paypal.d.ts
 
@@ -71,17 +72,12 @@ function PaymentPage() {
       window.paypal.Buttons({
         style: { layout: "vertical", color: "blue", shape: "pill", label: "pay" },
         createOrder: async () => {
-          // couponCode is sent so the backend computes the discounted price.
-          // weeklyBatchIds is only set for WEEKLY batchType programs — it lets
-          // the backend recompute basePrice × batches-selected itself instead
-          // of trusting a client-side total.
-          const weeklyBatchIds = (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id);
+          // couponCode is sent so the backend computes the discounted price
           const res = await api.post("/public/paypal/create-order", {
             programId:       selectedProgram?._id,
             batchId:         selectedBatch?._id,
             studentCount:    students.length || 1,
             sessionsPerWeek: selectedBatch?.sessionsPerWeek,
-            weeklyBatchIds,
             couponCode:      appliedCoupon?.code ?? undefined,
           });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
@@ -98,7 +94,6 @@ function PaymentPage() {
               batchId:         selectedBatch?._id,
               studentCount:    students.length || 1,
               sessionsPerWeek: selectedBatch?.sessionsPerWeek,
-              weeklyBatchIds:  (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id),
               couponCode:      appliedCoupon?.code ?? undefined,
             });
             if (!capture.data.success) throw new Error(capture.data.message || "Payment capture failed");
@@ -195,7 +190,7 @@ function PaymentPage() {
             <div>
               <p className="text-sm uppercase tracking-widest text-[var(--gold)]">Step 5 — Payment</p>
               <h1 className="mt-2 text-3xl font-bold text-[#0F172A]">Complete Your Payment</h1>
-              <p className="mt-2 text-slate-600 text-sm">Choose PayPal (online) or Check to finalize enrollment.</p>
+              <p className="mt-2 text-slate-600 text-sm">Choose PayPal, Stripe card, or Check to finalize enrollment.</p>
             </div>
             <div className="rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">🔒 Secure Checkout</div>
           </div>
@@ -233,8 +228,8 @@ function PaymentPage() {
             <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
               <p className="text-sm uppercase tracking-widest text-slate-500">Payment Method</p>
               <h2 className="mt-2 text-xl font-semibold text-[#0F172A]">Choose how to pay</h2>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                {(["PayPal", "Check"] as PaymentMethod[]).map(method => (
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                {(["PayPal", "Stripe", "Check"] as PaymentMethod[]).map(method => (
                   <button
                     key={method}
                     type="button"
@@ -246,12 +241,12 @@ function PaymentPage() {
                       setPaymentMethod(method);
                     }}
                     className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[#A33B2B] bg-[#A33B2B]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[#A33B2B]"}`}>
-                    <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : "bg-slate-700"}`}>
-                      {method === "PayPal" ? "P" : "✉"}
+                    <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : method === "Stripe" ? "bg-[#635BFF]" : "bg-slate-700"}`}>
+                      {method === "PayPal" ? "P" : method === "Stripe" ? "S" : "$"}
                     </div>
                     <div>
                       <p className="text-base font-bold text-[#0F172A]">{method}</p>
-                      <p className="mt-1 text-xs text-slate-500">{method === "PayPal" ? "Fast & secure online payment" : "Pay by physical check"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{method === "PayPal" ? "Fast online payment" : method === "Stripe" ? "Pay securely by card" : "Pay by physical check"}</p>
                     </div>
                   </button>
                 ))}
@@ -274,6 +269,28 @@ function PaymentPage() {
                 <div className="mt-4 rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-700">
                   Click the PayPal button above. You'll be redirected to PayPal to complete payment securely.
                 </div>
+              </div>
+            )}
+
+            {/* Stripe Card Payment */}
+            {paymentMethod === "Stripe" && (
+              <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
+                {waiverValid ? (
+                  <StripePaymentBox
+                    programId={selectedProgram?._id}
+                    batchId={selectedBatch?._id}
+                    studentCount={students.length || 1}
+                    sessionsPerWeek={selectedBatch?.sessionsPerWeek}
+                    couponCode={appliedCoupon?.code ?? undefined}
+                    disabled={loading}
+                    onAmountConfirmed={setServerConfirmedAmount}
+                    onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
+                  />
+                ) : (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Accept the waiver, type your e-signature, and draw your digital signature to unlock Stripe checkout.
+                  </div>
+                )}
               </div>
             )}
 

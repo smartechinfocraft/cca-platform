@@ -423,13 +423,15 @@ export default function PaymentStudents() {
   const load = async () => {
     setLoading(true);
     try {
-      const [checkRes, paypalRes] = await Promise.all([
+      const [checkRes, paypalRes, stripeRes] = await Promise.all([
         registrationsAPI.getAll({ paymentMethod: 'CHECK',  limit: 500 }),
         registrationsAPI.getAll({ paymentMethod: 'PAYPAL', limit: 500 }),
+        registrationsAPI.getAll({ paymentMethod: 'STRIPE', limit: 500 }),
       ]);
       const combined = [
         ...(checkRes.data.data  || []),
         ...(paypalRes.data.data || []),
+        ...(stripeRes.data.data || []),
       ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setRows(combined);
     } catch {
@@ -610,7 +612,7 @@ export default function PaymentStudents() {
     <div style={{ color: '#fff' }}>
       <PageHeader
         title="Payment Students"
-        subtitle="Students who registered via Check or PayPal"
+        subtitle="Students who registered via Check, PayPal, or Stripe"
       />
 
       {/* ── Filter Bar ── */}
@@ -625,6 +627,7 @@ export default function PaymentStudents() {
           <option value="">All Methods</option>
           <option value="CHECK">Check</option>
           <option value="PAYPAL">PayPal</option>
+          <option value="STRIPE">Stripe</option>
         </Select>
         <Select value={filterProgram} onChange={e => setFilterProgram(e.target.value)} style={{ width: '160px' }}>
           <option value="">All Programs</option>
@@ -669,7 +672,7 @@ export default function PaymentStudents() {
         columns={columns}
         rows={filtered}
         loading={loading}
-        emptyMsg="No records found. Try changing filters or check if registrations exist with paymentMethod=CHECK or PAYPAL."
+        emptyMsg="No records found. Try changing filters or check if registrations exist with paymentMethod=CHECK, PAYPAL, or STRIPE."
       />
     </div>
   );

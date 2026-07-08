@@ -7,6 +7,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
+const { createPaymentIntent, getPaymentIntent, toMinorUnits } = require('../services/stripeService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { computeRegistrationTotal, round2 } = require('../utils/pricing');
 
@@ -370,6 +371,51 @@ router.post('/paypal/capture-order', async (req, res) => {
   }
 });
 
+// ── POST /api/public/stripe/create-payment-intent ─────────────
+// SECURITY: same pattern as PayPal. The client sends program context,
+// never a trusted amount. The server recomputes the payable total.
+router.post('/stripe/create-payment-intent', async (req, res) => {
+  try {
+    const { programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds, couponCode } = req.body;
+
+    if (!programId)
+      return res.status(400).json({ success: false, message: 'programId is required.' });
+
+    const priced = await computeRegistrationTotal({
+      programId,
+      batchId,
+      studentCount,
+      sessionsPerWeek,
+      weeklyBatchIds,
+      couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+    });
+
+    if (!priced.total || priced.total <= 0)
+      return res.status(400).json({ success: false, message: 'This program has no payable price configured.' });
+
+    const intent = await createPaymentIntent(priced.total, priced.currency, {
+      programId,
+      batchId,
+      studentCount: studentCount || 1,
+      weeklyBatchIds: Array.isArray(weeklyBatchIds) ? weeklyBatchIds.join(',') : '',
+      couponCode: couponCode ? couponCode.trim().toUpperCase() : '',
+    });
+
+    res.json({
+      success: true,
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      amount: priced.total,
+      discount: priced.discount,
+      currency: priced.currency,
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+    });
+  } catch (err) {
+    console.error('Stripe create payment intent error:', err);
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+});
+
 // ── POST /api/public/donate/create-order ──────────────────────
 // Donations are donor-chosen amounts, so — unlike program payments
 // above — there's no Program/Batch price to recompute the amount
@@ -627,6 +673,7 @@ router.post('/register', async (req, res) => {
     }
 
     const pmMethod = paymentMethod === 'PayPal' ? 'PAYPAL'
+      : paymentMethod === 'Stripe' ? 'STRIPE'
       : paymentMethod === 'Check' ? 'CHECK' : 'PENDING';
 
     let pmStatus = 'PENDING';
@@ -648,11 +695,29 @@ router.post('/register', async (req, res) => {
         verificationNote = `Could not verify PayPal transaction ${transactionId} with PayPal: ${verifyErr.message}. Registration held as PENDING for staff review.`;
         console.error(verificationNote);
       }
+    } else if (paymentMethod === 'Stripe' && transactionId) {
+      try {
+        const intent = await getPaymentIntent(transactionId);
+        const capturedCents = Number(intent.amount_received || 0);
+        const expectedCents = toMinorUnits(priced.total);
+        const isCompleted = intent.status === 'succeeded';
+        const amountMatches = Math.abs(capturedCents - expectedCents) <= 1;
+
+        if (isCompleted && amountMatches) {
+          pmStatus = 'SUCCESS';
+        } else {
+          verificationNote = `Stripe verification failed (status=${intent?.status}, captured=${capturedCents}, expected=${expectedCents}). Registration held as PENDING for staff review.`;
+          console.error(verificationNote, '— paymentIntentId:', transactionId);
+        }
+      } catch (verifyErr) {
+        verificationNote = `Could not verify Stripe PaymentIntent ${transactionId}: ${verifyErr.message}. Registration held as PENDING for staff review.`;
+        console.error(verificationNote);
+      }
     }
 
     // ── Decrement coupon usedCount AFTER payment is confirmed ──
     // Only do this when the registration has a coupon and the payment
-    // was either successful (PayPal) or submitted (Check). This ensures
+    // was either successful (PayPal/Stripe) or submitted (Check). This ensures
     // the counter only goes up for real completed/intended registrations.
     if (priced.coupon && (pmStatus === 'SUCCESS' || paymentMethod === 'Check')) {
       const Coupon = mongoose.model('Coupon');

@@ -12,6 +12,7 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../api/axios";
 import WaiverConsent from "../../components/registration/WaiverConsent";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
+import StripePaymentBox from "../../components/payments/StripePaymentBox";
 import {
   HiOutlineTrash, HiOutlineTag, HiOutlineXCircle,
   HiOutlineArrowRight, HiOutlineShoppingCart, HiOutlineTicket,
@@ -107,7 +108,7 @@ const emptyParentForm: ParentForm = {
   parentName: "", email: "", phone: "", address: "", city: "", state: "", zip: "",
 };
 
-type PaymentMethod = "PayPal" | "Check" | "";
+type PaymentMethod = "PayPal" | "Stripe" | "Check" | "";
 
 // ── CartPage ──────────────────────────────────────────────────────────────────
 export default function CartPage() {
@@ -652,8 +653,8 @@ export default function CartPage() {
                   <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--gold)" }}>Payment</p>
                   <h2 className="mt-1 text-xl font-bold text-[#0F172A]">Choose how to pay</h2>
 
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    {(["PayPal", "Check"] as PaymentMethod[]).map((method) => (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                    {(["PayPal", "Stripe", "Check"] as PaymentMethod[]).map((method) => (
                       <button
                         key={method}
                         type="button"
@@ -664,12 +665,12 @@ export default function CartPage() {
                         }}
                         className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[var(--gold)] bg-[var(--gold)]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[var(--gold)]"}`}
                       >
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : "bg-slate-700"}`}>
-                          {method === "PayPal" ? "P" : "✉"}
+                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : method === "Stripe" ? "bg-[#635BFF]" : "bg-slate-700"}`}>
+                          {method === "PayPal" ? "P" : method === "Stripe" ? "S" : "$"}
                         </div>
                         <div>
                           <p className="text-base font-bold text-[#0F172A]">{method}</p>
-                          <p className="mt-1 text-xs text-slate-500">{method === "PayPal" ? "Fast & secure online payment" : "Pay by physical check"}</p>
+                          <p className="mt-1 text-xs text-slate-500">{method === "PayPal" ? "Fast online payment" : method === "Stripe" ? "Pay securely by card" : "Pay by physical check"}</p>
                         </div>
                       </button>
                     ))}
@@ -689,6 +690,22 @@ export default function CartPage() {
                       <div className="mt-4 rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-700">
                         Click the PayPal button above. You'll be redirected to PayPal to complete payment securely.
                       </div>
+                    </div>
+                  )}
+
+                  {/* Stripe Card Payment */}
+                  {paymentMethod === "Stripe" && parentValid && waiverValid && firstItem && (
+                    <div className="mt-5">
+                      <StripePaymentBox
+                        programId={firstItem.programId}
+                        batchId={firstItem.batchId}
+                        studentCount={itemCount || 1}
+                        sessionsPerWeek={firstItem.sessionsPerWeek}
+                        couponCode={coupon?.code ?? undefined}
+                        disabled={paying}
+                        onAmountConfirmed={setServerConfirmedAmount}
+                        onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
+                      />
                     </div>
                   )}
 

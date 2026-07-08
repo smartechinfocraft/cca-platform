@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { Program } from "../types/program";
 import type { BatchItem } from "../components/registration/BatchList";
 
-export type PaymentMethod = "PayPal" | "Check" | "";
+export type PaymentMethod = "PayPal" | "Stripe" | "Check" | "";
 export type CheckoutMode = "guest" | "account" | "";
 
 export interface StudentDetails {

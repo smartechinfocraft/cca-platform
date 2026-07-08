@@ -37,7 +37,7 @@ export type RegistrationStatus =
   | "CANCELLED" | "REFUNDED" | "WAITLISTED";
 
 export type PaymentStatus = "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED";
-export type PaymentMethod = "PAYPAL" | "CHECK" | "PENDING";
+export type PaymentMethod = "PAYPAL" | "STRIPE" | "CHECK" | "PENDING";
 
 export interface Registration {
   _id: string;

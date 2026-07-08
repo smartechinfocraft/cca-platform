@@ -341,7 +341,7 @@ const registrationSchema = new mongoose.Schema(
     isWhatsappJoined:{ type: Boolean, default: false },
 
     // Payment info (no card data stored)
-    paymentMethod: { type: String, enum: ['PAYPAL', 'CHECK', 'PENDING'], default: 'PENDING' },
+    paymentMethod: { type: String, enum: ['PAYPAL', 'STRIPE', 'CHECK', 'PENDING'], default: 'PENDING' },
     paymentStatus: { type: String, enum: ['PENDING','SUCCESS','FAILED','REFUNDED'], default: 'PENDING' },
     transactionId: { type: String },
     checkNumber:   { type: String },
