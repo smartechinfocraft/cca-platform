@@ -4,14 +4,46 @@
 //        Only Coach (/api/coach-auth/forgot-password) and
 //        Parent (/api/public/auth/forgot-password) support it.
 // ============================================================
-const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  hashToken,
+  refreshCookieOptions,
+  clearCookieOptions,
+} = require('../utils/tokenService');
 
-// Helper: generate a signed JWT containing the user's _id
-const generateToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
+// Cookie carrying the refresh token is scoped to /api/auth/* only, so it's
+// never sent to unrelated routes (batches, registrations, etc.)
+const REFRESH_COOKIE_NAME = 'cca_admin_rt';
+const REFRESH_COOKIE_PATH = '/api/auth';
+
+// Helper: sign an access token for a given admin user
+const generateAccessToken = (userId) => signAccessToken({ id: userId, type: 'admin' });
+
+// Helper: build the safe (no password) user object returned to the client
+const toSafeUser = (user) => ({
+  id:        user._id,
+  username:  user.username,
+  email:     user.email,
+  firstName: user.firstName,
+  lastName:  user.lastName,
+  role:      user.role,       // SUPER_ADMIN or ADMIN — frontend uses this for UI
+});
+
+// Issues a fresh access + refresh token pair for a user, persists the
+// refresh token's hash (rotate-on-use), and sets the HttpOnly cookie.
+const issueTokens = async (res, user) => {
+  const accessToken  = generateAccessToken(user._id);
+  const refreshToken = signRefreshToken({ id: user._id, type: 'admin' });
+
+  user.refreshTokenHash = hashToken(refreshToken);
+  await user.save({ validateBeforeSave: false });
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions(REFRESH_COOKIE_PATH));
+  return accessToken;
+};
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
 exports.login = async (req, res) => {
@@ -43,25 +75,86 @@ exports.login = async (req, res) => {
     }
 
     // Update last login time
-    await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+    user.lastLogin = new Date();
 
-    const token = generateToken(user._id);
+    const accessToken = await issueTokens(res, user);
 
-    // Return user info (no password!) + token
+    // Return user info (no password!) + short-lived access token.
+    // The refresh token was set as an HttpOnly cookie above — it is
+    // never present in this JSON body.
     res.json({
       success: true,
-      token,
-      user: {
-        id:        user._id,
-        username:  user.username,
-        email:     user.email,
-        firstName: user.firstName,
-        lastName:  user.lastName,
-        role:      user.role,       // SUPER_ADMIN or ADMIN — frontend uses this for UI
-      },
+      token: accessToken,
+      user: toSafeUser(user),
     });
   } catch (err) {
     console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── POST /api/auth/refresh ────────────────────────────────────────────────────
+// Reads the HttpOnly refresh-token cookie, verifies it against the hash
+// stored on the user, and — if valid — rotates it (issues a brand new
+// access + refresh token pair). This is what lets the frontend silently
+// restore a session on page load without ever persisting a token in
+// localStorage.
+exports.refresh = async (req, res) => {
+  try {
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No refresh token' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyRefreshToken(token);
+    } catch {
+      res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+      return res.status(401).json({ success: false, message: 'Refresh token invalid or expired' });
+    }
+
+    if (decoded.type !== 'admin') {
+      return res.status(401).json({ success: false, message: 'Invalid token type' });
+    }
+
+    const user = await User.findById(decoded.id).select('+refreshTokenHash');
+    if (!user || user.status !== 'ACTIVE' || !user.refreshTokenHash || user.refreshTokenHash !== hashToken(token)) {
+      // Hash mismatch = token was already rotated/used, or session was
+      // revoked (logout) — treat as a stolen/replayed token and deny.
+      res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+      return res.status(401).json({ success: false, message: 'Session expired, please log in again' });
+    }
+
+    const accessToken = await issueTokens(res, user);
+
+    res.json({ success: true, token: accessToken, user: toSafeUser(user) });
+  } catch (err) {
+    console.error('Admin refresh error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── POST /api/auth/logout ─────────────────────────────────────────────────────
+// Clears the refresh cookie AND revokes it server-side so it can't be
+// replayed even if it was already captured.
+exports.logout = async (req, res) => {
+  try {
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (token) {
+      try {
+        const decoded = verifyRefreshToken(token);
+        if (decoded?.id) {
+          await User.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+        }
+      } catch {
+        // Token already invalid/expired — nothing to revoke, just clear the cookie
+      }
+    }
+    res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+    res.json({ success: true, message: 'Logged out' });
+  } catch (err) {
+    console.error('Admin logout error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
