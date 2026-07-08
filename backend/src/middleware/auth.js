@@ -1,16 +1,16 @@
 // ============================================================
 //  middleware/auth.js — JWT verification & role-based guards
 // ============================================================
-const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
+const { verifyAccessToken } = require('../utils/tokenService');
 
 // ─── protect ─────────────────────────────────────────────────────────────────
-// Verifies the Bearer token on every protected route.
-// Attaches req.user so downstream controllers know who's logged in.
+// Verifies the short-lived Access Token Bearer header on every protected
+// route. Attaches req.user so downstream controllers know who's logged in.
 const protect = async (req, res, next) => {
   let token;
 
-  // JWT is sent as: "Authorization: Bearer <token>"
+  // Access token is sent as: "Authorization: Bearer <token>"
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   }
@@ -20,8 +20,13 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    // jwt.verify throws if token is expired or tampered
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // verifyAccessToken throws if the token is expired, tampered, or the
+    // wrong type (e.g. someone trying to use a refresh token here)
+    const decoded = verifyAccessToken(token);
+
+    if (decoded.type !== 'admin') {
+      return res.status(401).json({ success: false, message: 'Invalid token type' });
+    }
 
     // Fetch user from DB so we get live role/status (not stale token data)
     // +password is excluded by default (select:false in schema)
