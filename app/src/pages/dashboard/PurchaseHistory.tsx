@@ -22,6 +22,17 @@ function formatDate(iso?: string) {
   return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
+function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+  if (!startDate || !endDate) return "";
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  return weeks ? `${range} ( ${weeks} week )` : range;
+}
+
 type StatusFilter = "ALL" | RegistrationStatus;
 type PayFilter = "ALL" | PaymentStatus;
 
@@ -184,6 +195,16 @@ function PurchaseHistory() {
                     <span>
                       <span className="font-semibold text-slate-600">Batch:</span>{" "}
                       {reg.batches.map(b => `${b.title || ""} ${b.dayOfWeek || ""}`.trim()).join(", ")}
+                    </span>
+                  )}
+                  {reg.selectedMonth?.label && (
+                    <span>
+                      <span className="font-semibold text-slate-600">Month:</span>{" "}
+                      {reg.selectedMonth.label}
+                      {(() => {
+                        const dateRange = fmtMonthDateRange(reg.selectedMonth?.startDate, reg.selectedMonth?.endDate, reg.selectedMonth?.weeks);
+                        return dateRange ? ` (${dateRange})` : "";
+                      })()}
                     </span>
                   )}
                 </div>
