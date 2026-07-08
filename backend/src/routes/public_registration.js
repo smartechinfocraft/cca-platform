@@ -9,6 +9,18 @@ const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { computeRegistrationTotal, round2 } = require('../utils/pricing');
+
+// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
+function fmtMonthDateRange(startDate, endDate, weeks) {
+  if (!startDate || !endDate) return '';
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+  const opts = { month: 'short', day: 'numeric' };
+  const range = `${s.toLocaleDateString('en-US', opts)} - ${e.toLocaleDateString('en-US', opts)}`;
+  return weeks ? `${range} ( ${weeks} week )` : range;
+}
+
 const {
   signAccessToken,
   signRefreshToken,
@@ -651,7 +663,13 @@ router.post('/register', async (req, res) => {
       .map(s => `${s.firstName} ${s.lastName} | DOB: ${s.dob || 'N/A'} | Gender: ${s.gender || 'N/A'}`)
       .join('; ');
 
-    const batchTitle = selectedBatch?.title || selectedBatch?.name || '';
+    const monthOpt = selectedBatch?.selectedMonth || null;
+    const monthDateRange = monthOpt ? fmtMonthDateRange(monthOpt.startDate, monthOpt.endDate) : '';
+    const batchTitle = [
+      selectedBatch?.title || selectedBatch?.name || '',
+      monthOpt?.label || '',
+      monthDateRange,
+    ].filter(Boolean).join(' — ');
     const batchIds = [...new Set(studentBatchIds.filter(Boolean).map(String))];
 
     const reg = new Registration({
@@ -659,6 +677,13 @@ router.post('/register', async (req, res) => {
       programId: selectedProgram._id,
       students: studentIds,
       batches: batchIds,
+      selectedMonth: monthOpt ? {
+        label:     monthOpt.label,
+        startDate: monthOpt.startDate,
+        endDate:   monthOpt.endDate,
+        weeks:     monthOpt.weeks != null ? String(monthOpt.weeks) : undefined,
+        price:     monthOpt.price != null ? Number(monthOpt.price) : undefined,
+      } : undefined,
       selectedWeeklyBatches: matchedWeeklyBatches.length ? matchedWeeklyBatches.map(b => ({
         batchId:       String(b._id),
         label:         b.label,
