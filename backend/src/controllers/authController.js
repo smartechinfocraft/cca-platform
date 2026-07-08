@@ -45,6 +45,11 @@ const issueTokens = async (res, user) => {
   return accessToken;
 };
 
+// Escapes regex special characters in user input before it's used inside a
+// RegExp — prevents a crafted "username" from being interpreted as regex
+// syntax (ReDoS / unintended matches).
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   try {
@@ -54,23 +59,35 @@ exports.login = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Username and password required' });
     }
 
-    // Find by username OR email (flexible login)
+    // Normalize the identifier: trim stray whitespace (easy to introduce via
+    // copy-paste) and match case-insensitively. This matters because
+    // username/email are only auto-lowercased by Mongoose's `lowercase: true`
+    // when a document is saved THROUGH the model (register/seed/createAdmin).
+    // A document inserted directly in MongoDB Compass/Atlas UI, or imported
+    // from a JSON dump, bypasses that transform and can keep its original
+    // casing — an exact-match query would then never find a perfectly valid,
+    // active account and login would incorrectly report "Invalid credentials".
+    const identifier = username.trim();
+    const identifierRegex = new RegExp(`^${escapeRegex(identifier)}$`, 'i');
+
     // We need +password because it's select:false in the schema
     const user = await User.findOne({
-      $or: [{ username: username.toLowerCase() }, { email: username.toLowerCase() }],
+      $or: [{ username: identifierRegex }, { email: identifierRegex }],
     }).select('+password');
 
     if (!user) {
+      console.warn(`[auth/login] No admin user matched identifier "${identifier}"`);
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    if (user.status !== 'ACTIVE') {
+    if (user.status && user.status !== 'ACTIVE') {
       return res.status(401).json({ success: false, message: 'Account is inactive' });
     }
 
     // bcrypt compare plain text against stored hash
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      console.warn(`[auth/login] Password mismatch for user "${user.username}"`);
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
