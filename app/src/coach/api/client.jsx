@@ -1,8 +1,8 @@
 // ============================================================
 //  src/api/client.js — Axios instance for the Coach Portal
-//  Uses a SEPARATE localStorage key from the admin app
-//  (cca_coach_token / cca_coach_user) so a coach and an admin
-//  could even be logged in on the same browser without clashing.
+//  SECURITY: the access token now lives in memory only (not
+//  localStorage); the refresh token lives in an HttpOnly,
+//  portal-scoped cookie (cca_coach_rt) set by the server.
 // ============================================================
 import axios from 'axios';
 
@@ -10,14 +10,29 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api
 
 const client = axios.create({
   baseURL: API_BASE,
+  withCredentials: true, // send/receive the HttpOnly refresh-token cookie
   headers: { 'Content-Type': 'application/json' },
 });
 
+let accessToken = null;
+export const setAccessToken = (token) => { accessToken = token; };
+export const getAccessToken = () => accessToken;
+
+export const refreshAccessToken = async () => {
+  try {
+    const res = await axios.post(`${API_BASE}/coach-auth/refresh`, {}, { withCredentials: true });
+    setAccessToken(res.data.token);
+    return res.data;
+  } catch {
+    setAccessToken(null);
+    return null;
+  }
+};
+
 client.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('cca_coach_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
@@ -27,11 +42,28 @@ client.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let refreshPromise = null;
+
 client.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('cca_coach_token');
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/coach-auth/refresh')
+    ) {
+      originalRequest._retry = true;
+      refreshPromise = refreshPromise ?? refreshAccessToken().finally(() => { refreshPromise = null; });
+      const result = await refreshPromise;
+
+      if (result?.token) {
+        originalRequest.headers.Authorization = `Bearer ${result.token}`;
+        return client(originalRequest);
+      }
+
+      setAccessToken(null);
       localStorage.removeItem('cca_coach_user');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
@@ -46,8 +78,9 @@ export default client;
 // ─── API helper functions ─────────────────────────────────────
 
 export const coachAuthAPI = {
-  login: (data) => client.post('/coach-auth/login', data),
-  getMe: () => client.get('/coach-auth/me'),
+  login:  (data) => client.post('/coach-auth/login', data),
+  logout: ()     => client.post('/coach-auth/logout'),
+  getMe:  ()     => client.get('/coach-auth/me'),
 };
 
 export const coachPortalAPI = {
