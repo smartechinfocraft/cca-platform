@@ -53,6 +53,11 @@ const userSchema = new mongoose.Schema(
 
     // Store last login time for dashboard display
     lastLogin: { type: Date },
+
+    // SHA-256 hash of the current valid refresh token (rotate-on-use).
+    // Never store the raw refresh token. select:false keeps it out of
+    // normal queries/API responses.
+    refreshTokenHash: { type: String, select: false, default: null },
   },
   {
     // Mongoose automatically adds createdAt and updatedAt timestamps
@@ -66,7 +71,7 @@ userSchema.pre('save', async function (next) {
   // Only hash if password field was modified
   if (!this.isModified('password')) return next();
 
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
