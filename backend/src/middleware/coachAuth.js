@@ -20,7 +20,7 @@ const coachAuth = async (req, res, next) => {
     const decoded = verifyAccessToken(token);
 
     if (decoded.type !== 'coach') {
-      return res.status(403).json({ success: false, message: 'Invalid token type' });
+      return res.status(401).json({ success: false, message: 'Invalid token type' });
     }
 
     const Coach = mongoose.model('Coach');
