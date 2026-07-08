@@ -6,7 +6,8 @@
 //  and emails them to the coach for the Coach Portal login.
 // ============================================================
 const mongoose = require('mongoose');
-const crypto = require('crypto');
+const { generateCoachCredentials } = require('../utils/coachCredentials');
+const { sendCoachWelcomeEmail } = require('../services/emailService');
 
 const getModels = () => ({
   Coach: mongoose.model('Coach'),
@@ -14,46 +15,24 @@ const getModels = () => ({
 
 // ── Helpers ──────────────────────────────────────────────────
 
-// Generates a readable random password like "Cca7f2a9d1"
-function generatePassword() {
-  return 'Cca' + crypto.randomBytes(4).toString('hex');
-}
-
-// Generates a unique coachUid like "COACH-3F9A2B"
-function generateCoachUid() {
-  return 'COACH-' + crypto.randomBytes(3).toString('hex').toUpperCase();
-}
-
-// Generates a username from firstName + random 3-digit suffix
-function generateUsername(firstName = 'coach', lastName = '') {
-  const base = `${firstName}${lastName}`.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const suffix = Math.floor(100 + Math.random() * 900);
-  return `${base || 'coach'}${suffix}`;
-}
-
-// Sends login credentials email. Uses ../utils/mailer if it exists;
-// otherwise falls back to console.log so create() never crashes
-// just because the mailer util isn't wired up yet.
-async function sendCredentialsEmail({ to, firstName, username, coachUid, password }) {
-  const subject = 'Your CCA Coach Portal Login Credentials';
-  const html = `
-    <p>Hi ${firstName},</p>
-    <p>Your Coach Portal account has been created. Here are your login details:</p>
-    <ul>
-      <li><b>Coach ID:</b> ${coachUid}</li>
-      <li><b>Username:</b> ${username}</li>
-      <li><b>Password:</b> ${password}</li>
-    </ul>
-    <p>Please log in and change your password after first login.</p>
-  `;
-
+// Sends the coach welcome email via Resend (backend/src/services/emailService.js).
+// Never throws — returns true/false so create()/resendCredentials() can still
+// succeed (and hand the credentials back to the admin) even if email delivery
+// fails, e.g. missing RESEND_API_KEY.
+async function sendCredentialsEmail({ to, firstName, lastName, username, coachUid, password }) {
   try {
-    // Adjust this path/function name to match your actual mailer util
-    const { sendMail } = require('../utils/mailer');
-    await sendMail({ to, subject, html });
+    await sendCoachWelcomeEmail({
+      to,
+      firstName,
+      lastName,
+      username,
+      password,
+      coachUid,
+      loginUrl: `${process.env.FRONTEND_URL || 'https://calcricket.org'}/login`,
+    });
     return true;
   } catch (e) {
-    console.warn('⚠️  sendCredentialsEmail: mailer util not found or failed, logging instead:', e.message);
+    console.warn('⚠️  sendCredentialsEmail: failed to send via emailService, logging instead:', e.message);
     console.log(`[COACH CREDENTIALS] to:${to} username:${username} password:${password} coachUid:${coachUid}`);
     return false;
   }
@@ -129,9 +108,8 @@ exports.create = async (req, res) => {
       return res.status(409).json({ success: false, message: 'A coach with this email already exists' });
     }
 
-    const username = generateUsername(firstName, lastName);
-    const coachUid = generateCoachUid();
-    const plainPassword = generatePassword();
+    const { username, coachUid, password: plainPassword } =
+      await generateCoachCredentials(firstName, lastName);
 
     const coach = new Coach({
       firstName,
@@ -152,9 +130,10 @@ exports.create = async (req, res) => {
 
     await coach.save();
 
-    await sendCredentialsEmail({
+    const emailSent = await sendCredentialsEmail({
       to: coach.email,
       firstName: coach.firstName,
+      lastName: coach.lastName,
       username,
       coachUid,
       password: plainPassword,
@@ -165,8 +144,14 @@ exports.create = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Coach created and login credentials emailed',
+      message: emailSent
+        ? 'Coach created and login credentials emailed'
+        : 'Coach created, but the credentials email could not be sent — copy them from this screen instead',
       data: coachSafe,
+      // Returned once, right after creation, so the admin panel can show the
+      // one-time credentials modal (Coaches.jsx reads res.data.credentials).
+      credentials: { username, coachUid, password: plainPassword },
+      emailSent,
     });
   } catch (e) {
     console.error('coach create error:', e.message);
@@ -234,21 +219,33 @@ exports.resendCredentials = async (req, res) => {
     const coach = await Coach.findById(req.params.id);
     if (!coach) return res.status(404).json({ success: false, message: 'Coach not found' });
 
-    const plainPassword = generatePassword();
+    // Reuse the shared generator so username/coachUid follow the same
+    // firstname.lastname / NAME#### format everywhere. Only fill in
+    // username/coachUid if this coach doesn't already have them.
+    const generated = await generateCoachCredentials(coach.firstName, coach.lastName);
+    const plainPassword = generated.password;
     coach.password = plainPassword; // pre-save hook re-hashes it
-    if (!coach.username) coach.username = generateUsername(coach.firstName, coach.lastName);
-    if (!coach.coachUid) coach.coachUid = generateCoachUid();
+    if (!coach.username) coach.username = generated.username;
+    if (!coach.coachUid) coach.coachUid = generated.coachUid;
     await coach.save();
 
-    await sendCredentialsEmail({
+    const emailSent = await sendCredentialsEmail({
       to: coach.email,
       firstName: coach.firstName,
+      lastName: coach.lastName,
       username: coach.username,
       coachUid: coach.coachUid,
       password: plainPassword,
     });
 
-    res.json({ success: true, message: 'Login credentials resent to coach\'s email' });
+    res.json({
+      success: true,
+      message: emailSent
+        ? 'Login credentials resent to coach\'s email'
+        : 'Could not email the coach — copy the credentials below instead',
+      credentials: { username: coach.username, coachUid: coach.coachUid, password: plainPassword },
+      emailSent,
+    });
   } catch (e) {
     console.error('coach resendCredentials error:', e.message);
     res.status(500).json({ success: false, message: e.message });
