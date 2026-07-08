@@ -12,6 +12,7 @@ const cors      = require('cors');
 const helmet    = require('helmet');
 const morgan    = require('morgan');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 
 const connectDB = require('./config/db');
 const routes    = require('./routes/index');
@@ -62,17 +63,30 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting
-app.use('/api/auth/login', rateLimit({
+// Rate limiting — protects login endpoints on all three portals from
+// brute-force / credential-stuffing attacks.
+const loginLimiter = {
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: { success: false, message: 'Too many login attempts. Try again in 15 minutes.' },
+};
+app.use('/api/auth/login',           rateLimit(loginLimiter));
+app.use('/api/coach-auth/login',     rateLimit(loginLimiter));
+app.use('/api/public/auth/login',    rateLimit(loginLimiter));
+app.use('/api/public/auth/register', rateLimit(loginLimiter));
+// Refresh-token rotation endpoints get their own (slightly higher) limit —
+// a legitimate SPA calls these more often than a human types a password.
+app.use(['/api/auth/refresh', '/api/coach-auth/refresh', '/api/public/auth/refresh'], rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { success: false, message: 'Too many refresh attempts. Please log in again.' },
 }));
 app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 500 }));
 
 // ─── Request parsing ─────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // ─── Static uploads ──────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
