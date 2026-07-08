@@ -284,6 +284,18 @@ const registrationSchema = new mongoose.Schema(
     // Batches selected
     batches: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Batch' }],
 
+    // Snapshot of the month option the parent picked at registration time
+    // (regular, non-WEEKLY batchType programs). Stored as a snapshot — not
+    // a ref — so it stays readable even if the admin later edits/removes
+    // that month option from the batch.
+    selectedMonth: {
+      label:     { type: String },
+      startDate: { type: String },
+      endDate:   { type: String },
+      weeks:     { type: String },
+      price:     { type: Number },
+    },
+
     // Weekly batches selected (only set when the program's batchType is
     // WEEKLY). Stored as a snapshot array (not refs) since Program.weeklyBatches
     // are subdocuments — this keeps the record readable even if the admin
