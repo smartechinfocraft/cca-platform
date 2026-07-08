@@ -492,6 +492,22 @@ exports.getMyStudents = async (req, res) => {
     // If filtering by batchId
     if (req.query.batchId) {
       const batchId = req.query.batchId;
+
+      // ── OBJECT-LEVEL AUTHORIZATION ────────────────────────────────────
+      // A coach may only query students for a batch THEY are assigned to.
+      // Without this check, any authenticated coach could pass another
+      // coach's batchId here and read that batch's full student roster
+      // (names, DOB, parent contact info) — a classic IDOR. We verify
+      // batchId is present in this coach's own real-batch or
+      // virtual-program-batch list before resolving any students.
+      const isMine =
+        myRealBatches.some((b) => String(b._id) === String(batchId)) ||
+        (isVirtualBatchId(batchId) && myPrograms.some((p) => String(p._id) === batchId.split(':')[1]));
+
+      if (!isMine) {
+        return res.status(403).json({ success: false, message: 'This batch is not assigned to you' });
+      }
+
       const studentIds = await getStudentIdsForBatch(batchId);
       const validIds   = studentIds.filter(isValidObjectId);
 
