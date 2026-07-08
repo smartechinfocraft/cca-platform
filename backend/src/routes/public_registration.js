@@ -24,7 +24,7 @@ const REFRESH_COOKIE_PATH = '/api/public/auth';
 
 // ── Parent Auth Middleware ────────────────────────────────────
 // Verifies the short-lived Access Token sent as "Authorization: Bearer".
-function parentAuth(req, res, next) {
+async function parentAuth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ success: false, message: 'Not authenticated' });
   try {
@@ -32,6 +32,17 @@ function parentAuth(req, res, next) {
     if (decoded.type !== 'parent') {
       return res.status(401).json({ success: false, message: 'Invalid token type' });
     }
+
+    // Re-check live account status on every request (rather than trusting
+    // the JWT payload alone) so a deactivated parent account is denied
+    // immediately, matching the same pattern used by protect() (admin)
+    // and coachAuth() (coach).
+    const Parent = require('../models/Parent');
+    const parent = await Parent.findById(decoded.id).select('isActive');
+    if (!parent || parent.isActive === false) {
+      return res.status(401).json({ success: false, message: 'Account inactive or not found' });
+    }
+
     req.parent = decoded;
     next();
   } catch {
