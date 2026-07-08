@@ -1,8 +1,10 @@
 // ============================================================
 //  context/AuthContext.js — Coach login/session state
+//  SECURITY: access token lives in memory only (api/client.jsx);
+//  the refresh token lives in an HttpOnly cookie set by the server.
 // ============================================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { coachAuthAPI } from '../api/client';
+import { coachAuthAPI, setAccessToken, refreshAccessToken } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -11,29 +13,39 @@ export function CoachAuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('cca_coach_token');
-    if (!token) { setLoading(false); return; }
-
-    coachAuthAPI.getMe()
-      .then((res) => setCoach(res.data.coach))
-      .catch(() => {
-        localStorage.removeItem('cca_coach_token');
+    (async () => {
+      const result = await refreshAccessToken();
+      if (!result?.token) {
         localStorage.removeItem('cca_coach_user');
-      })
-      .finally(() => setLoading(false));
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await coachAuthAPI.getMe();
+        setCoach(res.data.coach);
+      } catch {
+        setAccessToken(null);
+        localStorage.removeItem('cca_coach_user');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const login = async (username, password) => {
     const res = await coachAuthAPI.login({ username, password });
     const { token, coach: coachData } = res.data;
-    localStorage.setItem('cca_coach_token', token);
+    setAccessToken(token);
     localStorage.setItem('cca_coach_user', JSON.stringify(coachData));
     setCoach(coachData);
     return coachData;
   };
 
   const logout = () => {
-    localStorage.removeItem('cca_coach_token');
+    // Fire-and-forget: revokes the refresh token + clears the cookie
+    // server-side. UI state is cleared immediately regardless.
+    coachAuthAPI.logout().catch(() => {});
+    setAccessToken(null);
     localStorage.removeItem('cca_coach_user');
     setCoach(null);
     window.location.href = '/login';
