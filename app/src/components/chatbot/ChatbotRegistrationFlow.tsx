@@ -102,6 +102,18 @@ interface Props {
   initialProgramId?: string | null;
 }
 
+// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
+function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+  if (!startDate || !endDate) return "";
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  return weeks ? `${range} ( ${weeks} week )` : range;
+}
+
+
 function Bubble({ children }: { children: React.ReactNode }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
@@ -727,14 +739,19 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
         {step === "month" && selectedBatch && (
           <>
             <Bubble>Which month would you like to start?</Bubble>
-            {(selectedBatch.monthOptions || []).map((m, i) => (
-              <OptionButton
-                key={i}
-                label={m.label}
-                sub={m.price ? `$${m.price}` : undefined}
-                onClick={() => handlePickMonth(selectedBatch, m)}
-              />
-            ))}
+            {(selectedBatch.monthOptions || []).map((m, i) => {
+              const dateRange = fmtMonthDateRange(m.startDate, m.endDate, m.weeks);
+              const priceStr = m.price ? `$${m.price}` : "";
+              const sub = [dateRange, priceStr].filter(Boolean).join(" · ") || undefined;
+              return (
+                <OptionButton
+                  key={i}
+                  label={m.label}
+                  sub={sub}
+                  onClick={() => handlePickMonth(selectedBatch, m)}
+                />
+              );
+            })}
           </>
         )}
 
