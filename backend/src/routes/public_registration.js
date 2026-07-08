@@ -5,23 +5,60 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const jwt = require('jsonwebtoken');
 const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { computeRegistrationTotal, round2 } = require('../utils/pricing');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+  hashToken,
+  refreshCookieOptions,
+  clearCookieOptions,
+} = require('../utils/tokenService');
+
+const REFRESH_COOKIE_NAME = 'cca_parent_rt';
+const REFRESH_COOKIE_PATH = '/api/public/auth';
 
 // ── Parent Auth Middleware ────────────────────────────────────
+// Verifies the short-lived Access Token sent as "Authorization: Bearer".
 function parentAuth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ success: false, message: 'Not authenticated' });
   try {
-    req.parent = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyAccessToken(token);
+    if (decoded.type !== 'parent') {
+      return res.status(401).json({ success: false, message: 'Invalid token type' });
+    }
+    req.parent = decoded;
     next();
   } catch {
     res.status(401).json({ success: false, message: 'Invalid token' });
   }
 }
+
+const toSafeParent = (parent) => ({
+  id: parent._id,
+  firstName: parent.firstName,
+  lastName: parent.lastName,
+  email: parent.email,
+  phone: parent.phone,
+});
+
+// Issues a fresh access + refresh token pair, persists the refresh token's
+// hash (rotate-on-use), and sets the HttpOnly cookie.
+const issueParentTokens = async (res, parent) => {
+  const accessToken  = signAccessToken({ id: parent._id, email: parent.email, type: 'parent' });
+  const refreshToken = signRefreshToken({ id: parent._id, type: 'parent' });
+
+  parent.refreshTokenHash = hashToken(refreshToken);
+  await parent.save({ validateBeforeSave: false });
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions(REFRESH_COOKIE_PATH));
+  return accessToken;
+};
 
 // ── POST /api/public/auth/register ───────────────────────────
 router.post('/auth/register', async (req, res) => {
@@ -39,17 +76,13 @@ router.post('/auth/register', async (req, res) => {
     const parent = new Parent({ firstName, lastName, email, phone, password, address, city, state, zip });
     await parent.save();
 
-    const token = jwt.sign(
-      { id: parent._id, email: parent.email, type: 'parent' },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const accessToken = await issueParentTokens(res, parent);
 
     res.status(201).json({
       success: true,
       message: 'Account created successfully!',
-      token,
-      parent: { id: parent._id, firstName, lastName, email, phone },
+      token: accessToken,
+      parent: toSafeParent(parent),
     });
   } catch (err) {
     console.error('Register error:', err);
@@ -69,17 +102,70 @@ router.post('/auth/login', async (req, res) => {
     if (!parent || !(await parent.comparePassword(password)))
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
-    const token = jwt.sign(
-      { id: parent._id, email: parent.email, type: 'parent' },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const accessToken = await issueParentTokens(res, parent);
 
     res.json({
       success: true,
-      token,
-      parent: { id: parent._id, firstName: parent.firstName, lastName: parent.lastName, email: parent.email, phone: parent.phone },
+      token: accessToken,
+      parent: toSafeParent(parent),
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── POST /api/public/auth/refresh ────────────────────────────
+router.post('/auth/refresh', async (req, res) => {
+  try {
+    const Parent = require('../models/Parent');
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No refresh token' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyRefreshToken(token);
+    } catch {
+      res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+      return res.status(401).json({ success: false, message: 'Refresh token invalid or expired' });
+    }
+
+    if (decoded.type !== 'parent') {
+      return res.status(401).json({ success: false, message: 'Invalid token type' });
+    }
+
+    const parent = await Parent.findById(decoded.id).select('+refreshTokenHash');
+    if (!parent || !parent.isActive || !parent.refreshTokenHash || parent.refreshTokenHash !== hashToken(token)) {
+      res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+      return res.status(401).json({ success: false, message: 'Session expired, please log in again' });
+    }
+
+    const accessToken = await issueParentTokens(res, parent);
+
+    res.json({ success: true, token: accessToken, parent: toSafeParent(parent) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── POST /api/public/auth/logout ─────────────────────────────
+router.post('/auth/logout', async (req, res) => {
+  try {
+    const Parent = require('../models/Parent');
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (token) {
+      try {
+        const decoded = verifyRefreshToken(token);
+        if (decoded?.id) {
+          await Parent.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+        }
+      } catch {
+        // Already invalid/expired — nothing to revoke
+      }
+    }
+    res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+    res.json({ success: true, message: 'Logged out' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
