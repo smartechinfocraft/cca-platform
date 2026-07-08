@@ -5,8 +5,8 @@
 //  coach token can never be used to hit admin-only routes and
 //  vice-versa — the JWT payload includes `type: 'coach'`.
 // ============================================================
-const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
+const { verifyAccessToken } = require('../utils/tokenService');
 
 const coachAuth = async (req, res, next) => {
   try {
@@ -17,7 +17,7 @@ const coachAuth = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyAccessToken(token);
 
     if (decoded.type !== 'coach') {
       return res.status(403).json({ success: false, message: 'Invalid token type' });
