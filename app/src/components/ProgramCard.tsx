@@ -287,6 +287,17 @@ function getLocationStr(batch: QuickBatch): string {
   return "";
 }
 
+// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
+function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+  if (!startDate || !endDate) return "";
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  return weeks ? `${range} ( ${weeks} week )` : range;
+}
+
 function buildDaySlotOptions(batch: QuickBatch): string[] {
   const slots = getSlots(batch);
   const locationSuffix = getLocationStr(batch) ? ` - ${getLocationStr(batch)}` : "";
@@ -741,8 +752,9 @@ function QuickRegisterDrawer({
                           <div className="flex flex-wrap gap-2">
                             {monthOptions.map((opt, index) => {
                               const checked = isSelected && selectedMonth?.label === opt.label;
+                              const dateRange = fmtMonthDateRange(opt.startDate, opt.endDate, opt.weeks);
                               return (
-                                <label key={`${opt.label}-${index}`} className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm font-semibold transition ${checked ? "border-[#A33B2B] bg-[#A33B2B] text-white" : "border-slate-300 bg-white text-slate-700"}`}>
+                                <label key={`${opt.label}-${index}`} className={`cursor-pointer rounded-2xl border px-3 py-1.5 text-sm font-semibold transition ${checked ? "border-[#A33B2B] bg-[#A33B2B] text-white" : "border-slate-300 bg-white text-slate-700"}`}>
                                   <input
                                     type="radio"
                                     className="sr-only"
@@ -755,7 +767,14 @@ function QuickRegisterDrawer({
                                       setDaySlots([null]);
                                     }}
                                   />
-                                  {opt.label}{opt.price ? ` · $${opt.price}` : ""}
+                                  <span className="flex flex-col leading-tight">
+                                    <span>{opt.label}{opt.price ? ` · $${opt.price}` : ""}</span>
+                                    {dateRange && (
+                                      <span className={`text-[11px] font-normal ${checked ? "text-white/80" : "text-slate-500"}`}>
+                                        {dateRange}
+                                      </span>
+                                    )}
+                                  </span>
                                 </label>
                               );
                             })}
