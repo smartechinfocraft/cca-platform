@@ -9,6 +9,7 @@ import { useAuth } from "../context/AuthContext";
 import { useAdminAuth } from "../admin/context/AuthContext";
 import { useCoachAuth } from "../coach/context/AuthContext";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
@@ -99,7 +100,8 @@ function LoginPage() {
     setError("");
     try {
       await parentLogin(loginEmail, loginPassword);
-      navigate(from || "/dashboard", { replace: true });
+      toast.success("Signed in successfully!");
+      navigate(from || "/", { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Login failed.";
       setError(msg);
@@ -113,7 +115,8 @@ function LoginPage() {
     if (reg.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     try {
       await parentRegister({ ...reg });
-      navigate(from || "/dashboard", { replace: true });
+      toast.success("Registration successful!");
+      navigate(from || "/", { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Registration failed.";
       setError(msg);
