@@ -106,6 +106,17 @@ function getLocationStr(batch: BatchRaw): string {
   return "";
 }
 
+// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
+function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+  if (!startDate || !endDate) return "";
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  return weeks ? `${range} ( ${weeks} week )` : range;
+}
+
 function getPricePerSession(batch: BatchRaw): number {
   return batch.pricePerSession ?? batch.price ?? batch.fee ?? 0;
 }
@@ -549,6 +560,7 @@ export default function ProgramSelection() {
                       <div className="flex flex-wrap gap-3 mt-2">
                         {bMonthOpts.map((opt, oi) => {
                           const isChecked = isSelected && selectedMonth?.label === opt.label;
+                          const dateRange = fmtMonthDateRange(opt.startDate, opt.endDate, opt.weeks);
                           return (
                             <label
                               key={oi}
@@ -567,7 +579,14 @@ export default function ProgramSelection() {
                                 className="w-4 h-4"
                                 style={{ accentColor: "var(--gold)" }}
                               />
-                              {opt.label}
+                              <span className="flex flex-col leading-tight">
+                                <span>{opt.label}{opt.price ? ` · $${opt.price}` : ""}</span>
+                                {dateRange && (
+                                  <span className="text-xs font-normal" style={{ color: "var(--ink-400)" }}>
+                                    {dateRange}
+                                  </span>
+                                )}
+                              </span>
                             </label>
                           );
                         })}
