@@ -8,15 +8,35 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api
 
 const client = axios.create({
   baseURL: API_BASE,
+  withCredentials: true, // send/receive the HttpOnly refresh-token cookie
   headers: { 'Content-Type': 'application/json' },
 });
+
+// ─── In-memory access token ────────────────────────────────────────────────
+// SECURITY: the short-lived access token now lives ONLY in memory — never
+// in localStorage — so it can't be read by an XSS payload that persists
+// across page loads. AuthContext calls refreshAccessToken() on mount to
+// silently restore it from the HttpOnly refresh-token cookie.
+let accessToken = null;
+export const setAccessToken = (token) => { accessToken = token; };
+export const getAccessToken = () => accessToken;
+
+export const refreshAccessToken = async () => {
+  try {
+    const res = await axios.post(`${API_BASE}/auth/refresh`, {}, { withCredentials: true });
+    setAccessToken(res.data.token);
+    return res.data;
+  } catch {
+    setAccessToken(null);
+    return null;
+  }
+};
 
 // ─── Request interceptor ──────────────────────────────────────────────────────
 client.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('cca_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
     // If data is FormData, let the browser set Content-Type (with boundary)
     if (config.data instanceof FormData) {
@@ -28,11 +48,28 @@ client.interceptors.request.use(
 );
 
 // ─── Response interceptor ─────────────────────────────────────────────────────
+let refreshPromise = null;
+
 client.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('cca_token');
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/refresh')
+    ) {
+      originalRequest._retry = true;
+      refreshPromise = refreshPromise ?? refreshAccessToken().finally(() => { refreshPromise = null; });
+      const result = await refreshPromise;
+
+      if (result?.token) {
+        originalRequest.headers.Authorization = `Bearer ${result.token}`;
+        return client(originalRequest);
+      }
+
+      setAccessToken(null);
       localStorage.removeItem('cca_user');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
@@ -48,6 +85,7 @@ export default client;
 
 export const authAPI = {
   login:       (data) => client.post('/auth/login', data),
+  logout:      ()     => client.post('/auth/logout'),
   getMe:       ()     => client.get('/auth/me'),
   listAdmins:  ()     => client.get('/auth/admins'),
   createAdmin: (data) => client.post('/auth/admins', data),
