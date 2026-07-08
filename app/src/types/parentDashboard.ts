@@ -45,6 +45,13 @@ export interface Registration {
   programId: ProgramRef;
   students: StudentRef[];
   batches: BatchRef[];
+  selectedMonth?: {
+    label?: string;
+    startDate?: string;
+    endDate?: string;
+    weeks?: string;
+    price?: number;
+  };
   status: RegistrationStatus;
   subtotal: number;
   discountAmount?: number;
