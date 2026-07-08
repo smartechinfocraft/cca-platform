@@ -393,6 +393,8 @@ router.get('/public/locations', async (req, res) => {
 //  AUTH routes — /api/auth/*
 // ═══════════════════════════════════════════════════════════
 router.post('/auth/login',           authCtrl.login);
+router.post('/auth/refresh',          authCtrl.refresh);
+router.post('/auth/logout',           authCtrl.logout);
 router.get( '/auth/me',               protect, authCtrl.getMe);
 
 // Admin management (Super Admin only)
@@ -693,6 +695,8 @@ router.post(  '/coaches/:id/resend-credentials', protect, adminOrSuperAdmin, coa
 //  COACH AUTH — /api/coach-auth/*  (separate Coach Portal app)
 // ═══════════════════════════════════════════════════════════
 router.post('/coach-auth/login',           coachAuthCtrl.login);
+router.post('/coach-auth/refresh',          coachAuthCtrl.refresh);
+router.post('/coach-auth/logout',           coachAuthCtrl.logout);
 router.post('/coach-auth/forgot-password',  coachAuthCtrl.forgotPassword);
 router.get( '/coach-auth/me',              coachAuth, coachAuthCtrl.me);
 
