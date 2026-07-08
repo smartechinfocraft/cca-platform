@@ -18,6 +18,9 @@ const parentSchema = new mongoose.Schema({
   photoUrl:   { type: String },
   isVerified: { type: Boolean, default: false },
   isActive:   { type: Boolean, default: true },
+
+  // SHA-256 hash of the current valid refresh token (rotate-on-use).
+  refreshTokenHash: { type: String, select: false, default: null },
 }, { timestamps: true });
 
 parentSchema.pre('save', async function(next) {
