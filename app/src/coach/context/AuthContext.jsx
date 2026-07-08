@@ -1,118 +1,71 @@
 // ============================================================
-//  AuthContext — Parent user auth (register / login / logout)
-//  SECURITY: access token lives in memory only (api/axios.ts);
+//  context/AuthContext.js — Coach login/session state
+//  SECURITY: access token lives in memory only (api/client.jsx);
 //  the refresh token lives in an HttpOnly cookie set by the server.
 // ============================================================
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import api, { setAccessToken, silentRefresh } from "../api/axios";
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { coachAuthAPI, setAccessToken, refreshAccessToken } from '../api/client';
 
-interface ParentUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-}
+const AuthContext = createContext(null);
 
-interface AuthContextValue {
-  user: ParentUser | null;
-  token: string | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
-  updateUser: (patch: Partial<ParentUser>) => void;
-  isLoggedIn: boolean;
-}
-
-interface RegisterData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  password: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<ParentUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+export function CoachAuthProvider({ children }) {
+  const [coach, setCoach] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session on mount by exchanging the HttpOnly refresh cookie
-  // (if present) for a fresh access token — replaces the old
-  // "read token from localStorage" flow.
   useEffect(() => {
     (async () => {
-      const newToken = await silentRefresh();
-      if (newToken) {
-        setToken(newToken);
-        try {
-          const res = await api.get("/public/auth/me");
-          setUser(res.data.parent);
-        } catch {
-          setAccessToken(null);
-          setToken(null);
-        }
+      const result = await refreshAccessToken();
+      if (!result?.token) {
+        localStorage.removeItem('cca_coach_user');
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+      try {
+        const res = await coachAuthAPI.getMe();
+        setCoach(res.data.coach);
+      } catch {
+        setAccessToken(null);
+        localStorage.removeItem('cca_coach_user');
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      const res = await api.post("/public/auth/login", { email, password });
-      setAccessToken(res.data.token);
-      setToken(res.data.token);
-      setUser(res.data.parent);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (data: RegisterData) => {
-    setLoading(true);
-    try {
-      const res = await api.post("/public/auth/register", data);
-      setAccessToken(res.data.token);
-      setToken(res.data.token);
-      setUser(res.data.parent);
-    } finally {
-      setLoading(false);
-    }
+  const login = async (username, password) => {
+    const res = await coachAuthAPI.login({ username, password });
+    const { token, coach: coachData } = res.data;
+    setAccessToken(token);
+    localStorage.setItem('cca_coach_user', JSON.stringify(coachData));
+    setCoach(coachData);
+    return coachData;
   };
 
   const logout = () => {
     // Fire-and-forget: revokes the refresh token + clears the cookie
     // server-side. UI state is cleared immediately regardless.
-    api.post("/public/auth/logout").catch(() => {});
-    setUser(null);
-    setToken(null);
+    coachAuthAPI.logout().catch(() => {});
     setAccessToken(null);
+    localStorage.removeItem('cca_coach_user');
+    setCoach(null);
+    window.location.href = '/login';
   };
 
-  // Merge a partial patch into the current parent user — used after the
-  // parent edits their profile so the sidebar / header reflect changes
-  // immediately without requiring a full page reload.
-  const updateUser = (patch: Partial<ParentUser>) => {
-    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  const refreshCoach = async () => {
+    const res = await coachAuthAPI.getMe();
+    setCoach(res.data.coach);
+    return res.data.coach;
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser, isLoggedIn: !!user }}>
+    <AuthContext.Provider value={{ coach, loading, login, logout, refreshCoach }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
+export const useCoachAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) throw new Error('useCoachAuth must be used within CoachAuthProvider');
   return ctx;
-}
+};
