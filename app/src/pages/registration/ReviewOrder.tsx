@@ -11,6 +11,17 @@ import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import api from "../../api/axios";
 
+// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
+function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+  if (!startDate || !endDate) return "";
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  return weeks ? `${range} ( ${weeks} week )` : range;
+}
+
 function ReviewOrder() {
   const navigate = useNavigate();
   const {
@@ -259,6 +270,17 @@ function ReviewOrder() {
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs uppercase tracking-widest text-slate-500">Selected Batch</p>
                     <p className="mt-1 text-base font-bold text-[#0F172A]">{selectedBatch.name}</p>
+                    {(() => {
+                      const month = (selectedBatch as any).selectedMonth;
+                      if (!month?.label) return null;
+                      const dateRange = fmtMonthDateRange(month.startDate, month.endDate, month.weeks);
+                      return (
+                        <p className="mt-1 text-sm font-semibold text-[#0F172A]">
+                          {month.label}
+                          {dateRange && <span className="ml-1 font-normal text-slate-500">({dateRange})</span>}
+                        </p>
+                      );
+                    })()}
                     <p className="mt-1 text-sm text-slate-500">
                       <ul className="mt-1 space-y-1 list-none">
                         {(selectedBatch.days || selectedBatch.timing || "")
@@ -316,6 +338,12 @@ function ReviewOrder() {
                           {s.selectedBatch && (
                             <p className="mt-1 text-xs font-medium text-[var(--gold)]">
                               Batch: {s.selectedBatch.name}
+                              {(() => {
+                                const month = (s.selectedBatch as any).selectedMonth;
+                                if (!month?.label) return null;
+                                const dateRange = fmtMonthDateRange(month.startDate, month.endDate, month.weeks);
+                                return ` — ${month.label}${dateRange ? ` (${dateRange})` : ""}`;
+                              })()}
                             </p>
                           )}
                         </div>
