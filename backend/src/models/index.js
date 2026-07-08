@@ -236,6 +236,9 @@ const coachSchema = new mongoose.Schema(
     credentialsSentAt: { type: Date },
 
     createdBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+    // SHA-256 hash of the current valid refresh token (rotate-on-use).
+    refreshTokenHash: { type: String, select: false, default: null },
   },
   { timestamps: true }
 );
@@ -244,7 +247,7 @@ const coachSchema = new mongoose.Schema(
 coachSchema.pre('save', async function (next) {
   if (!this.isModified('password') || !this.password) return next();
   const bcrypt = require('bcryptjs');
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
