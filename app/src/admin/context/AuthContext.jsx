@@ -2,48 +2,55 @@
 //  context/AuthContext.js
 //  Global auth state: current user, login, logout
 //  Wrap your app in <AuthProvider> then use useAuth() anywhere
+//  SECURITY: access token lives in memory only (api/client.jsx);
+//  the refresh token lives in an HttpOnly cookie set by the server.
 // ============================================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI } from '../api/client';
+import { authAPI, setAccessToken, refreshAccessToken } from '../api/client';
 
 // Create the context
 const AuthContext = createContext(null);
 
 export const AdminAuthProvider = ({ children }) => {
-  // Initialize user from localStorage so the page doesn't flash login on refresh
+  // We keep a cached, non-sensitive copy of the user object (no token) in
+  // localStorage purely so the UI doesn't flash "logged out" for a split
+  // second before the silent refresh below resolves.
   const [user, setUser]       = useState(() => {
     const stored = localStorage.getItem('cca_user');
     return stored ? JSON.parse(stored) : null;
   });
   const [loading, setLoading] = useState(true);
 
-  // On app load: verify the stored token is still valid
+  // On app load: exchange the HttpOnly refresh cookie (if any) for a new
+  // access token, then confirm it against /auth/me.
   useEffect(() => {
-    const token = localStorage.getItem('cca_token');
-    if (token) {
-      authAPI.getMe()
-        .then(res => {
+    (async () => {
+      const result = await refreshAccessToken();
+      if (result?.token) {
+        try {
+          const res = await authAPI.getMe();
           setUser(res.data.user);
           localStorage.setItem('cca_user', JSON.stringify(res.data.user));
-        })
-        .catch(() => {
-          // Token invalid — clean up
-          localStorage.removeItem('cca_token');
+        } catch {
+          setAccessToken(null);
           localStorage.removeItem('cca_user');
           setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
+        }
+      } else {
+        localStorage.removeItem('cca_user');
+        setUser(null);
+      }
       setLoading(false);
-    }
+    })();
   }, []);
 
   const login = async (username, password) => {
     const res = await authAPI.login({ username, password });
     const { token, user: userData } = res.data;
 
-    // Persist token and user so they survive page refresh
-    localStorage.setItem('cca_token', token);
+    // Access token stays in memory only; only the (non-sensitive) user
+    // object is cached in localStorage for the anti-flash behavior above.
+    setAccessToken(token);
     localStorage.setItem('cca_user', JSON.stringify(userData));
     setUser(userData);
 
@@ -51,7 +58,10 @@ export const AdminAuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('cca_token');
+    // Fire-and-forget: revokes the refresh token + clears the cookie
+    // server-side. UI state is cleared immediately regardless.
+    authAPI.logout().catch(() => {});
+    setAccessToken(null);
     localStorage.removeItem('cca_user');
     setUser(null);
   };
