@@ -5,14 +5,44 @@
 //  auto-generated when admin created their profile (and which
 //  were emailed to them).
 // ============================================================
-const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { sendForgotPasswordEmail } = require('../services/emailService');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  hashToken,
+  refreshCookieOptions,
+  clearCookieOptions,
+} = require('../utils/tokenService');
 
-const signCoachToken = (coachId) =>
-  jwt.sign({ id: coachId, type: 'coach' }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
+const REFRESH_COOKIE_NAME = 'cca_coach_rt';
+const REFRESH_COOKIE_PATH = '/api/coach-auth';
+
+const signCoachAccessToken = (coachId) => signAccessToken({ id: coachId, type: 'coach' });
+
+const toSafeCoach = (coach) => ({
+  id: coach._id,
+  firstName: coach.firstName,
+  lastName: coach.lastName,
+  email: coach.email,
+  username: coach.username,
+  coachUid: coach.coachUid,
+  photoUrl: coach.photoUrl,
+});
+
+// Issues a fresh access + refresh token pair, persists the refresh token's
+// hash (rotate-on-use), and sets the HttpOnly cookie.
+const issueCoachTokens = async (res, coach) => {
+  const accessToken  = signCoachAccessToken(coach._id);
+  const refreshToken = signRefreshToken({ id: coach._id, type: 'coach' });
+
+  coach.refreshTokenHash = hashToken(refreshToken);
+  await coach.save({ validateBeforeSave: false });
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions(REFRESH_COOKIE_PATH));
+  return accessToken;
+};
 
 // ─── POST /api/coach-auth/login ───────────────────────────────
 exports.login = async (req, res) => {
@@ -44,24 +74,76 @@ exports.login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
-    const token = signCoachToken(coach._id);
+    const accessToken = await issueCoachTokens(res, coach);
 
     res.json({
       success: true,
-      token,
-      coach: {
-        id: coach._id,
-        firstName: coach.firstName,
-        lastName: coach.lastName,
-        email: coach.email,
-        username: coach.username,
-        coachUid: coach.coachUid,
-        photoUrl: coach.photoUrl,
-      },
+      token: accessToken,
+      coach: toSafeCoach(coach),
     });
   } catch (err) {
     console.error('Coach login error:', err);
     res.status(500).json({ success: false, message: 'Server error during login' });
+  }
+};
+
+// ─── POST /api/coach-auth/refresh ──────────────────────────────
+exports.refresh = async (req, res) => {
+  try {
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No refresh token' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyRefreshToken(token);
+    } catch {
+      res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+      return res.status(401).json({ success: false, message: 'Refresh token invalid or expired' });
+    }
+
+    if (decoded.type !== 'coach') {
+      return res.status(401).json({ success: false, message: 'Invalid token type' });
+    }
+
+    const Coach = mongoose.model('Coach');
+    const coach = await Coach.findById(decoded.id).select('+refreshTokenHash');
+
+    if (!coach || coach.status !== 'ACTIVE' || !coach.refreshTokenHash || coach.refreshTokenHash !== hashToken(token)) {
+      res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+      return res.status(401).json({ success: false, message: 'Session expired, please log in again' });
+    }
+
+    const accessToken = await issueCoachTokens(res, coach);
+
+    res.json({ success: true, token: accessToken, coach: toSafeCoach(coach) });
+  } catch (err) {
+    console.error('Coach refresh error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── POST /api/coach-auth/logout ───────────────────────────────
+exports.logout = async (req, res) => {
+  try {
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (token) {
+      try {
+        const decoded = verifyRefreshToken(token);
+        if (decoded?.id) {
+          const Coach = mongoose.model('Coach');
+          await Coach.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+        }
+      } catch {
+        // Already invalid/expired — nothing to revoke
+      }
+    }
+    res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
+    res.json({ success: true, message: 'Logged out' });
+  } catch (err) {
+    console.error('Coach logout error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
