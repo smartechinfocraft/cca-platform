@@ -17,6 +17,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { getMedia, resolveUploadUrl } from "../services/programService";
+import MagazineCover from "../components/media/MagazineCover";
+import MagazineFlipbook from "../components/media/MagazineFlipbook";
 
 interface GalleryImage { path?: string; url?: string; isCover?: boolean }
 interface MediaItem {
@@ -62,6 +64,15 @@ function resolveGalleryImg(img: GalleryImage): string | null {
     if (relative) return resolveUploadUrl(`uploads/${relative}`) ?? null;
   }
   return null;
+}
+
+// Get the PDF URL for a magazine/newsletter item — prefer the full
+// fileUrl the backend already computed correctly over rebuilding one
+// from filePath, which is sometimes saved as a raw absolute disk path
+// (e.g. "D:/CCA 4/.../uploads/media/x.pdf" on Windows) rather than a
+// relative "uploads/..." path.
+function pdfUrlFor(item: MediaItem): string | undefined {
+  return resolveUploadUrl(item.fileUrl || item.filePath);
 }
 
 // Get the cover image URL for an album item
@@ -268,6 +279,7 @@ function MediaPage() {
   const [items, setItems]             = useState<MediaItem[]>([]);
   const [loading, setLoading]         = useState(true);
   const [openAlbum, setOpenAlbum]     = useState<MediaItem | null>(null);
+  const [openMagazine, setOpenMagazine] = useState<MediaItem | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -421,8 +433,46 @@ function MediaPage() {
         </section>
       )}
 
-      {/* ── MAGAZINE / NEWSLETTER: PDF list ── */}
-      {(activeTab === "MAGAZINE" || activeTab === "NEWSLETTER") && (
+      {/* ── MAGAZINE: real-book covers, click to flip through ── */}
+      {activeTab === "MAGAZINE" && (
+        <section className="pb-20">
+          <div className="max-w-6xl mx-auto px-6">
+            {loading ? (
+              <div className="flex flex-wrap justify-center gap-10">
+                {[1, 2].map((i) => (
+                  <div key={i} className="rounded-r-md skeleton" style={{ width: 220, height: 300 }} />
+                ))}
+              </div>
+            ) : display.length === 0 ? (
+              <p className="text-center text-sm text-[var(--ink-400)] py-10">
+                No magazine issues published yet — check back soon.
+              </p>
+            ) : (
+              <div className="flex flex-wrap justify-center gap-x-16 gap-y-14">
+                {display.map((item) => {
+                  const fileUrl = pdfUrlFor(item);
+                  if (!fileUrl) return null;
+                  const yearLabel = item.publishDate
+                    ? new Date(item.publishDate).getFullYear().toString()
+                    : item.title;
+                  return (
+                    <MagazineCover
+                      key={item._id}
+                      title={item.title}
+                      yearLabel={yearLabel}
+                      fileUrl={fileUrl}
+                      onOpen={() => setOpenMagazine(item)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── NEWSLETTER: PDF list ── */}
+      {activeTab === "NEWSLETTER" && (
         <section className="pb-20">
           <div className="max-w-3xl mx-auto px-6">
             {loading ? (
@@ -431,12 +481,12 @@ function MediaPage() {
               </div>
             ) : display.length === 0 ? (
               <p className="text-center text-sm text-[var(--ink-400)] py-10">
-                No {activeTab === "MAGAZINE" ? "magazine issues" : "newsletters"} published yet — check back soon.
+                No newsletters published yet — check back soon.
               </p>
             ) : (
               <div className="space-y-3">
                 {display.map((item, i) => {
-                  const fileUrl = resolveUploadUrl(item.filePath);
+                  const fileUrl = pdfUrlFor(item);
                   return (
                     <motion.a
                       key={item._id}
@@ -481,6 +531,16 @@ function MediaPage() {
       {openAlbum && (
         <AlbumModal item={openAlbum} onClose={() => setOpenAlbum(null)} />
       )}
+
+      {/* ── Magazine Flipbook Modal ── */}
+      {openMagazine && pdfUrlFor(openMagazine) && (
+        <MagazineFlipbook
+          title={openMagazine.title}
+          fileUrl={pdfUrlFor(openMagazine)!}
+          onClose={() => setOpenMagazine(null)}
+        />
+      )}
+
 
       <Footer />
     </div>

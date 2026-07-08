@@ -13,15 +13,20 @@ const mongoose = require('mongoose');
  * @param {String} [opts.batchId]
  * @param {Number} opts.studentCount
  * @param {Number} [opts.sessionsPerWeek]
+ * @param {String[]} [opts.weeklyBatchIds] - IDs of Program.weeklyBatches the
+ *                                           parent selected (WEEKLY batchType
+ *                                           only). Price = unit price × the
+ *                                           number of batches selected.
  * @param {String} [opts.couponCode]       - optional coupon to apply
  * @returns {Promise<{
  *   unitPrice: number, subtotal: number, discount: number,
  *   total: number, currency: string,
  *   program: Object, batch: Object|null,
+ *   weeklyBatches: Object[], weekCount: number,
  *   coupon: Object|null
  * }>}
  */
-async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, couponCode }) {
+async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, weeklyBatchIds, couponCode }) {
   const Program = mongoose.model('Program');
   const Batch   = mongoose.model('Batch');
   const Coupon  = mongoose.model('Coupon');
@@ -54,13 +59,36 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     }
   }
 
+  // ── WEEKLY batchType: validate the selected weekly batches server-side ──
+  // NEVER trust weekCount from the client. Every ID in weeklyBatchIds must
+  // exist in Program.weeklyBatches and be active, otherwise a tampered
+  // request could inflate/deflate the number of "weeks" billed.
+  let matchedWeeklyBatches = [];
+  if (program.batchType === 'WEEKLY' && Array.isArray(weeklyBatchIds) && weeklyBatchIds.length > 0) {
+    const allBatches = program.weeklyBatches || [];
+    const requestedIds = [...new Set(weeklyBatchIds.map(String))];
+    matchedWeeklyBatches = allBatches.filter(
+      (b) => b.isActive !== false && requestedIds.includes(String(b._id))
+    );
+    if (matchedWeeklyBatches.length !== requestedIds.length) {
+      const err = new Error('One or more selected batches are not valid for this program.');
+      err.status = 400;
+      throw err;
+    }
+  }
+  const weekCount = matchedWeeklyBatches.length;
+
   // Price priority (most specific wins):
-  //   1. Batch per-session price × sessions/week
-  //   2. Batch flat price override
-  //   3. Program discountedPrice
-  //   4. Program basePrice
+  //   1. WEEKLY batchType with batches selected: (discountedPrice||basePrice) × weekCount
+  //   2. Batch per-session price × sessions/week
+  //   3. Batch flat price override
+  //   4. Program discountedPrice
+  //   5. Program basePrice
   let unitPrice;
-  if (batch?.pricePerSession && sessionsPerWeek && Number(sessionsPerWeek) > 0) {
+  if (program.batchType === 'WEEKLY' && weekCount > 0) {
+    const perWeekPrice = program.discountedPrice != null ? program.discountedPrice : program.basePrice;
+    unitPrice = perWeekPrice * weekCount;
+  } else if (batch?.pricePerSession && sessionsPerWeek && Number(sessionsPerWeek) > 0) {
     unitPrice = batch.pricePerSession * Number(sessionsPerWeek);
   } else if (batch?.price != null) {
     unitPrice = batch.price;
@@ -131,6 +159,8 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     currency: 'USD',
     program,
     batch,
+    weeklyBatches: matchedWeeklyBatches,
+    weekCount,
     coupon: appliedCoupon,
   };
 }

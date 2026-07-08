@@ -40,7 +40,15 @@ const allowedOrigins = [
   'http://localhost:3001',
   'http://localhost:5173',
   'http://localhost:4173',
-  'https://cca-app-g0pe.onrender.com', 
+  'https://cca-app-g0pe.onrender.com',
+  // Real production domain — hardcoded as a safety net so CORS never
+  // silently blocks it if an env var is ever missing/misconfigured.
+  // (This matters more than it looks: <img> tags load cross-origin
+  // fine with no CORS headers at all, but JS-initiated fetch/XHR — like
+  // pdf.js fetching a magazine PDF to parse it — is blocked by the
+  // browser unless the origin is explicitly allowed here.)
+  'https://calcricket.org',
+  'https://www.calcricket.org',
 ];
 
 app.use(cors({

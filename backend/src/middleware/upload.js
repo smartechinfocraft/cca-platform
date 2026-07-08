@@ -96,7 +96,7 @@ const uploadGallery = multer({
 const uploadMediaWithPdf = multer({
   storage,
   fileFilter: imageOrPdfFilter,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB for PDFs
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB for PDFs
 }).fields([
   { name: 'coverImage', maxCount: 1 },
   { name: 'pdfFile',    maxCount: 1 },

@@ -69,19 +69,19 @@ export default function Login() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'radial-gradient(circle at 50% 0%, #133a20 0%, #0d1b0e 60%)', padding: '24px',
+      background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 55%)', padding: '24px',
     }}>
       <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{
             width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 14px',
-            background: 'linear-gradient(135deg,#D4AF37,#F5D97A)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '20px', color: '#0a2416',
+            background: 'linear-gradient(135deg,#2563eb,#3b82f6)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '20px', color: '#fff',
           }}>
             CCA
           </div>
-          <h1 style={{ color: '#fff', fontSize: '20px', margin: '0 0 4px', fontWeight: 800 }}>Coach Portal</h1>
-          <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>California Cricket Academy</p>
+          <h1 style={{ color: '#0f172a', fontSize: '20px', margin: '0 0 4px', fontWeight: 800 }}>Coach Portal</h1>
+          <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>California Cricket Academy</p>
         </div>
 
         <Card>
@@ -110,7 +110,7 @@ export default function Login() {
                 type="button"
                 onClick={() => setShowForgot(true)}
                 style={{
-                  background: 'none', border: 'none', color: '#D4AF37',
+                  background: 'none', border: 'none', color: '#2563eb',
                   fontSize: '13px', cursor: 'pointer', textDecoration: 'underline', padding: 0,
                 }}
               >
@@ -124,7 +124,7 @@ export default function Login() {
           </form>
         </Card>
 
-        <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', marginTop: '18px' }}>
+        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px', marginTop: '18px' }}>
           Don't have your login details? Contact your academy admin —
           your username and password were emailed to you when your profile was created.
         </p>
@@ -134,7 +134,7 @@ export default function Login() {
       {showForgot && (
         <div
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+            position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 100, padding: '24px',
           }}
@@ -142,9 +142,9 @@ export default function Login() {
         >
           <div
             style={{
-              background: '#1a2e1e', border: '1px solid rgba(212,175,55,0.3)',
+              background: '#ffffff', border: '1px solid #e2e8f0',
               borderRadius: '16px', padding: '36px', width: '100%', maxWidth: '380px',
-              position: 'relative', boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+              position: 'relative', boxShadow: '0 32px 80px rgba(15,23,42,0.25)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -161,9 +161,9 @@ export default function Login() {
             {forgotSent ? (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '40px', marginBottom: '12px' }}>✉️</div>
-                <h2 style={{ color: '#D4AF37', fontSize: '18px', fontWeight: 700, margin: '0 0 12px' }}>Check Your Email</h2>
-                <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '1.6', margin: '0 0 20px' }}>
-                  If <strong style={{ color: '#fff' }}>{forgotEmail}</strong> is registered, we've sent a temporary password there.
+                <h2 style={{ color: '#2563eb', fontSize: '18px', fontWeight: 700, margin: '0 0 12px' }}>Check Your Email</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', lineHeight: '1.6', margin: '0 0 20px' }}>
+                  If <strong style={{ color: '#0f172a' }}>{forgotEmail}</strong> is registered, we've sent a temporary password there.
                   Use it to log in, then update your password.
                 </p>
                 <Btn full onClick={closeForgot}>Back to Login</Btn>
@@ -171,10 +171,10 @@ export default function Login() {
             ) : (
               <>
                 <div style={{ fontSize: '36px', textAlign: 'center', marginBottom: '8px' }}>🔑</div>
-                <h2 style={{ color: '#D4AF37', fontSize: '18px', fontWeight: 700, textAlign: 'center', margin: '0 0 8px' }}>
+                <h2 style={{ color: '#2563eb', fontSize: '18px', fontWeight: 700, textAlign: 'center', margin: '0 0 8px' }}>
                   Reset Password
                 </h2>
-                <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', margin: '0 0 20px', lineHeight: '1.5' }}>
+                <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', margin: '0 0 20px', lineHeight: '1.5' }}>
                   Enter the email address associated with your coach account.
                 </p>
                 <form onSubmit={handleForgotPassword}>

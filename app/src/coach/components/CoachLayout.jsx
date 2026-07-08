@@ -11,15 +11,15 @@ export default function CoachLayout() {
   const { coach } = useCoachAuth();
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0d1b0e', paddingBottom: '76px' }}>
+    <div style={{ minHeight: '100vh', background: '#f1f5f9', paddingBottom: '76px' }}>
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 18px', background: '#0a2416', borderBottom: '1px solid rgba(212,175,55,0.15)',
+        padding: '14px 18px', background: '#ffffff', borderBottom: '1px solid #e2e8f0',
         position: 'sticky', top: 0, zIndex: 40,
       }}>
         <div>
-          <div style={{ fontSize: '11px', color: '#94a3b8', letterSpacing: '0.5px' }}>CCA COACH PORTAL</div>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', letterSpacing: '0.5px', fontWeight: 600 }}>CCA COACH PORTAL</div>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
             Hi, {coach?.firstName || 'Coach'} 👋
           </div>
         </div>

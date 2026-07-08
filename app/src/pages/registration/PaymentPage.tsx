@@ -71,12 +71,17 @@ function PaymentPage() {
       window.paypal.Buttons({
         style: { layout: "vertical", color: "blue", shape: "pill", label: "pay" },
         createOrder: async () => {
-          // couponCode is sent so the backend computes the discounted price
+          // couponCode is sent so the backend computes the discounted price.
+          // weeklyBatchIds is only set for WEEKLY batchType programs — it lets
+          // the backend recompute basePrice × batches-selected itself instead
+          // of trusting a client-side total.
+          const weeklyBatchIds = (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id);
           const res = await api.post("/public/paypal/create-order", {
             programId:       selectedProgram?._id,
             batchId:         selectedBatch?._id,
             studentCount:    students.length || 1,
             sessionsPerWeek: selectedBatch?.sessionsPerWeek,
+            weeklyBatchIds,
             couponCode:      appliedCoupon?.code ?? undefined,
           });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
@@ -93,6 +98,7 @@ function PaymentPage() {
               batchId:         selectedBatch?._id,
               studentCount:    students.length || 1,
               sessionsPerWeek: selectedBatch?.sessionsPerWeek,
+              weeklyBatchIds:  (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id),
               couponCode:      appliedCoupon?.code ?? undefined,
             });
             if (!capture.data.success) throw new Error(capture.data.message || "Payment capture failed");

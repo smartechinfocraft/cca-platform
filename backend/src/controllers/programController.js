@@ -15,7 +15,7 @@ const toSlug = (text) =>
 
 const toSKU = (category, title) => {
   const parts = [category, title].join('-').toUpperCase().replace(/[^A-Z0-9]+/g, '-');
-  return `CCA-${parts}`.substring(0, 40);
+  return `CCA-${parts}`.substring(0, 60);
 };
 
 // ─── GET /api/programs ────────────────────────────────────────────────────────
@@ -73,6 +73,8 @@ exports.create = async (req, res) => {
     if (typeof body.skillLevels  === 'string') body.skillLevels  = JSON.parse(body.skillLevels  || '[]');
     if (typeof body.cities       === 'string') body.cities       = JSON.parse(body.cities       || '[]');
     if (typeof body.monthOptions === 'string') body.monthOptions = JSON.parse(body.monthOptions || '[]');
+    if (typeof body.weekOptions  === 'string') body.weekOptions  = JSON.parse(body.weekOptions  || '[]');
+    if (typeof body.weeklyBatches === 'string') body.weeklyBatches = JSON.parse(body.weeklyBatches || '[]');
     if (typeof body.scheduleDays === 'string') body.scheduleDays = JSON.parse(body.scheduleDays || '[]');
 
     // Auto-calculate sessionsPerWeek from scheduleDays
@@ -80,14 +82,23 @@ exports.create = async (req, res) => {
       body.sessionsPerWeek = body.scheduleDays.length;
     }
 
+    console.log(`[programs] create "${body.title}" — batchType=${body.batchType} — weeklyBatches received: ${Array.isArray(body.weeklyBatches) ? body.weeklyBatches.length : 'N/A'}`);
+
     const program = new Program(body);
     await program.save();
+
+    console.log(`[programs] create "${program.title}" saved — weeklyBatches persisted: ${program.weeklyBatches.length}`);
 
     res.status(201).json({ success: true, data: program });
   } catch (err) {
     if (req.file) fs.unlink(req.file.path, () => {});
     if (err.code === 11000) {
       return res.status(400).json({ success: false, message: 'Program with this title/SKU already exists' });
+    }
+    if (err.name === 'ValidationError') {
+      const details = Object.values(err.errors).map(e => e.message);
+      console.error('[programs] create ValidationError:', details);
+      return res.status(400).json({ success: false, message: details.join(' | ') });
     }
     res.status(500).json({ success: false, message: err.message });
   }
@@ -115,6 +126,8 @@ exports.update = async (req, res) => {
     if (typeof body.skillLevels  === 'string') body.skillLevels  = JSON.parse(body.skillLevels  || '[]');
     if (typeof body.cities       === 'string') body.cities       = JSON.parse(body.cities       || '[]');
     if (typeof body.monthOptions === 'string') body.monthOptions = JSON.parse(body.monthOptions || '[]');
+    if (typeof body.weekOptions  === 'string') body.weekOptions  = JSON.parse(body.weekOptions  || '[]');
+    if (typeof body.weeklyBatches === 'string') body.weeklyBatches = JSON.parse(body.weeklyBatches || '[]');
     if (typeof body.scheduleDays === 'string') body.scheduleDays = JSON.parse(body.scheduleDays || '[]');
 
     // Auto-calculate sessionsPerWeek from scheduleDays
@@ -122,16 +135,34 @@ exports.update = async (req, res) => {
       body.sessionsPerWeek = body.scheduleDays.length;
     }
 
+    console.log(`[programs] update "${program.title}" — batchType=${body.batchType} — weeklyBatches received: ${Array.isArray(body.weeklyBatches) ? body.weeklyBatches.length : 'N/A'}`);
+
     body.updatedBy = req.user._id;
     Object.assign(program, body);
+
+    // Defensive: guarantee Mongoose treats these nested arrays as changed
+    // even in edge cases where Object.assign's array replacement isn't
+    // picked up (e.g. same array length/reference quirks).
+    program.markModified('weeklyBatches');
+    program.markModified('scheduleDays');
+    program.markModified('monthOptions');
+
     await program.save();
+
+    console.log(`[programs] update "${program.title}" saved — weeklyBatches persisted: ${program.weeklyBatches.length}`);
 
     res.json({ success: true, data: program });
   } catch (err) {
     if (req.file) fs.unlink(req.file.path, () => {});
+    if (err.name === 'ValidationError') {
+      const details = Object.values(err.errors).map(e => e.message);
+      console.error('[programs] update ValidationError:', details);
+      return res.status(400).json({ success: false, message: details.join(' | ') });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 // ─── DELETE /api/programs/:id ── Soft delete ──────────────────────────────────
 exports.remove = async (req, res) => {

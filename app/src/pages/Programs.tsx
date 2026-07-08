@@ -22,6 +22,7 @@ function Programs() {
     ageGroups: [],
   });
   const [programId, setProgramId] = useState<string>(searchParams.get("program") ?? "");
+  const [categoryId, setCategoryId] = useState<string>(searchParams.get("category") ?? "");
   const [page, setPage] = useState(1);
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,7 @@ function Programs() {
       ageGroups: [],
     });
     setProgramId(searchParams.get("program") ?? "");
+    setCategoryId(searchParams.get("category") ?? "");
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
@@ -61,12 +63,38 @@ function Programs() {
     fetchPrograms();
   }, []);
 
+  // Once programs are loaded, reflect the Navbar's ?category=<id> deep-link
+  // in the Season dropdown too (not just the filtered results) — look up
+  // that category's title from any program that belongs to it, and show it
+  // as the selected Season so the UI matches what's actually filtered.
+  useEffect(() => {
+    if (!categoryId || programs.length === 0) return;
+    const match = programs.find((p) => {
+      const pCatId = typeof p.category === "object" ? p.category?._id : p.category;
+      return pCatId === categoryId;
+    });
+    const title = match?.category?.title;
+    if (title) {
+      setFilters((s) => (s.season === title ? s : { ...s, season: title }));
+    }
+  }, [categoryId, programs]);
+
   const filtered = useMemo(() => {
     let list = programs;
 
     // Specific Program deep-link from Footer ("?program=<id>")
     if (programId) {
       list = list.filter((p) => p._id === programId);
+    }
+
+    // Category deep-link from Navbar's Training Programs dropdown
+    // ("?category=<categoryId>") — match against p.category, which may be
+    // either a populated object ({ _id, title }) or a plain id string.
+    if (categoryId) {
+      list = list.filter((p) => {
+        const pCatId = typeof p.category === "object" ? p.category?._id : p.category;
+        return pCatId === categoryId;
+      });
     }
 
     // Season: match against populated category title
@@ -110,7 +138,7 @@ function Programs() {
     }
 
     return list;
-  }, [filters, programs, programId]);
+  }, [filters, programs, programId, categoryId]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -121,11 +149,13 @@ function Programs() {
 
   function handleChange(next: Partial<Filters>) {
     setFilters((s) => ({ ...s, ...next }));
+    setCategoryId("");
     setPage(1);
   }
 
   function handleReset() {
     setFilters({ season: "", cities: [], levels: [], ageGroups: [] });
+    setCategoryId("");
     setPage(1);
   }
 

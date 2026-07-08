@@ -143,7 +143,7 @@ router.post('/auth/forgot-password', async (req, res) => {
 // registration is actually saved (in POST /register below).
 router.post('/validate-coupon', async (req, res) => {
   try {
-    const { couponCode, programId, batchId, studentCount, sessionsPerWeek } = req.body;
+    const { couponCode, programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds } = req.body;
 
     if (!couponCode || !programId)
       return res.status(400).json({ success: false, message: 'couponCode and programId are required.' });
@@ -155,6 +155,7 @@ router.post('/validate-coupon', async (req, res) => {
       batchId,
       studentCount: studentCount || 1,
       sessionsPerWeek,
+      weeklyBatchIds,
       couponCode: couponCode.trim().toUpperCase(),
     });
 
@@ -187,7 +188,7 @@ router.post('/validate-coupon', async (req, res) => {
 // less than the real price (or for $0).
 router.post('/paypal/create-order', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, couponCode } = req.body;
+    const { programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds, couponCode } = req.body;
 
     if (!programId)
       return res.status(400).json({ success: false, message: 'programId is required.' });
@@ -197,6 +198,7 @@ router.post('/paypal/create-order', async (req, res) => {
       batchId,
       studentCount,
       sessionsPerWeek,
+      weeklyBatchIds,
       couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
     });
 
@@ -223,7 +225,7 @@ router.post('/paypal/create-order', async (req, res) => {
 // ── POST /api/public/paypal/capture-order ────────────────────
 router.post('/paypal/capture-order', async (req, res) => {
   try {
-    const { orderID, programId, batchId, studentCount, sessionsPerWeek, couponCode } = req.body;
+    const { orderID, programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds, couponCode } = req.body;
     if (!orderID)
       return res.status(400).json({ success: false, message: 'orderID required.' });
 
@@ -238,7 +240,7 @@ router.post('/paypal/capture-order', async (req, res) => {
 
     if (programId) {
       const priced = await computeRegistrationTotal({
-        programId, batchId, studentCount, sessionsPerWeek,
+        programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
       });
       if (Math.abs(capturedValue - priced.total) > 0.01) {
@@ -312,7 +314,7 @@ router.post('/donate/capture-order', async (req, res) => {
 router.post('/register', async (req, res) => {
   try {
     const {
-      selectedProgram, selectedBatch, students,
+      selectedProgram, selectedBatch, selectedWeeklyBatches, students,
       parent: parentInfo, parentId,
       paymentMethod,
       transactionId, checkNumber,
@@ -330,6 +332,42 @@ router.post('/register', async (req, res) => {
 
     if (!selectedProgram?._id)
       return res.status(400).json({ success: false, message: 'Program is required.' });
+
+    // ── Weekly batch selection (multi-select) ──────────────────
+    // batchType is always re-checked from the DB — never trust the client
+    // for this, since it decides whether picking at least one batch is
+    // mandatory, and it decides how many "weeks" get billed.
+    const programForWeekCheck = await mongoose.model('Program')
+      .findById(selectedProgram._id)
+      .select('batchType weeklyBatches')
+      .lean();
+
+    if (!programForWeekCheck)
+      return res.status(404).json({ success: false, message: 'Program not found.' });
+
+    // Client may send selectedWeeklyBatches as an array of full objects
+    // ({_id, ...}) or as an array of ids embedded on selectedBatch — accept
+    // either shape, but always re-validate against the DB below.
+    const requestedWeeklyBatchIds = (
+      Array.isArray(selectedWeeklyBatches) ? selectedWeeklyBatches :
+      Array.isArray(selectedBatch?.selectedWeeklyBatches) ? selectedBatch.selectedWeeklyBatches :
+      []
+    ).map(b => (typeof b === 'string' ? b : b?._id)).filter(Boolean);
+
+    let matchedWeeklyBatches = [];
+    if (programForWeekCheck.batchType === 'WEEKLY') {
+      if (requestedWeeklyBatchIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Please select at least one batch for this program.' });
+      }
+      const allBatches = programForWeekCheck.weeklyBatches || [];
+      const uniqueIds = [...new Set(requestedWeeklyBatchIds.map(String))];
+      matchedWeeklyBatches = allBatches.filter(
+        b => b.isActive !== false && uniqueIds.includes(String(b._id))
+      );
+      if (matchedWeeklyBatches.length !== uniqueIds.length) {
+        return res.status(400).json({ success: false, message: 'One or more selected batches are not valid for this program.' });
+      }
+    }
 
     if (waiverConsent?.accepted !== true || !waiverSignature || !waiverDrawnSignature) {
       return res.status(400).json({
@@ -356,6 +394,7 @@ router.post('/register', async (req, res) => {
     // If they differ, price each student individually and sum, then apply the coupon on top.
     const studentBatchIds = studentInputs.map(s => s.selectedBatch?._id ?? selectedBatch?._id);
     const allSameBatch = studentBatchIds.every(id => String(id) === String(studentBatchIds[0]));
+    const weeklyBatchIdsForPricing = matchedWeeklyBatches.map(b => String(b._id));
 
     let priced;
     if (allSameBatch) {
@@ -364,6 +403,7 @@ router.post('/register', async (req, res) => {
         batchId: studentBatchIds[0],
         studentCount: studentInputs.length,
         sessionsPerWeek,
+        weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
       });
     } else {
@@ -376,6 +416,7 @@ router.post('/register', async (req, res) => {
             batchId,
             studentCount: 1,
             sessionsPerWeek,
+            weeklyBatchIds: weeklyBatchIdsForPricing,
             // Coupon applied once on total below, not per-student
           })
         )
@@ -388,6 +429,7 @@ router.post('/register', async (req, res) => {
         batchId: studentBatchIds[0],
         studentCount: studentInputs.length,
         sessionsPerWeek,
+        weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
       });
 
@@ -520,6 +562,17 @@ router.post('/register', async (req, res) => {
       programId: selectedProgram._id,
       students: studentIds,
       batches: batchIds,
+      selectedWeeklyBatches: matchedWeeklyBatches.length ? matchedWeeklyBatches.map(b => ({
+        batchId:       String(b._id),
+        label:         b.label,
+        startDate:     b.startDate,
+        startTime:     b.startTime,
+        endDate:       b.endDate,
+        endTime:       b.endTime,
+        groundAddress: b.groundAddress,
+        ageGroups:     b.ageGroups,
+        skillLevels:   b.skillLevels,
+      })) : undefined,
       subtotal: priced.subtotal,
       discountAmount: priced.discount,
       totalAmount: priced.total,

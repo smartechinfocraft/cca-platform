@@ -281,6 +281,25 @@ const registrationSchema = new mongoose.Schema(
     // Batches selected
     batches: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Batch' }],
 
+    // Weekly batches selected (only set when the program's batchType is
+    // WEEKLY). Stored as a snapshot array (not refs) since Program.weeklyBatches
+    // are subdocuments — this keeps the record readable even if the admin
+    // later edits/removes those batches from the program, and supports the
+    // parent selecting MULTIPLE batches ("weeks") in one registration.
+    selectedWeeklyBatches: [
+      {
+        batchId:       { type: String },
+        label:         { type: String },
+        startDate:     { type: String },
+        startTime:     { type: String },
+        endDate:       { type: String },
+        endTime:       { type: String },
+        groundAddress: { type: String },
+        ageGroups:     [{ type: String }],
+        skillLevels:   [{ type: String }],
+      },
+    ],
+
     status: {
       type: String,
       enum: ['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'],

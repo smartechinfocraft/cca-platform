@@ -21,10 +21,12 @@ import { HiOutlineArrowLeft, HiOutlineCheckCircle, HiOutlineShoppingCart } from 
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import WaiverConsent from "../registration/WaiverConsent";
+import WeeklyBatchSelector from "../registration/WeeklyBatchSelector";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
+import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 import {
   fetchChatPrograms,
-  fetchChatBatches,
+  fetchChatProgramDetail,
   fetchChatCategories,
   createChatPaypalOrder,
   captureChatPaypalOrder,
@@ -64,19 +66,24 @@ function freqLabel(n: number): string {
   const m: Record<number, string> = { 1: "Once a Week", 2: "Twice a Week", 3: "Thrice a Week" };
   return m[n] ?? `${n} times a Week`;
 }
+// Normalizes batchType comparisons — protects against stray whitespace/casing
+// coming back from the API so the WEEKLY step is never silently skipped.
+function isWeekly(batchType?: string | null): boolean {
+  return (batchType ?? "").toString().trim().toUpperCase() === "WEEKLY";
+}
 
 type Step =
   | "auth-choice" | "login" | "register"
-  | "program" | "batch" | "month" | "frequency" | "days"
+  | "program" | "batch" | "weekly" | "month" | "frequency" | "days"
   | "student" | "billing"
   | "review" | "payment" | "done";
 
 // Maps every step to a "phase" used by the progress bar (several
-// steps — batch/month/frequency/days — collapse into one phase).
+// steps — batch/weekly/month/frequency/days — collapse into one phase).
 const PHASES: { key: string; label: string; steps: Step[] }[] = [
   { key: "account",  label: "Account",  steps: ["auth-choice", "login", "register"] },
   { key: "program",  label: "Program",  steps: ["program"] },
-  { key: "schedule", label: "Schedule", steps: ["batch", "month", "frequency", "days"] },
+  { key: "schedule", label: "Schedule", steps: ["batch", "weekly", "month", "frequency", "days"] },
   { key: "player",   label: "Player",   steps: ["student"] },
   { key: "billing",  label: "Billing",  steps: ["billing"] },
   { key: "review",   label: "Review",   steps: ["review"] },
@@ -219,8 +226,14 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const [frequency, setFrequency] = useState(1);
   const [daySlots, setDaySlots] = useState<(string | null)[]>([null]);
 
+  // ── WEEKLY batchType: multi-select batches, price = basePrice × count ──
+  // Same logic/component as the main site and Quick Register drawer.
+  const [weeklyBatches, setWeeklyBatches] = useState<WeeklyBatchRaw[]>([]);
+  const [selectedWeeklyBatchIds, setSelectedWeeklyBatchIds] = useState<string[]>([]);
+  const isWeeklyProgram = isWeekly(selectedProgram?.batchType);
+
   // student
-  const [student, setStudent] = useState({ firstName: "", lastName: "", dob: "", gender: "" });
+  const [student, setStudent] = useState({ firstName: "", lastName: "", dob: "", gender: "", schoolName: "" });
 
   // billing / address
   const [billing, setBilling] = useState({ address: "", city: "", state: "", zip: "" });
@@ -276,12 +289,19 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Program → Batch ──
+  // ── Program → Batch (or Weekly Select-Batch/Select-Week for WEEKLY programs) ──
   const handlePickProgram = (p: ChatProgram) => {
     setSelectedProgram(p);
     setBatches(null);
-    goTo("batch");
-    fetchChatBatches(p._id).then(setBatches).catch(() => setError("Couldn't load batches for this program."));
+    setWeeklyBatches([]);
+    setSelectedWeeklyBatchIds([]);
+    goTo(isWeekly(p.batchType) ? "weekly" : "batch");
+    fetchChatProgramDetail(p._id)
+      .then(({ batches: b, weeklyBatches: wb }) => {
+        setBatches(b);
+        setWeeklyBatches(wb);
+      })
+      .catch(() => setError("Couldn't load batches for this program."));
   };
 
   // ── Batch → (Month |) Frequency | Days ──
@@ -319,11 +339,23 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const dayOptions = selectedBatch ? buildDaySlotOptions(selectedBatch) : [];
   const allDaySlotsSelected = dayOptions.length === 0 || daySlots.every((s) => s !== null);
 
+  // ── WEEKLY batchType: price = program basePrice × number of weeks picked ──
+  const weeklyBasePrice = selectedProgram?.discountedPrice ?? selectedProgram?.basePrice ?? 0;
+  const weeklyTotalPrice = calcWeeklyPrice(weeklyBasePrice, selectedWeeklyBatchIds);
+  const weeklySnapshots = isWeeklyProgram ? toWeeklyBatchSnapshots(weeklyBatches, selectedWeeklyBatchIds) : [];
+
+  const handleWeeklyContinue = () => {
+    if (selectedWeeklyBatchIds.length === 0) return;
+    goTo("student");
+  };
+
   // ── Fee calculation — month price × frequency, same as the real site ──
   const monthPrice = selectedMonth ? Number(selectedMonth.price) || 0 : 0;
-  const computedFee = selectedMonth
-    ? monthPrice * frequency
-    : (selectedBatch?.fee ?? selectedProgram?.discountedPrice ?? selectedProgram?.basePrice ?? 0);
+  const computedFee = isWeeklyProgram
+    ? weeklyTotalPrice
+    : selectedMonth
+      ? monthPrice * frequency
+      : (selectedBatch?.fee ?? selectedProgram?.discountedPrice ?? selectedProgram?.basePrice ?? 0);
 
   // ── PayPal button rendering ──
   useEffect(() => {
@@ -344,6 +376,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
             batchId: selectedBatch?._id,
             studentCount: 1,
             sessionsPerWeek: frequency,
+            weeklyBatchIds: isWeeklyProgram ? selectedWeeklyBatchIds : undefined,
           });
           return order.orderID;
         },
@@ -357,6 +390,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
               batchId: selectedBatch?._id,
               studentCount: 1,
               sessionsPerWeek: frequency,
+              weeklyBatchIds: isWeeklyProgram ? selectedWeeklyBatchIds : undefined,
             });
             await finishRegistration("PayPal", capture.transactionId);
           } catch (err) {
@@ -378,7 +412,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
     } else {
       renderButtons();
     }
-  }, [step, paymentMethod, selectedProgram, selectedBatch, frequency]);
+  }, [step, paymentMethod, selectedProgram, selectedBatch, frequency, isWeeklyProgram, selectedWeeklyBatchIds]);
 
   // ── Auth handlers ──
   const doRegister = async () => {
@@ -443,13 +477,14 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
       const data = await submitChatRegistration(
         {
           selectedProgram: { _id: selectedProgram._id, title: selectedProgram.title },
-          selectedBatch: selectedBatch
+          selectedBatch: !isWeeklyProgram && selectedBatch
             ? { _id: selectedBatch._id, title: selectedBatch.title || selectedBatch.name, fee: computedFee, sessionsPerWeek: frequency }
             : undefined,
-          students: [{ firstName: student.firstName, lastName: student.lastName, dob: student.dob, gender: student.gender }],
+          selectedWeeklyBatches: isWeeklyProgram ? weeklySnapshots : undefined,
+          students: [{ firstName: student.firstName, lastName: student.lastName, dob: student.dob, gender: student.gender, schoolName: student.schoolName }],
           parent: parentInfo,
           parentId: user?.id,
-          sessionsPerWeek: frequency,
+          sessionsPerWeek: isWeeklyProgram ? undefined : frequency,
           paymentMethod: method,
           transactionId,
           checkNumber: method === "Check" ? checkNumber : undefined,
@@ -478,8 +513,11 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   };
 
   // ── Add to cart instead of paying now ──
+  // NOTE: the cart currently only supports the single-batch flow — WEEKLY
+  // programs (multi-week selection) always pay/register immediately, so
+  // this button is hidden for them in the Review step below.
   const handleAddToCart = () => {
-    if (!selectedProgram || !selectedBatch) return;
+    if (!selectedProgram || !selectedBatch || isWeeklyProgram) return;
     addItem({
       programId: selectedProgram._id,
       programTitle: selectedProgram.title,
@@ -492,7 +530,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
       fee: computedFee,
       students: [{
         firstName: student.firstName, lastName: student.lastName, dob: student.dob,
-        gender: student.gender, schoolName: "", medicalNotes: "",
+        gender: student.gender, schoolName: student.schoolName, medicalNotes: "",
       }],
     });
     pushMessage(`Added "${selectedProgram.title}" to your cart for ${student.firstName}. You can check out anytime from the cart icon, or come back here to pay now.`);
@@ -663,6 +701,28 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
           </>
         )}
 
+        {/* ── WEEKLY (batchType = WEEKLY) — Select Batch → Select Week(s) ── */}
+        {step === "weekly" && (
+          <>
+            <Bubble>Select the batch and week(s) for "{selectedProgram?.title}":</Bubble>
+            {weeklyBatches.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--ink-400)" }}>Loading batches…</p>
+            ) : (
+              <div className="mb-3 rounded-2xl bg-white p-1">
+                <WeeklyBatchSelector
+                  batches={weeklyBatches}
+                  basePrice={weeklyBasePrice}
+                  selectedIds={selectedWeeklyBatchIds}
+                  onChange={setSelectedWeeklyBatchIds}
+                />
+              </div>
+            )}
+            <button onClick={handleWeeklyContinue} disabled={selectedWeeklyBatchIds.length === 0} className="cca-flow-btn">
+              Continue — Player Details
+            </button>
+          </>
+        )}
+
         {/* ── MONTH ── */}
         {step === "month" && selectedBatch && (
           <>
@@ -733,10 +793,23 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
         {/* ── STUDENT ── */}
         {step === "student" && (
           <>
+            {isWeeklyProgram && (
+              <div className="rounded-2xl p-3 mb-1 text-xs" style={{ background: "var(--gold-glow)" }}>
+                <p className="font-semibold mb-1" style={{ color: "var(--outfield)" }}>{selectedProgram?.title}</p>
+                {weeklySnapshots.map((s) => (
+                  <p key={s._id} style={{ color: "var(--ink-400)" }}>
+                    • {formatWeekRangeLabel(s)}
+                    {s.startTime && s.endTime ? ` (${fmt12(s.startTime)} - ${fmt12(s.endTime)})` : ""}
+                  </p>
+                ))}
+                <p className="mt-1 font-semibold" style={{ color: "var(--outfield)" }}>Total: ${weeklyTotalPrice}</p>
+              </div>
+            )}
             <Bubble>Now tell me about the player:</Bubble>
             <TextField label="Player first name" value={student.firstName} onChange={(v) => setStudent({ ...student, firstName: v })} placeholder="Arjun" required />
             <TextField label="Player last name" value={student.lastName} onChange={(v) => setStudent({ ...student, lastName: v })} placeholder="Patel" required />
             <TextField label="Date of birth" type="date" value={student.dob} onChange={(v) => setStudent({ ...student, dob: v })} required />
+            <TextField label="School name" value={student.schoolName} onChange={(v) => setStudent({ ...student, schoolName: v })} placeholder="Sunrise High School" />
             <p className="text-[11px] font-semibold mb-1" style={{ color: "var(--ink-400)" }}>Gender</p>
             <div className="flex gap-2 mb-3">
               {["Male", "Female", "Other"].map((g) => (
@@ -784,10 +857,24 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
             <Bubble>Here's a quick summary — looks good?</Bubble>
             <div className="rounded-2xl p-4 mb-3 text-sm space-y-1.5" style={{ background: "var(--gold-glow)" }}>
               <p><strong>Program:</strong> {selectedProgram?.title}</p>
-              <p><strong>Batch:</strong> {selectedBatch?.title || selectedBatch?.name}</p>
-              {selectedMonth && <p><strong>Month:</strong> {selectedMonth.label}</p>}
-              <p><strong>Frequency:</strong> {freqLabel(frequency)}</p>
-              {daySlots.filter(Boolean).length > 0 && <p><strong>Days:</strong> {daySlots.filter(Boolean).join(" + ")}</p>}
+              {isWeeklyProgram ? (
+                <>
+                  <p><strong>Selected Week{weeklySnapshots.length > 1 ? "s" : ""}:</strong></p>
+                  {weeklySnapshots.map((s) => (
+                    <p key={s._id} className="pl-2">
+                      • {formatWeekRangeLabel(s)}
+                      {s.startTime && s.endTime ? ` (${fmt12(s.startTime)} - ${fmt12(s.endTime)})` : ""}
+                    </p>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <p><strong>Batch:</strong> {selectedBatch?.title || selectedBatch?.name}</p>
+                  {selectedMonth && <p><strong>Month:</strong> {selectedMonth.label}</p>}
+                  <p><strong>Frequency:</strong> {freqLabel(frequency)}</p>
+                  {daySlots.filter(Boolean).length > 0 && <p><strong>Days:</strong> {daySlots.filter(Boolean).join(" + ")}</p>}
+                </>
+              )}
               <p><strong>Player:</strong> {student.firstName} {student.lastName}</p>
               <p><strong>Billing:</strong> {[billing.address, billing.city, billing.state, billing.zip].filter(Boolean).join(", ") || "—"}</p>
               <p><strong>Total:</strong> ${computedFee}</p>
@@ -824,9 +911,11 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
             >
               Pay & Register Now
             </button>
-            <button onClick={handleAddToCart} className="cca-flow-btn-outline flex items-center justify-center gap-2">
-              <HiOutlineShoppingCart className="w-4 h-4" /> Add to Cart Instead
-            </button>
+            {!isWeeklyProgram && (
+              <button onClick={handleAddToCart} className="cca-flow-btn-outline flex items-center justify-center gap-2">
+                <HiOutlineShoppingCart className="w-4 h-4" /> Add to Cart Instead
+              </button>
+            )}
           </>
         )}
 

@@ -38,7 +38,7 @@ export default function BatchDetail() {
   if (!data) return <EmptyState text="Batch not found." />;
 
   const { batch, students } = data;
-  const presentIds = new Set(attendance.map((a) => a.studentId?._id));
+  const statusByStudent = new Map(attendance.map((a) => [a.studentId?._id, a.status]));
 
   return (
     <div>
@@ -48,32 +48,37 @@ export default function BatchDetail() {
       />
 
       <Btn full onClick={() => navigate('/coach/scan', { state: { batchId } })} style={{ marginBottom: '16px' }}>
-        📷 Scan ID Cards for This Batch
+        📝 Take Attendance for This Batch
       </Btn>
 
       <Card style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '13px', color: '#94a3b8' }}>
-          ✅ {attendance.length} of {students.length} marked present today
+        <div style={{ fontSize: '13px', color: '#475569' }}>
+          ✅ {attendance.filter((a) => a.status === 'PRESENT').length} present ·{' '}
+          {attendance.filter((a) => a.status === 'ABSENT').length} absent ·{' '}
+          {students.length - attendance.length} not marked today
         </div>
       </Card>
 
-      <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '10px' }}>
+      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '10px' }}>
         Student Roster
       </div>
 
       {students.length === 0 ? (
         <EmptyState icon="🧒" text="No students assigned to this batch yet." />
       ) : (
-        students.map((s) => (
-          <Card key={s._id} style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Avatar photoUrl={s.photoUrl} firstName={s.firstName} lastName={s.lastName} size={40} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>{s.firstName} {s.lastName}</div>
-              <div style={{ fontSize: '11.5px', color: '#94a3b8', fontFamily: 'monospace' }}>{s.studentCode}</div>
-            </div>
-            <Badge label={presentIds.has(s._id) ? 'PRESENT' : 'NOT MARKED'} tone={presentIds.has(s._id) ? 'success' : 'neutral'} />
-          </Card>
-        ))
+        students.map((s) => {
+          const status = statusByStudent.get(s._id);
+          return (
+            <Card key={s._id} style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Avatar photoUrl={s.photoUrl} firstName={s.firstName} lastName={s.lastName} size={40} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{s.firstName} {s.lastName}</div>
+                <div style={{ fontSize: '11.5px', color: '#94a3b8', fontFamily: 'monospace' }}>{s.studentCode}</div>
+              </div>
+              <Badge label={status || 'NOT MARKED'} tone={status ? undefined : 'neutral'} />
+            </Card>
+          );
+        })
       )}
     </div>
   );

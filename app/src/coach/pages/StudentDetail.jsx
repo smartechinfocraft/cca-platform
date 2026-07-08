@@ -28,7 +28,7 @@ export default function StudentDetail() {
 
       <Card style={{ textAlign: 'center', marginBottom: '16px' }}>
         <Avatar photoUrl={student.photoUrl} firstName={student.firstName} lastName={student.lastName} size={72} />
-        <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff', marginTop: '10px' }}>
+        <div style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginTop: '10px' }}>
           {student.firstName} {student.lastName}
         </div>
         <div style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace', marginTop: '2px' }}>
@@ -40,10 +40,10 @@ export default function StudentDetail() {
       </Card>
 
       <Card style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '10px' }}>Batches</div>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '10px' }}>Batches</div>
         {(student.batches || []).length ? (
           student.batches.map((b) => (
-            <div key={b._id} style={{ fontSize: '13.5px', color: '#cbd5e1', marginBottom: '6px' }}>
+            <div key={b._id} style={{ fontSize: '13.5px', color: '#334155', marginBottom: '6px' }}>
               📋 {b.title || b.dayOfWeek} · {b.startTime}–{b.endTime}
             </div>
           ))
@@ -53,10 +53,10 @@ export default function StudentDetail() {
       </Card>
 
       <Card>
-        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '10px' }}>Parent / Guardian</div>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '10px' }}>Parent / Guardian</div>
         {student.parentId ? (
           <div>
-            <div style={{ fontSize: '13.5px', color: '#fff' }}>{student.parentId.firstName} {student.parentId.lastName}</div>
+            <div style={{ fontSize: '13.5px', color: '#0f172a' }}>{student.parentId.firstName} {student.parentId.lastName}</div>
             <div style={{ fontSize: '12.5px', color: '#94a3b8' }}>{student.parentId.email}</div>
             <div style={{ fontSize: '12.5px', color: '#94a3b8' }}>{student.parentId.phone}</div>
           </div>

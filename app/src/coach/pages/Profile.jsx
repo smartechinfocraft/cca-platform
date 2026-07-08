@@ -85,24 +85,24 @@ export default function Profile() {
 
       <Card style={{ marginBottom: '16px', textAlign: 'center' }}>
         <Avatar photoUrl={profile.photoUrl} firstName={profile.firstName} lastName={profile.lastName} size={72} />
-        <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff', marginTop: '10px' }}>
+        <div style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginTop: '10px' }}>
           {profile.firstName} {profile.lastName}
         </div>
         <div style={{ fontSize: '12.5px', color: '#94a3b8' }}>{profile.email}</div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '10px', fontSize: '12px' }}>
           <div>
-            <span style={{ color: '#64748b' }}>Username: </span>
-            <span style={{ color: '#F5D97A', fontFamily: 'monospace' }}>{profile.username}</span>
+            <span style={{ color: '#94a3b8' }}>Username: </span>
+            <span style={{ color: '#2563eb', fontFamily: 'monospace' }}>{profile.username}</span>
           </div>
           <div>
-            <span style={{ color: '#64748b' }}>Coach ID: </span>
-            <span style={{ color: '#F5D97A', fontFamily: 'monospace' }}>{profile.coachUid}</span>
+            <span style={{ color: '#94a3b8' }}>Coach ID: </span>
+            <span style={{ color: '#2563eb', fontFamily: 'monospace' }}>{profile.coachUid}</span>
           </div>
         </div>
       </Card>
 
       <Card style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '12px' }}>Edit Details</div>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>Edit Details</div>
         <FormField label="Phone">
           <Input value={form.phone} onChange={f('phone')} placeholder="+1 408 555 0101" />
         </FormField>
@@ -118,8 +118,8 @@ export default function Profile() {
             onChange={f('bio')}
             rows={3}
             style={{
-              width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(212,175,55,0.25)',
-              borderRadius: '10px', padding: '12px 14px', color: '#fff', fontSize: '14px', outline: 'none', resize: 'vertical',
+              width: '100%', background: '#fff', border: '1px solid #e2e8f0',
+              borderRadius: '10px', padding: '12px 14px', color: '#0f172a', fontSize: '14px', outline: 'none', resize: 'vertical',
             }}
           />
         </FormField>
@@ -128,7 +128,7 @@ export default function Profile() {
 
       <Card style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>Password</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Password</div>
           <Btn variant="ghost" onClick={() => setShowPwForm((s) => !s)}>
             {showPwForm ? 'Cancel' : 'Change'}
           </Btn>

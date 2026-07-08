@@ -14,6 +14,8 @@ import { useAuth } from "../context/AuthContext";
 import { useRegistration } from "../context/RegistrationContext";
 import { getProgramById } from "../services/programService";
 import GenderSelect from "./registration/GenderSelect";
+import WeeklyBatchSelector from "./registration/WeeklyBatchSelector";
+import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, fmt12, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 
 type ProgramCardProps = {
   program: {
@@ -270,15 +272,6 @@ const DAY_FULL: Record<string, string> = {
   FRI: "Friday", SAT: "Saturday", SUN: "Sunday",
 };
 
-function fmt12(t: string): string {
-  if (!t) return "";
-  const [hStr, mStr] = t.split(":");
-  const h = parseInt(hStr, 10);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${mStr ?? "00"} ${ampm}`;
-}
-
 function getSlots(batch: QuickBatch): TimeSlot[] {
   if (batch.timeSlots && batch.timeSlots.length > 0) return batch.timeSlots;
   const parts = batch.timing?.split(" - ");
@@ -364,6 +357,11 @@ function QuickRegisterDrawer({
   const [daySlots, setDaySlots] = useState<(string | null)[]>([null]);
   const [dobError, setDobError] = useState("");
 
+  // ── WEEKLY batchType: multi-select batches, price = basePrice × count ──
+  const [weeklyBatches, setWeeklyBatches] = useState<WeeklyBatchRaw[]>([]);
+  const [selectedWeeklyBatchIds, setSelectedWeeklyBatchIds] = useState<string[]>([]);
+  const isWeeklyProgram = fullProgram?.batchType === "WEEKLY";
+
   useEffect(() => {
     if (!open || !isLoggedIn || fullProgram) return;
     setLoadingBatches(true);
@@ -391,6 +389,7 @@ function QuickRegisterDrawer({
           : [];
         setFullProgram(data ?? program);
         setBatches(batchItems);
+        setWeeklyBatches(Array.isArray(data?.weeklyBatches) ? data.weeklyBatches : []);
       })
       .catch(() => {
         setBatchError("Unable to load batches. Please try again.");
@@ -422,9 +421,18 @@ function QuickRegisterDrawer({
     const fromBatch = Number(match?.price);
     return fromBatch > 0 ? fromBatch : 0;
   })();
-  const totalPrice = baseMonthPrice > 0 ? baseMonthPrice * selectedFreq : activeBatch?.price ?? activeBatch?.fee ?? 0;
+  const totalPriceNonWeekly = baseMonthPrice > 0 ? baseMonthPrice * selectedFreq : activeBatch?.price ?? activeBatch?.fee ?? 0;
   const allDaySlotsSelected = daySlots.every(Boolean);
-  const canContinue = Boolean(activeBatch) && Boolean(selectedMonth) && allDaySlotsSelected;
+
+  // ── WEEKLY batchType: price = program basePrice × number of batches picked ──
+  const weeklyBasePrice = fullProgram?.discountedPrice ?? fullProgram?.basePrice ?? program.discountedPrice ?? program.basePrice ?? 0;
+  const weeklyTotalPrice = calcWeeklyPrice(weeklyBasePrice, selectedWeeklyBatchIds);
+  const totalPrice = isWeeklyProgram ? weeklyTotalPrice : totalPriceNonWeekly;
+  const weeklySnapshots = isWeeklyProgram ? toWeeklyBatchSnapshots(weeklyBatches, selectedWeeklyBatchIds) : [];
+
+  const canContinue = isWeeklyProgram
+    ? selectedWeeklyBatchIds.length > 0
+    : Boolean(activeBatch) && Boolean(selectedMonth) && allDaySlotsSelected;
   const student = students[currentStudentIndex] ?? students[0];
   const isStudentValid = Boolean(
     student?.firstName?.trim() &&
@@ -435,13 +443,27 @@ function QuickRegisterDrawer({
   );
 
   const buildBatchContext = () => {
+    if (isWeeklyProgram) {
+      if (selectedWeeklyBatchIds.length === 0) return null;
+      const snapshots = toWeeklyBatchSnapshots(weeklyBatches, selectedWeeklyBatchIds);
+      return {
+        _id: fullProgram?._id ?? program._id,
+        name: fullProgram?.title ?? program.title,
+        days: snapshots.map((s) => s.label).join(" + "),
+        timing: snapshots.map((s) => `${s.startTime} - ${s.endTime}`).join(" | "),
+        fee: weeklyTotalPrice,
+        seats: fullProgram?.maxCapacity ?? 0,
+        sessionsPerWeek: selectedWeeklyBatchIds.length,
+        selectedWeeklyBatches: snapshots,
+      };
+    }
     if (!activeBatch || !selectedMonth) return null;
     return {
       _id: activeBatch._id,
       name: activeBatch.name,
       days: daySlots.filter(Boolean).join(" + "),
       timing: daySlots.filter(Boolean).join(" | "),
-      fee: totalPrice,
+      fee: totalPriceNonWeekly,
       seats: activeBatch.seats,
       sessionsPerWeek: selectedFreq,
       selectedMonth,
@@ -583,8 +605,24 @@ function QuickRegisterDrawer({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected Batch</p>
-                    <p className="mt-1 text-sm font-bold text-[#0F172A]">{activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}</p>
-                    <p className="mt-1 text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
+                    {isWeeklyProgram ? (
+                      <>
+                        <p className="mt-1 text-sm font-bold text-[#0F172A]">{fullProgram?.title ?? program.title}</p>
+                        <div className="mt-1 space-y-0.5">
+                          {weeklySnapshots.map((s) => (
+                            <p key={s._id} className="text-xs text-slate-500">
+                              • {formatWeekRangeLabel(s)}
+                              {s.startTime && s.endTime ? ` (${fmt12(s.startTime)} - ${fmt12(s.endTime)})` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-sm font-bold text-[#0F172A]">{activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}</p>
+                        <p className="mt-1 text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
+                      </>
+                    )}
                   </div>
                   <p className="text-lg font-bold text-[#A33B2B]">${totalPrice}</p>
                 </div>
@@ -661,6 +699,25 @@ function QuickRegisterDrawer({
                   </button>
                 )}
               </div>
+            </div>
+          ) : isWeeklyProgram ? (
+            <div className="space-y-4">
+              {loadingBatches && <p className="py-8 text-center text-sm font-semibold text-slate-500">Loading batches...</p>}
+              {batchError && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{batchError}</div>}
+              {!loadingBatches && !batchError && (
+                <>
+                  <p className="text-sm text-slate-500">
+                    This is a Weekly program — select one or more batches below. Price = base price × number
+                    of batches selected.
+                  </p>
+                  <WeeklyBatchSelector
+                    batches={weeklyBatches}
+                    basePrice={weeklyBasePrice}
+                    selectedIds={selectedWeeklyBatchIds}
+                    onChange={setSelectedWeeklyBatchIds}
+                  />
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

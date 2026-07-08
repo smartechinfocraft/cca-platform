@@ -22,8 +22,7 @@ const BATCH_TYPES = [
   { value: 'REGULAR_WITH_MONTH',    label: 'Regular (with month selection)' },
   { value: 'REGULAR_WITHOUT_MONTH', label: 'Regular (no month selection)'   },
   { value: 'WEEKLY',                label: 'Weekly'                          },
-  { value: 'FIXED_DAYS',            label: 'Fixed Days'                      },
-  { value: 'SPECIAL_CAMP',          label: 'Special Camp'                    },
+
 ];
 
 const ALL_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -47,6 +46,7 @@ const EMPTY_FORM = {
   endDate:              '',
   registrationDeadline: '',
   monthOptions:         [],    // [{label, startDate, endDate, weeks}]
+  weeklyBatches:        [],    // [{startDate,startTime,endDate,endTime,groundAddress,ageGroups,skillLevels,label}] — WEEKLY batch type only
   scheduleDays:         [],    // [{day, startTime, endTime, groundAddress}]
   coachId:              '',
   shortDescription:     '',
@@ -87,6 +87,40 @@ function calcMonthOption(startDate, endDate, basePrice, daysPerWeek) {
 }
 
 const emptyMonthOption = () => ({ label: '', startDate: '', endDate: '', weeks: '', price: '' });
+
+// ── Weekly Batch helper (WEEKLY batch type only) ─────────────────────────────
+// Admin picks Start Date/Time + End Date/Time → auto-calc label like
+// "July 20 - July 24 (4:00 PM - 5:30 PM)".
+const emptyWeeklyBatch = () => ({
+  startDate: '', startTime: '', endDate: '', endTime: '',
+  groundAddress: '', ageGroups: [], skillLevels: [],
+  isSubWeek: false, // true = a compact "Week N" row nested under a batch, not a full standalone batch
+});
+
+function fmtTime12(t) {
+  if (!t) return '';
+  const [hStr, mStr] = t.split(':');
+  const h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return '';
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mStr ?? '00'} ${ampm}`;
+}
+
+function calcBatchLabel(startDate, startTime, endDate, endTime) {
+  if (!startDate || !endDate) return '';
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s) || isNaN(e)) return '';
+  const sm = s.toLocaleDateString('en-US', { month: 'long' });
+  const em = e.toLocaleDateString('en-US', { month: 'long' });
+  const dateLabel = sm === em ? `${sm} ${s.getDate()} - ${e.getDate()}` : `${sm} ${s.getDate()} - ${em} ${e.getDate()}`;
+  const timeLabel = startTime && endTime ? ` (${fmtTime12(startTime)} - ${fmtTime12(endTime)})` : '';
+  return `${dateLabel}${timeLabel}`;
+}
+
+// Weekdays used to auto-build the Monday-Friday schedule for WEEKLY batch type
+const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 
 // Format a location record into "address, city" for the Ground Address dropdown
 function formatLocationAddress(location) {
@@ -255,8 +289,13 @@ export default function ProgramForm() {
         endDate:              row.endDate   ? row.endDate.split('T')[0]   : '',
         registrationDeadline: row.registrationDeadline ? row.registrationDeadline.split('T')[0] : '',
         monthOptions:         row.monthOptions  || [],
+        weeklyBatches:        row.weeklyBatches || [],
         scheduleDays:         row.scheduleDays  || [],
-        coachId:              row.coachId || '',
+        // row.coachId comes back POPULATED ({_id, firstName, lastName, ...})
+        // from GET /programs/:id — only the ID string belongs in form state,
+        // otherwise Save/Update sends "[object Object]" and the whole
+        // request 500s with a Mongoose CastError on coachId.
+        coachId:              row.coachId?._id || row.coachId || '',
         shortDescription:     row.shortDescription || '',
         detailedDescription:  row.detailedDescription || '',
         specialNote:          row.specialNote || '',
@@ -312,6 +351,178 @@ export default function ProgramForm() {
       return { ...prev, monthOptions: updated };
     });
 
+  // ── Weekly Batch helpers (WEEKLY batch type only) ──────────────────────────
+  // Each entry in form.weeklyBatches is either:
+  //  - a ROOT batch (isSubWeek: false) — full card: Age Group/Level chips,
+  //    Start/End Date+Time, Ground Address.
+  //  - a SUB-WEEK (isSubWeek: true) — a compact "Week N" row nested right
+  //    under its root's card, holding ONLY Start/End Date+Time. It shares
+  //    the root's ageGroups/skillLevels/groundAddress (kept in sync below)
+  //    so the backend/registration side still sees a complete, independently
+  //    selectable batch for each week.
+  const addWeeklyBatch = () =>
+    setForm(prev => ({ ...prev, weeklyBatches: [...prev.weeklyBatches, emptyWeeklyBatch()] }));
+
+  // Remove a batch. If it's a ROOT batch, its trailing sub-weeks are removed
+  // with it (otherwise they'd become orphaned and wrongly render as a new root).
+  const removeWeeklyBatch = (idx) =>
+    setForm(prev => {
+      const batches = prev.weeklyBatches;
+      if (batches[idx]?.isSubWeek) {
+        return { ...prev, weeklyBatches: batches.filter((_, i) => i !== idx) };
+      }
+      let end = idx + 1;
+      while (end < batches.length && batches[end].isSubWeek) end++;
+      return { ...prev, weeklyBatches: batches.filter((_, i) => i < idx || i >= end) };
+    });
+
+  // Copy ageGroups/skillLevels/groundAddress from a ROOT batch onto all of
+  // its trailing sub-weeks, so they never fall out of sync with the root.
+  const syncSubWeeks = (batches, rootIdx) => {
+    const root = batches[rootIdx];
+    const updated = [...batches];
+    let i = rootIdx + 1;
+    while (i < updated.length && updated[i].isSubWeek) {
+      updated[i] = {
+        ...updated[i],
+        ageGroups: root.ageGroups,
+        skillLevels: root.skillLevels,
+        groundAddress: root.groundAddress,
+      };
+      i++;
+    }
+    return updated;
+  };
+
+  const updateWeeklyBatch = (idx, field, value) =>
+    setForm(prev => {
+      let updated = prev.weeklyBatches.map((b, i) => i === idx ? { ...b, [field]: value } : b);
+      if (['startDate', 'startTime', 'endDate', 'endTime'].includes(field)) {
+        const b = updated[idx];
+        updated[idx] = { ...b, label: calcBatchLabel(b.startDate, b.startTime, b.endDate, b.endTime) };
+      }
+      // If a ROOT batch's shared field changed, keep its sub-weeks in sync.
+      if (field === 'groundAddress' && !updated[idx].isSubWeek) {
+        updated = syncSubWeeks(updated, idx);
+      }
+      return { ...prev, weeklyBatches: updated };
+    });
+
+  // Add 7 days to a 'YYYY-MM-DD' date string. Returns '' if input is empty/invalid.
+  const addDays = (dateStr, days) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d)) return '';
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  // "+ Add Week" on a ROOT batch (rootIdx): appends a compact sub-week row
+  // right after the last existing week in that group, with dates cascaded
+  // 7 days past whichever week was last — so clicking it repeatedly stacks
+  // Week 2, Week 3, Week 4... in order. Ground/AgeGroup/Level are inherited
+  // from the root and are NOT shown/edited on the sub-week row itself.
+  const addWeekToBatch = (rootIdx) =>
+    setForm(prev => {
+      const batches = prev.weeklyBatches;
+      let lastIdx = rootIdx;
+      while (lastIdx + 1 < batches.length && batches[lastIdx + 1].isSubWeek) lastIdx++;
+      const root   = batches[rootIdx];
+      const source = batches[lastIdx];
+      const newStartDate = addDays(source.startDate, 7);
+      const newEndDate   = addDays(source.endDate, 7);
+      const newWeek = {
+        startDate: newStartDate,
+        startTime: source.startTime,
+        endDate:   newEndDate,
+        endTime:   source.endTime,
+        groundAddress: root.groundAddress,
+        ageGroups:     root.ageGroups,
+        skillLevels:   root.skillLevels,
+        isSubWeek: true,
+        label: calcBatchLabel(newStartDate, source.startTime, newEndDate, source.endTime),
+      };
+      const updated = [...batches];
+      updated.splice(lastIdx + 1, 0, newWeek);
+      return { ...prev, weeklyBatches: updated };
+    });
+
+  // Toggle an age group / skill level chip on a ROOT batch. Only values
+  // already selected at the program level (form.ageGroups / form.skillLevels)
+  // are ever offered here — enforced in the render below. Trailing sub-weeks
+  // are kept in sync since they share the same tags as their root.
+  const toggleWeeklyBatchTag = (idx, field, value) =>
+    setForm(prev => {
+      let updated = prev.weeklyBatches.map((b, i) => {
+        if (i !== idx) return b;
+        const current = b[field] || [];
+        const next = current.includes(value)
+          ? current.filter(v => v !== value)
+          : [...current, value];
+        return { ...b, [field]: next };
+      });
+      if (!updated[idx].isSubWeek) updated = syncSubWeeks(updated, idx);
+      return { ...prev, weeklyBatches: updated };
+    });
+
+  // ── Weekly schedule helper (WEEKLY batch type only) ────────────────────────
+  // Admin enters ONE Start Time / End Time / Ground Address, and it's applied
+  // automatically to Monday-Friday. This keeps form.scheduleDays as the single
+  // source of truth (same shape the backend already expects).
+  const updateWeeklyScheduleField = (field, value) =>
+    setForm(prev => {
+      const current = prev.scheduleDays[0] || { startTime: '', endTime: '', groundAddress: '' };
+      const merged = { ...current, [field]: value };
+      const newDays = WEEKDAYS.map(day => ({
+        day,
+        startTime:     merged.startTime,
+        endTime:       merged.endTime,
+        groundAddress: merged.groundAddress,
+      }));
+      return { ...prev, scheduleDays: newDays };
+    });
+
+  // Whenever batchType switches TO 'WEEKLY', force scheduleDays into the
+  // Monday-Friday shape (preserving any previously entered time/address).
+  useEffect(() => {
+    if (form.batchType !== 'WEEKLY') return;
+    setForm(prev => {
+      if (prev.batchType !== 'WEEKLY') return prev;
+      const daysPresent = prev.scheduleDays.map(d => d.day);
+      const alreadyWeekly =
+        prev.scheduleDays.length === 5 && WEEKDAYS.every(d => daysPresent.includes(d));
+      if (alreadyWeekly) return prev;
+      const base = prev.scheduleDays[0] || { startTime: '', endTime: '', groundAddress: '' };
+      return {
+        ...prev,
+        scheduleDays: WEEKDAYS.map(day => ({
+          day,
+          startTime:     base.startTime     || '',
+          endTime:       base.endTime       || '',
+          groundAddress: base.groundAddress || '',
+        })),
+      };
+    });
+  }, [form.batchType]);
+
+  // Keep every batch's ageGroups/skillLevels a SUBSET of the program-level
+  // selections (Section: title chips). If the admin unchecks "U9" up top
+  // after already tagging a batch with U9, strip it from the batch too —
+  // otherwise a batch could silently reference an age/level no longer
+  // offered for this program.
+  useEffect(() => {
+    setForm(prev => {
+      if (prev.weeklyBatches.length === 0) return prev;
+      const nextBatches = prev.weeklyBatches.map(b => ({
+        ...b,
+        ageGroups:   (b.ageGroups   || []).filter(v => prev.ageGroups.includes(v)),
+        skillLevels: (b.skillLevels || []).filter(v => prev.skillLevels.includes(v)),
+      }));
+      return { ...prev, weeklyBatches: nextBatches };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.ageGroups, form.skillLevels]);
+
   // ─── Toggle helpers ───────────────────────────────────────
 
   const toggleChip = (field, value) =>
@@ -354,6 +565,18 @@ export default function ProgramForm() {
   const handleSave = async () => {
     if (!form.categoryId) { toast.error('Category (Season) is required'); return; }
     if (!form.price)      { toast.error('Price is required'); return; }
+    if (form.batchType === 'WEEKLY') {
+      if (form.weeklyBatches.length === 0) {
+        toast.error('Add at least one Batch for this Weekly program'); return;
+      }
+      const incomplete = form.weeklyBatches.some(b =>
+        !b.startDate || !b.startTime || !b.endDate || !b.endTime || !b.groundAddress ||
+        (b.ageGroups || []).length === 0 || (b.skillLevels || []).length === 0
+      );
+      if (incomplete) {
+        toast.error('Every Batch needs Start/End Date & Time, Ground, at least one Age Group and one Level'); return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -380,6 +603,10 @@ export default function ProgramForm() {
       fd.append('cities',              JSON.stringify(form.cities));
       // Save month options exactly as admin entered them (price is always manually set).
       fd.append('monthOptions',        JSON.stringify(form.monthOptions));
+      // TEMP DEBUG — open browser DevTools Console before clicking Save/Update
+      // and check this log to confirm the new week is actually in form.weeklyBatches.
+      console.log('[DEBUG] Sending weeklyBatches:', form.weeklyBatches);
+      fd.append('weeklyBatches',       JSON.stringify(form.weeklyBatches));
       fd.append('scheduleDays',        JSON.stringify(form.scheduleDays));
       if (coverFile)                   fd.append('coverImage', coverFile);
 
@@ -767,103 +994,326 @@ export default function ProgramForm() {
       </Section>
 
       {/* ── SECTION 6: Schedule Days ── */}
-      <Section title="🗓️ Schedule — Days, Times & Ground Address">
-        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
-          Select which days this program runs. Enter time and ground address for each day.
-          Price multiplies per day the user selects during registration.
-        </div>
+      <Section title={form.batchType === 'WEEKLY'
+        ? '🗓️ Weekly Batches'
+        : '🗓️ Schedule — Days, Times & Ground Address'}>
 
-        {/* Day toggles */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
-          {ALL_DAYS.map(day => {
-            const selected = form.scheduleDays.some(d => d.day === day);
-            return (
-              <button key={day} type="button" onClick={() => toggleDay(day)}
-                style={chipStyle(selected)}>
-                {DAY_LABELS[day].slice(0, 3)}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Per-day time & address rows */}
-        {ALL_DAYS.filter(day => form.scheduleDays.some(d => d.day === day)).map(day => {
-          const dayData = form.scheduleDays.find(d => d.day === day);
-          return (
-            <div key={day} style={{
-              display: 'grid',
-              gridTemplateColumns: '110px 130px 130px 1fr',
-              gap: '12px', alignItems: 'center',
-              padding: '12px 16px',
-              background: 'rgba(212,175,55,0.05)',
-              border: '1px solid rgba(212,175,55,0.12)',
-              borderRadius: '8px', marginBottom: '8px',
-            }}>
-              <div style={{ color: '#F5D97A', fontWeight: '700', fontSize: '14px' }}>
-                {DAY_LABELS[day]}
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Start Time</div>
-                <Input
-                  type="time"
-                  value={dayData?.startTime || ''}
-                  onChange={e => updateDayField(day, 'startTime', e.target.value)}
-                  style={{ padding: '5px 8px', fontSize: '13px' }}
-                />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>End Time</div>
-                <Input
-                  type="time"
-                  value={dayData?.endTime || ''}
-                  onChange={e => updateDayField(day, 'endTime', e.target.value)}
-                  style={{ padding: '5px 8px', fontSize: '13px' }}
-                />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Ground Address</div>
-                <Select
-                  value={dayData?.groundAddress || ''}
-                  onChange={e => updateDayField(day, 'groundAddress', e.target.value)}
-                  style={{ padding: '5px 8px', fontSize: '13px' }}
-                >
-                  <option value="">— Select Location —</option>
-                  {locations
-                    .filter(l => l.isActive !== false)
-                    .map(l => {
-                      const formatted = formatLocationAddress(l);
-                      return (
-                        <option key={l._id} value={formatted}>
-                          {formatted}
-                        </option>
-                      );
-                    })}
-                  {/* Preserve a previously saved address that no longer matches any active location
-                      (e.g. location was edited/deactivated after this program was created) */}
-                  {dayData?.groundAddress &&
-                    !locations.some(l => l.isActive !== false && formatLocationAddress(l) === dayData.groundAddress) && (
-                      <option value={dayData.groundAddress}>
-                        {dayData.groundAddress} (saved)
-                      </option>
-                  )}
-                </Select>
-              </div>
+        {form.batchType === 'WEEKLY' ? (
+          <>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>
+              Create one or more Batches. Each Batch has its own Start Date, Start Time, End Date,
+              End Time and Ground — plus which Age Group(s) and Level(s) it's open to.
             </div>
-          );
-        })}
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '18px', lineHeight: '1.6' }}>
+              Age Group / Level choices here are pulled from the <strong style={{color:'rgba(255,255,255,0.6)'}}>Age Group</strong> and{' '}
+              <strong style={{color:'rgba(255,255,255,0.6)'}}>Level</strong> chips selected above — pick those first.
+              On the registration page, a parent selects one or more Batches and the price is{' '}
+              <strong style={{color:'#F5D97A'}}>Base Price × number of Batches selected</strong>{' '}
+              (e.g. 1 batch = ${form.price || 0}, 2 batches = ${(parseFloat(form.price)||0) * 2}).
+            </div>
 
-        {daysCount === 0 && (
-          <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>
-            No days selected yet. Select days above to add time slots.
-          </div>
-        )}
+            {(form.ageGroups.length === 0 || form.skillLevels.length === 0) && (
+              <div style={{
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                color: '#f87171', borderRadius: '8px', padding: '10px 14px',
+                fontSize: '12px', marginBottom: '16px',
+              }}>
+                Select at least one Age Group and one Level in Section above before adding batches.
+              </div>
+            )}
 
-        {daysCount > 0 && (
-          <div style={{ marginTop: '12px', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-            Sessions per week: <strong style={{ color: '#F5D97A' }}>{daysCount}×</strong>
-            {'  '}—{'  '}
-            Frequency label: <strong style={{ color: '#F5D97A' }}>{frequencyLabel(daysCount)}</strong>
-          </div>
+            {form.weeklyBatches.map((batch, idx) => {
+              if (batch.isSubWeek) return null; // rendered nested under its root below
+
+              // Collect this root's trailing sub-weeks
+              const subWeeks = [];
+              let look = idx + 1;
+              while (look < form.weeklyBatches.length && form.weeklyBatches[look].isSubWeek) {
+                subWeeks.push({ batch: form.weeklyBatches[look], subIdx: look });
+                look++;
+              }
+
+              return (
+              <div key={idx} style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '10px', padding: '16px', marginBottom: '14px',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: '12px',
+                }}>
+                  <div style={{ color: '#F5D97A', fontWeight: '700', fontSize: '13px' }}>
+                    Batch {idx + 1}{batch.label ? ` — ${batch.label}` : ''}
+                  </div>
+                  <button type="button" onClick={() => removeWeeklyBatch(idx)}
+                    style={{
+                      background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                      color: '#f87171', borderRadius: '6px', padding: '5px 10px',
+                      cursor: 'pointer', fontSize: '13px',
+                    }}>
+                    ✕ Remove
+                  </button>
+                </div>
+
+                {/* Age Group + Level chips — restricted to program-level selections */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px', marginBottom: '14px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>
+                      Age Group(s) <span style={{color:'#F5D97A'}}>*</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {form.ageGroups.length === 0 && (
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>— none selected above —</span>
+                      )}
+                      {form.ageGroups.map(ag => (
+                        <button key={ag} type="button"
+                          onClick={() => toggleWeeklyBatchTag(idx, 'ageGroups', ag)}
+                          style={chipStyle((batch.ageGroups || []).includes(ag))}>
+                          {ag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>
+                      Level(s) <span style={{color:'#F5D97A'}}>*</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {form.skillLevels.length === 0 && (
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>— none selected above —</span>
+                      )}
+                      {form.skillLevels.map(sl => (
+                        <button key={sl} type="button"
+                          onClick={() => toggleWeeklyBatchTag(idx, 'skillLevels', sl)}
+                          style={chipStyle((batch.skillLevels || []).includes(sl), '#22c55e', 'rgba(34,197,94,0.15)')}>
+                          {sl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Start / End date + time — Week 1 (the root) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px', marginBottom: '12px' }}>
+                  <FormField label="Start Date" required>
+                    <Input type="date" value={batch.startDate}
+                      onChange={e => updateWeeklyBatch(idx, 'startDate', e.target.value)} />
+                  </FormField>
+                  <FormField label="Start Time" required>
+                    <Input type="time" value={batch.startTime}
+                      onChange={e => updateWeeklyBatch(idx, 'startTime', e.target.value)} />
+                  </FormField>
+                  <FormField label="End Date" required>
+                    <Input type="date" value={batch.endDate} min={batch.startDate || undefined}
+                      onChange={e => updateWeeklyBatch(idx, 'endDate', e.target.value)} />
+                  </FormField>
+                  <FormField label="End Time" required>
+                    <Input type="time" value={batch.endTime}
+                      onChange={e => updateWeeklyBatch(idx, 'endTime', e.target.value)} />
+                  </FormField>
+                </div>
+
+                {/* Compact "Week N" rows — only Start/End Date+Time, no repeated
+                    Age Group/Level/Ground (those are shared from the root above) */}
+                {subWeeks.map(({ batch: wk, subIdx }, i) => (
+                  <div key={subIdx} style={{
+                    background: 'rgba(212,175,55,0.05)',
+                    border: '1px solid rgba(212,175,55,0.2)',
+                    borderRadius: '8px', padding: '10px 12px', marginBottom: '12px',
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginBottom: '8px',
+                    }}>
+                      <div style={{ color: '#F5D97A', fontWeight: '700', fontSize: '12px' }}>
+                        Week {i + 2}
+                      </div>
+                      <button type="button" onClick={() => removeWeeklyBatch(subIdx)}
+                        style={{
+                          background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#f87171', borderRadius: '5px', padding: '3px 8px',
+                          cursor: 'pointer', fontSize: '11px',
+                        }}>
+                        ✕
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+                      <FormField label="Start Date" required>
+                        <Input type="date" value={wk.startDate}
+                          onChange={e => updateWeeklyBatch(subIdx, 'startDate', e.target.value)} />
+                      </FormField>
+                      <FormField label="Start Time" required>
+                        <Input type="time" value={wk.startTime}
+                          onChange={e => updateWeeklyBatch(subIdx, 'startTime', e.target.value)} />
+                      </FormField>
+                      <FormField label="End Date" required>
+                        <Input type="date" value={wk.endDate} min={wk.startDate || undefined}
+                          onChange={e => updateWeeklyBatch(subIdx, 'endDate', e.target.value)} />
+                      </FormField>
+                      <FormField label="End Time" required>
+                        <Input type="time" value={wk.endTime}
+                          onChange={e => updateWeeklyBatch(subIdx, 'endTime', e.target.value)} />
+                      </FormField>
+                    </div>
+                  </div>
+                ))}
+
+                {/* + Add Week — appends the next compact Week N row */}
+                <button type="button" onClick={() => addWeekToBatch(idx)}
+                  title="Add another week (only Start/End Date & Time — Ground/Age Group/Level stay shared with this batch)"
+                  style={{
+                    background: 'rgba(212,175,55,0.1)', border: '1px dashed rgba(212,175,55,0.4)',
+                    color: '#F5D97A', borderRadius: '8px', padding: '7px 16px',
+                    cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+                    width: '100%', marginBottom: '16px',
+                  }}>
+                  + Add Week
+                </button>
+
+                {/* Ground */}
+                <FormField label="Ground Address" required>
+                  <Select
+                    value={batch.groundAddress || ''}
+                    onChange={e => updateWeeklyBatch(idx, 'groundAddress', e.target.value)}
+                  >
+                    <option value="">— Select Location —</option>
+                    {locations
+                      .filter(l => l.isActive !== false)
+                      .map(l => {
+                        const formatted = formatLocationAddress(l);
+                        return (
+                          <option key={l._id} value={formatted}>
+                            {formatted}
+                          </option>
+                        );
+                      })}
+                    {batch.groundAddress &&
+                      !locations.some(l => l.isActive !== false && formatLocationAddress(l) === batch.groundAddress) && (
+                        <option value={batch.groundAddress}>{batch.groundAddress} (saved)</option>
+                    )}
+                  </Select>
+                </FormField>
+              </div>
+              );
+            })}
+
+            <button type="button" onClick={addWeeklyBatch}
+              style={{
+                background: 'rgba(212,175,55,0.1)', border: '1px dashed rgba(212,175,55,0.4)',
+                color: '#F5D97A', borderRadius: '8px', padding: '10px 16px',
+                cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+                width: '100%', marginTop: '4px',
+              }}>
+              + Add Batch
+            </button>
+
+            {form.weeklyBatches.length === 0 && (
+              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px', marginTop: '8px' }}>
+                No batches yet — add at least one so parents can register for this Weekly program.
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
+              Select which days this program runs. Enter time and ground address for each day.
+              Price multiplies per day the user selects during registration.
+            </div>
+
+            {/* Day toggles */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+              {ALL_DAYS.map(day => {
+                const selected = form.scheduleDays.some(d => d.day === day);
+                return (
+                  <button key={day} type="button" onClick={() => toggleDay(day)}
+                    style={chipStyle(selected)}>
+                    {DAY_LABELS[day].slice(0, 3)}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Per-day time & address rows */}
+            {ALL_DAYS.filter(day => form.scheduleDays.some(d => d.day === day)).map(day => {
+              const dayData = form.scheduleDays.find(d => d.day === day);
+              return (
+                <div key={day} style={{
+                  display: 'grid',
+                  gridTemplateColumns: '110px 130px 130px 1fr',
+                  gap: '12px', alignItems: 'center',
+                  padding: '12px 16px',
+                  background: 'rgba(212,175,55,0.05)',
+                  border: '1px solid rgba(212,175,55,0.12)',
+                  borderRadius: '8px', marginBottom: '8px',
+                }}>
+                  <div style={{ color: '#F5D97A', fontWeight: '700', fontSize: '14px' }}>
+                    {DAY_LABELS[day]}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Start Time</div>
+                    <Input
+                      type="time"
+                      value={dayData?.startTime || ''}
+                      onChange={e => updateDayField(day, 'startTime', e.target.value)}
+                      style={{ padding: '5px 8px', fontSize: '13px' }}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>End Time</div>
+                    <Input
+                      type="time"
+                      value={dayData?.endTime || ''}
+                      onChange={e => updateDayField(day, 'endTime', e.target.value)}
+                      style={{ padding: '5px 8px', fontSize: '13px' }}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Ground Address</div>
+                    <Select
+                      value={dayData?.groundAddress || ''}
+                      onChange={e => updateDayField(day, 'groundAddress', e.target.value)}
+                      style={{ padding: '5px 8px', fontSize: '13px' }}
+                    >
+                      <option value="">— Select Location —</option>
+                      {locations
+                        .filter(l => l.isActive !== false)
+                        .map(l => {
+                          const formatted = formatLocationAddress(l);
+                          return (
+                            <option key={l._id} value={formatted}>
+                              {formatted}
+                            </option>
+                          );
+                        })}
+                      {/* Preserve a previously saved address that no longer matches any active location
+                          (e.g. location was edited/deactivated after this program was created) */}
+                      {dayData?.groundAddress &&
+                        !locations.some(l => l.isActive !== false && formatLocationAddress(l) === dayData.groundAddress) && (
+                          <option value={dayData.groundAddress}>
+                            {dayData.groundAddress} (saved)
+                          </option>
+                      )}
+                    </Select>
+                  </div>
+                </div>
+              );
+            })}
+
+            {daysCount === 0 && (
+              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>
+                No days selected yet. Select days above to add time slots.
+              </div>
+            )}
+
+            {daysCount > 0 && (
+              <div style={{ marginTop: '12px', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+                Sessions per week: <strong style={{ color: '#F5D97A' }}>{daysCount}×</strong>
+                {'  '}—{'  '}
+                Frequency label: <strong style={{ color: '#F5D97A' }}>{frequencyLabel(daysCount)}</strong>
+              </div>
+            )}
+          </>
         )}
       </Section>
 

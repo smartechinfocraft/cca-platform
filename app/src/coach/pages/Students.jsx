@@ -43,12 +43,12 @@ export default function Students() {
             <Card style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Avatar photoUrl={s.photoUrl} firstName={s.firstName} lastName={s.lastName} size={42} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>{s.firstName} {s.lastName}</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{s.firstName} {s.lastName}</div>
                 <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
                   {(s.batches || []).map((b) => b.title || b.dayOfWeek).join(', ') || 'No batch'}
                 </div>
               </div>
-              <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>{s.studentCode}</div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>{s.studentCode}</div>
             </Card>
           </Link>
         ))

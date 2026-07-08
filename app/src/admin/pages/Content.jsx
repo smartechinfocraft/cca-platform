@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 const ALLOWED_IMG_EXT  = ['.jpg', '.jpeg', '.png'];
 const ALLOWED_IMG_MIME = ['image/jpeg', 'image/jpg', 'image/png'];
 const MAX_IMG_SIZE     = 2 * 1024 * 1024;   // 2 MB per image
-const MAX_PDF_SIZE     = 20 * 1024 * 1024;  // 20 MB
+const MAX_PDF_SIZE     = 50 * 1024 * 1024;  // 50 MB
 
 // ── Reusable: single image upload field ───────────────────
 function ImageUploadField({ label, currentUrl, onFileSelect, required, hint }) {
@@ -94,7 +94,7 @@ function PdfUploadField({ label, currentName, onFileSelect, required }) {
     if (!file) return;
     const ext = '.' + file.name.split('.').pop().toLowerCase();
     if (ext !== '.pdf') { toast.error('Only PDF files allowed'); e.target.value = ''; return; }
-    if (file.size > MAX_PDF_SIZE) { toast.error('PDF must be under 20 MB'); e.target.value = ''; return; }
+    if (file.size > MAX_PDF_SIZE) { toast.error('PDF must be under 50 MB'); e.target.value = ''; return; }
     setFileName(file.name);
     onFileSelect(file);
   };
@@ -108,7 +108,7 @@ function PdfUploadField({ label, currentName, onFileSelect, required }) {
         <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.4)' }}>
           {fileName
             ? <span style={{ color:'#86efac' }}>✔ {fileName}</span>
-            : 'No file chosen — PDF only, max 20 MB'}
+            : 'No file chosen — PDF only, max 50 MB'}
         </div>
       </div>
     </FormField>

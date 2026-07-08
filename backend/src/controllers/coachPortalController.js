@@ -672,7 +672,7 @@ async function assertStudentBelongsToCoach(studentId, batchId, coachId) {
 // ─── POST /api/coach-portal/attendance/scan ────────────────────
 exports.scanAttendance = async (req, res) => {
   try {
-    const { studentCode, batchId, method } = req.body;
+    const { studentCode, batchId, method, status, note, date: bodyDate } = req.body;
     if (!studentCode || !batchId)
       return res.status(400).json({ success: false, message: 'studentCode and batchId are required' });
 
@@ -686,7 +686,8 @@ exports.scanAttendance = async (req, res) => {
     if (!check.ok)
       return res.status(403).json({ success: false, message: check.message });
 
-    const today = startOfTodayCalifornia();
+    // Use the date the coach applied on the Attendance screen (defaults to today)
+    const targetDate = bodyDate ? startOfDayCalifornia(new Date(bodyDate)) : startOfTodayCalifornia();
 
     // For virtual batches use programId as batchId in attendance (null real batchId)
     const realBatchId  = isVirtualBatchId(batchId) ? null : batchId;
@@ -694,33 +695,44 @@ exports.scanAttendance = async (req, res) => {
       ? batchId.split(':')[1]
       : check.batch.program;
 
+    const finalStatus = status || 'PRESENT';
+    const finalNote = (note && note.trim())
+      ? note.trim()
+      : (method === 'MANUAL'
+          ? `Marked manually by coach ${req.coach.firstName} ${req.coach.lastName}`
+          : `Marked via QR scan by coach ${req.coach.firstName} ${req.coach.lastName}`);
+
     const existing = await Attendance.findOne({
       studentId: student._id,
       ...(realBatchId ? { batchId: realBatchId } : { programId: realProgramId }),
-      date: today,
+      date: targetDate,
     });
+
+    let attendance;
+    let statusCode = 201;
     if (existing) {
-      return res.status(409).json({
-        success: false,
-        message: `${student.firstName} ${student.lastName} was already marked present today.`,
-        data: existing,
+      // Update the existing record instead of blocking with a conflict — this is
+      // what lets Present/Absent taps and the Edit panel actually change status.
+      existing.status = finalStatus;
+      existing.note = finalNote;
+      attendance = await existing.save();
+      statusCode = 200;
+    } else {
+      attendance = await Attendance.create({
+        studentId: student._id,
+        batchId:   realBatchId || undefined,
+        programId: realProgramId || undefined,
+        date:      targetDate,
+        status:    finalStatus,
+        note:      finalNote,
       });
     }
 
-    const attendance = await Attendance.create({
-      studentId: student._id,
-      batchId:   realBatchId || undefined,
-      programId: realProgramId || undefined,
-      date:      today,
-      status:    'PRESENT',
-      note:      method === 'MANUAL'
-        ? `Marked manually by coach ${req.coach.firstName} ${req.coach.lastName}`
-        : `Marked via QR scan by coach ${req.coach.firstName} ${req.coach.lastName}`,
-    });
+    const statusLabel = { PRESENT: 'present', ABSENT: 'absent', LATE: 'late', EXCUSED: 'excused' }[finalStatus] || finalStatus.toLowerCase();
 
-    res.status(201).json({
+    res.status(statusCode).json({
       success: true,
-      message: `${student.firstName} ${student.lastName} marked present ✅`,
+      message: `${student.firstName} ${student.lastName} marked ${statusLabel} ✅`,
       data: {
         attendance,
         student: { id: student._id, firstName: student.firstName, lastName: student.lastName, photoUrl: student.photoUrl },

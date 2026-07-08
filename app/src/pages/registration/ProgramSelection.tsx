@@ -7,6 +7,8 @@ import { useRegistration } from "../../context/RegistrationContext";
 import { getProgramById } from "../../services/programService";
 import type { Program } from "../../types/program";
 import GenderSelect from "../../components/registration/GenderSelect";
+import WeeklyBatchSelector from "../../components/registration/WeeklyBatchSelector";
+import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 
 // ─── DOB validator (same logic as StudentDetails) ─────────────────────────────
 function getDobError(value: string): string {
@@ -132,6 +134,11 @@ export default function ProgramSelection() {
   const [selectedFreq, setSelectedFreq] = useState<number>(1);
   const [daySlots, setDaySlots] = useState<(string | null)[]>([null]);
 
+  // ── WEEKLY batchType: multi-select batches, price = basePrice × count ──
+  const [weeklyBatches, setWeeklyBatches] = useState<WeeklyBatchRaw[]>([]);
+  const [selectedWeeklyBatchIds, setSelectedWeeklyBatchIds] = useState<string[]>([]);
+  const isWeeklyProgram = program?.batchType === "WEEKLY";
+
   // ── Student form state (inline, replaces /student-details page) ──
   const [batchConfirmed, setBatchConfirmed] = useState(false);
   const studentFormRef = useRef<HTMLDivElement>(null);
@@ -165,6 +172,7 @@ export default function ProgramSelection() {
           : [];
         setProgram(data ?? null);
         setBatches(batchItems);
+        setWeeklyBatches(Array.isArray(data?.weeklyBatches) ? data.weeklyBatches : []);
         setSelectedProgram(data ?? null);
         // Always default to once a week; user can select more
         setSelectedFreq(1);
@@ -224,13 +232,33 @@ export default function ProgramSelection() {
   // totalPrice = base price × selected frequency (once/twice/thrice etc. per week)
   const totalPrice = baseMonthPrice > 0 ? baseMonthPrice * selectedFreq : 0;
 
+  // ── WEEKLY batchType: price = program basePrice × number of batches picked ──
+  const weeklyBasePrice = program?.discountedPrice ?? program?.basePrice ?? 0;
+  const weeklyTotalPrice = calcWeeklyPrice(weeklyBasePrice, selectedWeeklyBatchIds);
+
   const monthOpts: MonthOption[] = activeBatch?.monthOptions ?? [];
   const maxFreq = activeBatch?.sessionsPerWeek ?? 3;
 
   const allDaySlotsSelected = daySlots.every((s) => s !== null);
-  const canConfirm = Boolean(activeBatch) && Boolean(selectedMonth) && allDaySlotsSelected;
+  const canConfirm = isWeeklyProgram
+    ? selectedWeeklyBatchIds.length > 0
+    : Boolean(activeBatch) && Boolean(selectedMonth) && allDaySlotsSelected;
 
   const buildBatchContext = () => {
+    if (isWeeklyProgram) {
+      if (selectedWeeklyBatchIds.length === 0) return null;
+      const snapshots = toWeeklyBatchSnapshots(weeklyBatches, selectedWeeklyBatchIds);
+      return {
+        _id: program?._id,
+        name: program?.title,
+        days: snapshots.map((s) => s.label).join(" + "),
+        timing: snapshots.map((s) => `${s.startTime} - ${s.endTime}`).join(" | "),
+        fee: weeklyTotalPrice,
+        seats: program?.maxCapacity ?? 0,
+        sessionsPerWeek: selectedWeeklyBatchIds.length,
+        selectedWeeklyBatches: snapshots,
+      };
+    }
     if (!activeBatch || !selectedMonth) return null;
     return {
       _id: activeBatch._id,
@@ -387,6 +415,56 @@ export default function ProgramSelection() {
 
         {/* ── Batch Cards ── */}
         <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+          {isWeeklyProgram ? (
+            <div className="program-card relative overflow-hidden">
+              <div className="p-5 pb-3">
+                <h2 className="font-display text-lg font-semibold" style={{ color: "var(--outfield)" }}>
+                  {programTitle || program.title}
+                </h2>
+                <p className="mt-1 text-sm" style={{ color: "var(--ink-500)" }}>
+                  This is a Weekly program — select one or more batches below. Price = base price × number
+                  of batches selected.
+                </p>
+              </div>
+              <div className="px-5 pb-5">
+                <WeeklyBatchSelector
+                  batches={weeklyBatches}
+                  basePrice={weeklyBasePrice}
+                  selectedIds={selectedWeeklyBatchIds}
+                  onChange={setSelectedWeeklyBatchIds}
+                />
+              </div>
+              {selectedWeeklyBatchIds.length > 0 && (
+                <div
+                  className="px-5 py-4 flex items-center justify-between"
+                  style={{ borderTop: "1px solid var(--pitch-deep)" }}
+                >
+                  <div>
+                    <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: "var(--ink-400)" }}>
+                      Registration Price
+                    </p>
+                    <p className="text-3xl font-bold mt-0.5" style={{ color: "var(--outfield)" }}>
+                      ${weeklyTotalPrice}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!canConfirm}
+                    onClick={handleConfirm}
+                    className="inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{
+                      background: "linear-gradient(135deg, var(--gold), var(--gold-light))",
+                      color: "var(--outfield)",
+                      boxShadow: "var(--shadow-gold)",
+                    }}
+                  >
+                    Register Now <HiOutlineArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
           {batches.length === 0 && (
             <div
               className="rounded-[20px] bg-white p-10 text-center text-sm"
@@ -622,6 +700,8 @@ export default function ProgramSelection() {
               </div>
             );
           })}
+            </>
+          )}
 
           {/* ── Inline Student Details Form (shown after batch confirmed) ── */}
           {batchConfirmed && student && (

@@ -159,6 +159,7 @@ function ReviewOrder() {
         batchId: allSameBatch ? selectedBatch?._id : undefined,
         studentCount: students.length || 1,
         sessionsPerWeek: allSameBatch ? selectedBatch?.sessionsPerWeek : undefined,
+        weeklyBatchIds: (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id),
       });
       if (res.data.success) {
         setAppliedCoupon({

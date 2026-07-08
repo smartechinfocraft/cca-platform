@@ -4,6 +4,7 @@
 //  in-chat registration / payment flow.
 // ============================================================
 import api from "../api/axios";
+import type { WeeklyBatchRaw, SelectedWeeklyBatchSnapshot } from "../utils/weeklyBatch";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -107,6 +108,10 @@ export interface ChatProgram {
   ageGroups?: string[];
   category?: { _id?: string; title?: string };
   location?: { _id?: string; title?: string; city?: string };
+  // WEEKLY batchType programs skip the normal batch/month/frequency/days
+  // steps in favor of a multi-week "Select Batch / Select Week" picker —
+  // mirrors Program.batchType in src/types/program.ts.
+  batchType?: "REGULAR_WITH_MONTH" | "REGULAR_WITHOUT_MONTH" | "WEEKLY" | "FIXED_DAYS" | "SPECIAL_CAMP";
 }
 
 export const fetchChatPrograms = async (): Promise<ChatProgram[]> => {
@@ -191,6 +196,25 @@ export const fetchChatBatches = async (programId: string): Promise<ChatBatch[]> 
   });
 };
 
+// ── Program detail: batches (REGULAR_*) + weeklyBatches (WEEKLY) ──
+// Same /public/programs/:id endpoint as fetchChatBatches above, just also
+// surfaces the raw weeklyBatches array for WEEKLY batchType programs so
+// ChatbotRegistrationFlow's "weekly" step can render the Select Batch /
+// Select Week picker (WeeklyBatchSelector) exactly like the main site.
+export const fetchChatProgramDetail = async (
+  programId: string
+): Promise<{ batches: ChatBatch[]; weeklyBatches: WeeklyBatchRaw[] }> => {
+  const [batches, res] = await Promise.all([
+    fetchChatBatches(programId),
+    api.get(`/public/programs/${programId}`),
+  ]);
+  if (!res.data.success) throw new Error(res.data.message || "Couldn't load program details.");
+  const weeklyBatches: WeeklyBatchRaw[] = Array.isArray(res.data.data?.weeklyBatches)
+    ? res.data.data.weeklyBatches
+    : [];
+  return { batches, weeklyBatches };
+};
+
 export const validateChatCoupon = async (payload: {
   couponCode: string;
   programId: string;
@@ -214,6 +238,7 @@ export const createChatPaypalOrder = async (payload: {
   studentCount: number;
   sessionsPerWeek?: number;
   couponCode?: string;
+  weeklyBatchIds?: string[];
 }) => {
   const res = await api.post("/public/paypal/create-order", payload);
   if (!res.data.success) throw new Error(res.data.message || "Could not start PayPal payment.");
@@ -227,6 +252,7 @@ export const captureChatPaypalOrder = async (payload: {
   studentCount: number;
   sessionsPerWeek?: number;
   couponCode?: string;
+  weeklyBatchIds?: string[];
 }) => {
   const res = await api.post("/public/paypal/capture-order", payload);
   if (!res.data.success) throw new Error(res.data.message || "Payment capture failed.");
@@ -236,6 +262,10 @@ export const captureChatPaypalOrder = async (payload: {
 export interface ChatRegistrationPayload {
   selectedProgram: { _id: string; title: string };
   selectedBatch?: { _id: string; title?: string; name?: string; fee?: number; sessionsPerWeek?: number };
+  // WEEKLY batchType programs send the chosen week snapshots here instead
+  // of selectedBatch — same field name/shape /public/register expects from
+  // the main site's ReviewOrder.tsx / PaymentPage.tsx flow.
+  selectedWeeklyBatches?: SelectedWeeklyBatchSnapshot[];
   students: Array<{
     firstName: string;
     lastName: string;

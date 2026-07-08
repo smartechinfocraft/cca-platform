@@ -31,6 +31,21 @@ const coachAuth = require('../middleware/coachAuth');
 // ISSUE 4, 5, 6, 7: File upload middleware (multer)
 const { uploadCoverImage, uploadGallery, uploadMediaWithPdf, fileUrl } = require('../middleware/upload');
 
+// Multer's file.path is an absolute disk path (e.g. on Windows:
+// "D:/CCA 4/cca-platform-main/backend/uploads/media/x.pdf"). Several
+// places below were saving that raw absolute path straight into the DB
+// as "filePath"/"coverImagePath"/gallery "path" fields — fine on the
+// same machine, but broken once served to the browser (which then tried
+// to request a URL containing the server's own local disk path). This
+// strips everything before "uploads/" so only the relative, servable
+// portion is stored — matching what the schema comments always said
+// these fields should look like.
+function toRelativeUploadPath(absPath) {
+  const clean = String(absPath).replace(/\\/g, '/');
+  const idx = clean.indexOf('uploads/');
+  return idx === -1 ? clean : clean.slice(idx);
+}
+
 // Generic CRUD helpers for models that don't need complex logic
 const mongoose = require('mongoose');
 const { startOfTodayCalifornia, startOfDayCalifornia } = require('../utils/californiaTime');
@@ -104,6 +119,48 @@ const makeCRUD = (modelName) => ({
   },
 });
 
+// ── Helpers for the public "batch dropdown" label ─────────────────────────
+// Format: "<Age Groups>/<Levels> - <Start Time> - <End Time> - <Ground Address>"
+// e.g. "U8/U10 Beginner Level 1 - 9:00 AM - 12:00 PM - 47100 Fernald Street, Fremont"
+function formatTime12h(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return '';
+  const [hStr, mStr] = hhmm.split(':');
+  let h = parseInt(hStr, 10);
+  if (isNaN(h)) return '';
+  const m = (mStr || '00').padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+function buildBatchLabel(program, batch) {
+  if (!program || !batch) return '';
+
+  const agePart   = (program.ageGroups   || []).join('/');
+  const levelPart = (program.skillLevels || []).join('/');
+  const ageLevel  = [agePart, levelPart].filter(Boolean).join(' ');
+
+  let timePart = '';
+  if (batch.startTime && batch.endTime) {
+    timePart = `${formatTime12h(batch.startTime)} - ${formatTime12h(batch.endTime)}`;
+  } else if (Array.isArray(batch.timeSlots) && batch.timeSlots.length > 0) {
+    const first = batch.timeSlots[0];
+    timePart = `${formatTime12h(first.startTime)} - ${formatTime12h(first.endTime)}`;
+  }
+
+  let locationPart = '';
+  if (batch.groundLocationNote) {
+    locationPart = batch.groundLocationNote;
+  } else if (batch.location && (batch.location.address || batch.location.city)) {
+    locationPart = [batch.location.address, batch.location.city].filter(Boolean).join(', ');
+  } else if (program.location && (program.location.address || program.location.city)) {
+    locationPart = [program.location.address, program.location.city].filter(Boolean).join(', ');
+  }
+
+  return [ageLevel, timePart, locationPart].filter(Boolean).join(' - ');
+}
+
 // ═══════════════════════════════════════════════════════════
 //  PUBLIC API — /api/public/*
 //  No auth required — for your friend's website to fetch data
@@ -144,7 +201,8 @@ router.get('/public/programs/:id', async (req, res) => {
       .find({ program: req.params.id, isActive: true })
       .populate('coach', 'firstName lastName')
       .populate('location', 'title city address')
-      .sort({ dayOfWeek: 1 });
+      .sort({ dayOfWeek: 1 })
+      .lean();
 
     // If no separate Batch docs exist, build a synthetic batch from
     // the Program's own scheduleDays (this is how the ProgramForm admin
@@ -194,7 +252,20 @@ router.get('/public/programs/:id', async (req, res) => {
       batches = [syntheticBatch];
     }
 
-    res.json({ success: true, data: { ...program.toObject(), batches } });
+    // Attach a human-friendly dropdown label to every batch:
+    // "Age Group + Level + Time + Location" (Requirement 3).
+    // Also attach the Program's weeklyBatches to every batch (real or
+    // synthetic) so the frontend always finds it in the same place,
+    // regardless of whether separate Batch documents exist. Only active
+    // batches are exposed to parents.
+    const programWeeklyBatches = (program.weeklyBatches || []).filter(b => b.isActive !== false);
+    batches = batches.map(b => ({
+      ...b,
+      batchLabel:    buildBatchLabel(program, b),
+      weeklyBatches: programWeeklyBatches,
+    }));
+
+    res.json({ success: true, data: { ...program.toObject(), weeklyBatches: programWeeklyBatches, batches } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -207,12 +278,24 @@ router.get('/public/batches', async (req, res) => {
 
     const data = await mongoose.model('Batch')
       .find(filter)
-      .populate('program', 'title basePrice discountedPrice coverImagePath')
+      .populate('program', 'title basePrice discountedPrice coverImagePath ageGroups skillLevels batchType weeklyBatches')
       .populate('coach', 'firstName lastName')
       .populate('location', 'title city address')
-      .sort({ dayOfWeek: 1, startTime: 1 });
+      .sort({ dayOfWeek: 1, startTime: 1 })
+      .lean();
 
-    res.json({ success: true, data });
+    // Attach the same "Age Group + Level + Time + Location" dropdown label
+    // used on the program detail endpoint (Requirement 3), and surface the
+    // parent Program's weeklyBatches directly on each batch so a real (non-
+    // synthetic) Batch document also exposes weekly batch selection data
+    // when its program's batchType is WEEKLY.
+    const withLabels = data.map(b => ({
+      ...b,
+      batchLabel:    buildBatchLabel(b.program || {}, b),
+      weeklyBatches: (b.program?.weeklyBatches || []).filter(wb => wb.isActive !== false),
+    }));
+
+    res.json({ success: true, data: withLabels });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -753,19 +836,19 @@ router.post('/content/media', protect, adminOrSuperAdmin, (req, res, next) => {
     const body = { ...req.body, createdBy: req.user._id };
     // Cover image (single)
     if (req.files?.coverImage?.[0]) {
-      body.coverImagePath = req.files.coverImage[0].path.replace(/\\/g, '/');
+      body.coverImagePath = toRelativeUploadPath(req.files.coverImage[0].path);
       body.coverImageUrl  = fileUrl(req, req.files.coverImage[0].path);
     }
     // PDF file (magazine / newsletter)
     if (req.files?.pdfFile?.[0]) {
-      body.filePath = req.files.pdfFile[0].path.replace(/\\/g, '/');
+      body.filePath = toRelativeUploadPath(req.files.pdfFile[0].path);
       body.fileUrl  = fileUrl(req, req.files.pdfFile[0].path);
     }
     // Gallery images (up to 100)
     if (req.files?.galleryImages) {
       const coverIdx = parseInt(req.body.galleryCoverIndex) || 0;
       body.galleryImages = req.files.galleryImages.map((f, i) => ({
-        path:    f.path.replace(/\\/g, '/'),
+        path:    toRelativeUploadPath(f.path),
         url:     fileUrl(req, f.path),
         isCover: i === coverIdx,
       }));
@@ -791,18 +874,18 @@ router.put('/content/media/:id', protect, adminOrSuperAdmin, (req, res, next) =>
     if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
     Object.assign(doc, req.body);
     if (req.files?.coverImage?.[0]) {
-      doc.coverImagePath = req.files.coverImage[0].path.replace(/\\/g, '/');
+      doc.coverImagePath = toRelativeUploadPath(req.files.coverImage[0].path);
       doc.coverImageUrl  = fileUrl(req, req.files.coverImage[0].path);
     }
     if (req.files?.pdfFile?.[0]) {
-      doc.filePath = req.files.pdfFile[0].path.replace(/\\/g, '/');
+      doc.filePath = toRelativeUploadPath(req.files.pdfFile[0].path);
       doc.fileUrl  = fileUrl(req, req.files.pdfFile[0].path);
     }
     if (req.files?.galleryImages) {
       // New images uploaded — replace gallery
       const coverIdx = parseInt(req.body.galleryCoverIndex) || 0;
       doc.galleryImages = req.files.galleryImages.map((f, i) => ({
-        path:    f.path.replace(/\\/g, '/'),
+        path:    toRelativeUploadPath(f.path),
         url:     fileUrl(req, f.path),
         isCover: i === coverIdx,
       }));
@@ -851,7 +934,7 @@ router.post(  '/content/sponsors',     protect, adminOrSuperAdmin, uploadCoverIm
   try {
     const body = { ...req.body, createdBy: req.user._id };
     if (req.file) {
-      body.coverImagePath = req.file.path.replace(/\\/g, '/');
+      body.coverImagePath = toRelativeUploadPath(req.file.path);
       body.coverImageUrl  = fileUrl(req, req.file.path);
     }
     const doc = new (mongoose.model('Sponsor'))(body);
@@ -865,7 +948,7 @@ router.put(   '/content/sponsors/:id', protect, adminOrSuperAdmin, uploadCoverIm
     if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
     Object.assign(doc, req.body);
     if (req.file) {
-      doc.coverImagePath = req.file.path.replace(/\\/g, '/');
+      doc.coverImagePath = toRelativeUploadPath(req.file.path);
       doc.coverImageUrl  = fileUrl(req, req.file.path);
     }
     await doc.save();

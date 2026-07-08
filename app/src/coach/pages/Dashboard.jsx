@@ -35,32 +35,32 @@ export default function Dashboard() {
       {/* ── Summary cards ─────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
         <Card style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: '#F5D97A' }}>{totalStudents}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#2563eb' }}>{totalStudents}</div>
           <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Total Students</div>
         </Card>
         <Card style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: '#F5D97A' }}>{totalBatches}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#2563eb' }}>{totalBatches}</div>
           <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Assigned Batches</div>
         </Card>
       </div>
 
       {/* ── Batch-wise students chart ─────────────────────── */}
       <Card style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '12px' }}>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
           Students per Batch
         </div>
         {batchChartData?.length ? (
           <div style={{ width: '100%', height: '220px' }}>
             <ResponsiveContainer>
               <BarChart data={batchChartData} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={50} />
-                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                <YAxis allowDecimals={false} tick={{ fill: '#64748b', fontSize: 11 }} />
                 <Tooltip
-                  contentStyle={{ background: '#0a2416', border: '1px solid rgba(212,175,55,0.3)', borderRadius: '8px' }}
-                  labelStyle={{ color: '#F5D97A' }}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
+                  labelStyle={{ color: '#2563eb' }}
                 />
-                <Bar dataKey="students" fill="#D4AF37" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="students" fill="#2563eb" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -71,18 +71,18 @@ export default function Dashboard() {
 
       {/* ── Locations ──────────────────────────────────────── */}
       <Card>
-        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '12px' }}>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
           Where You Work
         </div>
         {locations?.length ? (
           locations.map((loc) => (
             <div key={loc._id} style={{
               display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px',
-              paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+              paddingBottom: '10px', borderBottom: '1px solid #f1f5f9',
             }}>
               <span style={{ fontSize: '18px' }}>📍</span>
               <div>
-                <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>{loc.title}</div>
+                <div style={{ color: '#0f172a', fontSize: '13.5px', fontWeight: 600 }}>{loc.title}</div>
                 <div style={{ color: '#94a3b8', fontSize: '12px' }}>{loc.address || loc.city}</div>
               </div>
             </div>

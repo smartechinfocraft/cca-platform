@@ -12,7 +12,7 @@ function formatDateTime(iso) {
 }
 
 const roleLabel = { PARENT: 'Parent', ADMIN: 'Admin', COACH: 'You' };
-const roleColor = { PARENT: '#D4AF37', ADMIN: '#86efac', COACH: '#93c5fd' };
+const roleColor = { PARENT: '#2563eb', ADMIN: '#b45309', COACH: '#0f172a' };
 
 export default function Messages() {
   const [threads, setThreads] = useState([]);
@@ -47,16 +47,16 @@ export default function Messages() {
   };
 
   return (
-    <div style={{ padding: '16px', paddingBottom: '90px', color: '#fff' }}>
+    <div style={{ padding: '16px', paddingBottom: '90px', color: '#0f172a' }}>
       <h1 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '4px' }}>Messages</h1>
-      <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '20px' }}>
+      <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
         Questions from parents about your batches.
       </p>
 
       {loading ? (
-        <p style={{ color: 'rgba(255,255,255,0.5)' }}>Loading…</p>
+        <p style={{ color: '#94a3b8' }}>Loading…</p>
       ) : threads.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.4)' }}>
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
           <span style={{ fontSize: '32px' }}>💬</span>
           <p style={{ marginTop: '12px', fontSize: '13px' }}>No messages yet for your batches.</p>
         </div>
@@ -69,27 +69,28 @@ export default function Messages() {
                 key={t._id}
                 onClick={() => setActive(t)}
                 style={{
-                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,175,55,0.15)',
+                  background: '#ffffff', border: '1px solid #e2e8f0',
                   borderRadius: '14px', padding: '14px 16px', cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <strong style={{ fontSize: '14px' }}>{t.subject}</strong>
                   <span style={{
                     fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase',
-                    background: t.status === 'OPEN' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.08)',
-                    color: t.status === 'OPEN' ? '#86efac' : 'rgba(255,255,255,0.5)',
+                    background: t.status === 'OPEN' ? 'rgba(37,99,235,0.1)' : '#f1f5f9',
+                    color: t.status === 'OPEN' ? '#2563eb' : '#94a3b8',
                   }}>{t.status}</span>
                 </div>
-                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: '4px 0' }}>
+                <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0' }}>
                   {t.parentId ? `${t.parentId.firstName} ${t.parentId.lastName}` : 'Parent'} · {t.batchId?.title || 'Batch'}
                 </p>
                 {last && (
-                  <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: '13px', color: '#334155', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <span style={{ color: roleColor[last.senderRole], fontWeight: 600 }}>{roleLabel[last.senderRole]}:</span> {last.body}
                   </p>
                 )}
-                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '6px' }}>{formatDateTime(t.lastMessageAt)}</p>
+                <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>{formatDateTime(t.lastMessageAt)}</p>
               </div>
             );
           })}
@@ -99,27 +100,27 @@ export default function Messages() {
       {active && (
         <div
           onClick={() => setActive(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#0a2416', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '20px', width: '100%', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}
+            style={{ background: '#ffffff', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '20px', width: '100%', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px' }}>{active.subject}</h3>
-              <button onClick={() => setActive(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '16px' }}>✕</button>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>{active.subject}</h3>
+              <button onClick={() => setActive(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '16px' }}>✕</button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
               {active.messages.map(m => (
                 <div key={m._id} style={{
-                  background: m.senderRole === 'COACH' ? 'rgba(147,197,253,0.08)' : 'rgba(255,255,255,0.04)',
+                  background: m.senderRole === 'COACH' ? 'rgba(37,99,235,0.08)' : '#f1f5f9',
                   borderRadius: '12px', padding: '10px 14px',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ fontSize: '11px', fontWeight: 700, color: roleColor[m.senderRole] }}>{m.senderName}</span>
-                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{formatDateTime(m.createdAt)}</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{formatDateTime(m.createdAt)}</span>
                   </div>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.85)' }}>{m.body}</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{m.body}</p>
                 </div>
               ))}
             </div>
@@ -130,12 +131,12 @@ export default function Messages() {
                 onChange={e => setReplyBody(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleReply(); }}
                 placeholder="Type a reply…"
-                style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '20px', padding: '10px 16px', color: '#fff', fontSize: '13px', outline: 'none' }}
+                style={{ flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '20px', padding: '10px 16px', color: '#0f172a', fontSize: '13px', outline: 'none' }}
               />
               <button
                 onClick={handleReply}
                 disabled={sending || !replyBody.trim()}
-                style={{ background: '#D4AF37', color: '#0a2416', border: 'none', borderRadius: '20px', padding: '10px 18px', fontWeight: 700, fontSize: '13px', opacity: sending ? 0.6 : 1 }}
+                style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: '20px', padding: '10px 18px', fontWeight: 700, fontSize: '13px', opacity: sending ? 0.6 : 1 }}
               >
                 Send
               </button>

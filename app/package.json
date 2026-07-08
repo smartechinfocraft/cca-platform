@@ -18,6 +18,8 @@
     "html5-qrcode": "^2.3.8",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^5.0.8",
+    "page-flip": "^2.0.7",
+    "pdfjs-dist": "^6.1.200",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

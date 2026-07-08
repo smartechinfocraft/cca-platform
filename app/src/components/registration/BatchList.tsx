@@ -8,6 +8,18 @@ export interface BatchItem {
   fee: number;
   seats: number;
   sessionsPerWeek?: number;
+  // WEEKLY batchType only — snapshot of the batch(es) the parent selected.
+  // fee is already basePrice × selectedWeeklyBatches.length by the time
+  // this is set (see utils/weeklyBatch.ts -> calcWeeklyPrice).
+  selectedWeeklyBatches?: Array<{
+    _id: string;
+    label: string;
+    startDate: string;
+    startTime: string;
+    endDate: string;
+    endTime: string;
+    groundAddress: string;
+  }>;
 }
 
 interface BatchListProps {

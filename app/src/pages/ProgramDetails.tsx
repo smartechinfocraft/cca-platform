@@ -14,6 +14,10 @@ import { useRegistration } from "../context/RegistrationContext";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import GenderSelect from "../components/registration/GenderSelect";
+// WEEKLY batchType support — same component + pricing helpers Quick Register
+// uses, so "View Details" behaves identically for Weekly programs.
+import WeeklyBatchSelector from "../components/registration/WeeklyBatchSelector";
+import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface TimeSlot { startTime: string; endTime: string; }
@@ -85,12 +89,14 @@ function getDobError(value: string): string {
 }
 
 // ── Inline Registration Panel ─────────────────────────────────────────────────
-function InlineRegistration({ programId, batches, programTitle, programImage, basePrice }: {
+function InlineRegistration({ programId, batches, programTitle, programImage, basePrice, batchType, weeklyBatches }: {
   programId: string;
   batches: BatchRaw[];
   programTitle: string;
   programImage?: string;
   basePrice?: number;
+  batchType?: string;
+  weeklyBatches?: WeeklyBatchRaw[];
 }) {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
@@ -107,6 +113,12 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
   const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(null);
   const [selectedFreq, setSelectedFreq] = useState(1);
   const [daySlots, setDaySlots] = useState<(string | null)[]>([null]);
+
+  // WEEKLY batchType: select one or more batches, price = basePrice × count.
+  // Mirrors QuickRegisterDrawer in ProgramCard.tsx exactly.
+  const isWeeklyProgram = batchType === "WEEKLY";
+  const [selectedWeeklyBatchIds, setSelectedWeeklyBatchIds] = useState<string[]>([]);
+  const weeklyTotalPrice = calcWeeklyPrice(basePrice ?? 0, selectedWeeklyBatchIds);
 
   // Step: "batch" = picking month/day, "student" = filling student form
   const [batchConfirmed, setBatchConfirmed] = useState(false);
@@ -131,17 +143,34 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     const fromBatch = Number((match as any)?.price);
     return fromBatch > 0 ? fromBatch : 0;
   })();
-  const totalPrice = baseMonthPrice > 0 ? baseMonthPrice * selectedFreq : 0;
+  const totalPriceNonWeekly = baseMonthPrice > 0 ? baseMonthPrice * selectedFreq : 0;
+  const totalPrice = isWeeklyProgram ? weeklyTotalPrice : totalPriceNonWeekly;
 
   const monthOpts: MonthOption[] = activeBatch?.monthOptions ?? [];
   const maxFreq = activeBatch?.sessionsPerWeek ?? 3;
   const freqOpts = Array.from({ length: maxFreq }, (_, i) => i + 1);
   const allDaySlotsSelected = daySlots.every((s) => s !== null);
-  const canConfirm = Boolean(activeBatch) && Boolean(selectedMonth) && allDaySlotsSelected;
+  const canConfirm = isWeeklyProgram
+    ? selectedWeeklyBatchIds.length > 0
+    : Boolean(activeBatch) && Boolean(selectedMonth) && allDaySlotsSelected;
 
   useEffect(() => { setDaySlots(Array(selectedFreq).fill(null)); }, [selectedFreq]);
 
   const buildBatchContext = () => {
+    if (isWeeklyProgram) {
+      if (selectedWeeklyBatchIds.length === 0) return null;
+      const snapshots = toWeeklyBatchSnapshots(weeklyBatches ?? [], selectedWeeklyBatchIds);
+      return {
+        _id: programId,
+        name: programTitle,
+        days: snapshots.map((s) => s.label).join(" + "),
+        timing: snapshots.map((s) => `${s.startTime} - ${s.endTime}`).join(" | "),
+        fee: weeklyTotalPrice,
+        seats: 0,
+        sessionsPerWeek: selectedWeeklyBatchIds.length,
+        selectedWeeklyBatches: snapshots,
+      };
+    }
     if (!activeBatch || !selectedMonth) return null;
     return {
       _id: activeBatch._id, name: activeBatch.name,
@@ -266,8 +295,41 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
         }
       </div>
 
-      {/* ── Batch cards ── */}
-      {!batchConfirmed && (
+      {/* ── WEEKLY batchType: Select Batch → Select Week (multi-select, price = base × count) ── */}
+      {!batchConfirmed && isWeeklyProgram && (
+        <div className="space-y-4">
+          {(!weeklyBatches || weeklyBatches.length === 0) ? (
+            <p className="text-md text-slate-800 text-center py-6">No batches available.</p>
+          ) : (
+            <>
+              <p className="text-sm text-slate-500">
+                This is a Weekly program — select one or more batches below. Price = base price × number
+                of batches selected.
+              </p>
+              <WeeklyBatchSelector
+                batches={weeklyBatches}
+                basePrice={basePrice ?? 0}
+                selectedIds={selectedWeeklyBatchIds}
+                onChange={setSelectedWeeklyBatchIds}
+              />
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                <div className="flex flex-col items-start">
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Total</p>
+                  <p className="text-xl font-bold text-[#0F172A]">${weeklyTotalPrice || "—"}</p>
+                </div>
+                <button type="button" disabled={!canConfirm} onClick={handleConfirm}
+                  className="inline-flex items-center gap-2 rounded-full bg-green-800 px-5 py-2.5 text-md font-semibold text-white shadow-md hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  Next — Student Details <HiOutlineArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Batch cards (REGULAR / FIXED_DAYS / SPECIAL_CAMP programs only) ── */}
+      {!batchConfirmed && !isWeeklyProgram && (
         <div className="space-y-3 pr-1">
           {batches.length === 0 && (
             <p className="text-md text-slate-800 text-center py-6">No batches available.</p>
@@ -344,7 +406,13 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                       <input type="radio" name={`batch-sel-${batch._id}`} checked={isSelected}
                         onChange={() => {
                           setSelectedBatchId(batch._id);
-                          setSelectedMonth({ label: batch.name, startDate: "", endDate: "", weeks: "" });
+                          setSelectedMonth({
+                            label: batch.name,
+                            startDate: "",
+                            endDate: "",
+                            weeks: "",
+                            price: batch.price ?? batch.fee ?? basePrice ?? 0,
+                          });
                           setSelectedFreq(1);
                           setDaySlots([null]);
                         }}
@@ -777,7 +845,7 @@ function ProgramDetails() {
                   </div>
                 </div>
                 <div className="pt-6">
-                  <InlineRegistration programId={p._id} batches={displayBatches} programTitle={p.title ?? ""} programImage={coverImage} basePrice={p.discountedPrice ?? p.basePrice} />
+                  <InlineRegistration programId={p._id} batches={displayBatches} programTitle={p.title ?? ""} programImage={coverImage} basePrice={p.discountedPrice ?? p.basePrice} batchType={p.batchType} weeklyBatches={p.weeklyBatches} />
                 </div>
               </div>
             </motion.div>

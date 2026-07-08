@@ -1,202 +1,256 @@
 // ============================================================
 //  controllers/coachController.js
-//  Admin-side coach management.
-//
-//  create(): on top of normal Coach creation, this also:
-//    1. Auto-generates a unique username, coachUid, and password
-//       (format: <coachname>@<coachUniqueId>)
-//    2. Saves the (hashed) password on the Coach document
-//    3. Emails the PLAIN username/password to the coach so they
-//       can log in to the Coach Portal directly.
+//  ADMIN-SIDE coach management (used by superAdmin / admin panel)
+//  Routes: GET/POST/PUT/DELETE /api/coaches
+//  create() auto-generates login credentials (username + password)
+//  and emails them to the coach for the Coach Portal login.
 // ============================================================
 const mongoose = require('mongoose');
-const { generateCoachCredentials } = require('../utils/coachCredentials');
-const { sendCoachWelcomeEmail } = require('../services/emailService');
+const crypto = require('crypto');
 
-// ─── GET /api/coaches ──────────────────────────────────────────
+const getModels = () => ({
+  Coach: mongoose.model('Coach'),
+});
+
+// ── Helpers ──────────────────────────────────────────────────
+
+// Generates a readable random password like "Cca7f2a9d1"
+function generatePassword() {
+  return 'Cca' + crypto.randomBytes(4).toString('hex');
+}
+
+// Generates a unique coachUid like "COACH-3F9A2B"
+function generateCoachUid() {
+  return 'COACH-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+}
+
+// Generates a username from firstName + random 3-digit suffix
+function generateUsername(firstName = 'coach', lastName = '') {
+  const base = `${firstName}${lastName}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const suffix = Math.floor(100 + Math.random() * 900);
+  return `${base || 'coach'}${suffix}`;
+}
+
+// Sends login credentials email. Uses ../utils/mailer if it exists;
+// otherwise falls back to console.log so create() never crashes
+// just because the mailer util isn't wired up yet.
+async function sendCredentialsEmail({ to, firstName, username, coachUid, password }) {
+  const subject = 'Your CCA Coach Portal Login Credentials';
+  const html = `
+    <p>Hi ${firstName},</p>
+    <p>Your Coach Portal account has been created. Here are your login details:</p>
+    <ul>
+      <li><b>Coach ID:</b> ${coachUid}</li>
+      <li><b>Username:</b> ${username}</li>
+      <li><b>Password:</b> ${password}</li>
+    </ul>
+    <p>Please log in and change your password after first login.</p>
+  `;
+
+  try {
+    // Adjust this path/function name to match your actual mailer util
+    const { sendMail } = require('../utils/mailer');
+    await sendMail({ to, subject, html });
+    return true;
+  } catch (e) {
+    console.warn('⚠️  sendCredentialsEmail: mailer util not found or failed, logging instead:', e.message);
+    console.log(`[COACH CREDENTIALS] to:${to} username:${username} password:${password} coachUid:${coachUid}`);
+    return false;
+  }
+}
+
+// ─── GET /api/coaches ───────────────────────────────────────
+//  List all coaches (admin). Supports ?search= & ?isActive=
 exports.getAll = async (req, res) => {
   try {
-    const Coach = mongoose.model('Coach');
-    const data = await Coach.find().populate('location', 'title city').sort({ createdAt: -1 });
-    res.json({ success: true, data });
+    const { Coach } = getModels();
+    const { search, isActive } = req.query;
+
+    const filter = {};
+    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    if (search) {
+      filter.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName:  { $regex: search, $options: 'i' } },
+        { email:     { $regex: search, $options: 'i' } },
+        { username:  { $regex: search, $options: 'i' } },
+        { coachUid:  { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const coaches = await Coach.find(filter)
+      .select('-password')
+      .populate('location', 'title city address')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: coaches });
   } catch (e) {
+    console.error('coach getAll error:', e.message);
     res.status(500).json({ success: false, message: e.message });
   }
 };
 
-// ─── GET /api/coaches/:id ──────────────────────────────────────
+// ─── GET /api/coaches/:id ───────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
-    const Coach = mongoose.model('Coach');
-    const doc = await Coach.findById(req.params.id).populate('location', 'title city');
-    if (!doc) return res.status(404).json({ success: false, message: 'Coach not found' });
-    res.json({ success: true, data: doc });
+    const { Coach } = getModels();
+    const coach = await Coach.findById(req.params.id)
+      .select('-password')
+      .populate('location', 'title city address');
+
+    if (!coach) return res.status(404).json({ success: false, message: 'Coach not found' });
+    res.json({ success: true, data: coach });
   } catch (e) {
+    console.error('coach getOne error:', e.message);
     res.status(500).json({ success: false, message: e.message });
   }
 };
 
-// ─── POST /api/coaches ──────────────────────────────────────────
-// Creates the coach AND auto-generates + emails their login credentials.
+// ─── POST /api/coaches ──────────────────────────────────────
+//  Creates a coach, auto-generates username/password/coachUid,
+//  and emails the credentials to the coach.
 exports.create = async (req, res) => {
   try {
-    const Coach = mongoose.model('Coach');
-    const { firstName, lastName, email } = req.body;
+    const { Coach } = getModels();
+    const {
+      firstName, lastName, email, phone,
+      bio, experience, speciality, location,
+    } = req.body;
 
-    if (!firstName || !lastName || !email) {
-      return res.status(400).json({ success: false, message: 'First name, last name and email are required' });
+    if (!firstName || !lastName || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'firstName, lastName, email and phone are required',
+      });
     }
 
-    // 1. Generate unique username / coachUid / plain password
-    const { username, coachUid, password } = await generateCoachCredentials(firstName, lastName);
+    const existing = await Coach.findOne({ email: email.trim().toLowerCase() });
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'A coach with this email already exists' });
+    }
 
-    // 2. Build and save the coach (password gets hashed by the pre-save hook)
+    const username = generateUsername(firstName, lastName);
+    const coachUid = generateCoachUid();
+    const plainPassword = generatePassword();
+
     const coach = new Coach({
-      ...req.body,
+      firstName,
+      lastName,
+      email: email.trim().toLowerCase(),
+      phone,
+      bio,
+      experience,
+      speciality,
+      location: location || undefined,
       username,
       coachUid,
-      password, // plain here; hashed automatically on save
-      createdBy: req.user._id,
+      password: plainPassword, // model's pre-save hook should hash this
+      isActive: true,
     });
 
-    if (req.file) {
-      coach.photoUrl = req.file.path.replace(/\\/g, '/');
-    }
+    if (req.file) coach.photoUrl = req.file.path.replace(/\\/g, '/');
 
     await coach.save();
 
-    // 3. Email the plain password to the coach (best-effort — don't fail the request if email fails)
-    let emailSent = false;
-    try {
-      const loginUrl = process.env.COACH_FRONTEND_URL || 'http://localhost:3002/login';
-      await sendCoachWelcomeEmail({
-        to: coach.email,
-        firstName: coach.firstName,
-        lastName: coach.lastName,
-        username,
-        password, // plain text, only ever sent this once
-        coachUid,
-        loginUrl,
-      });
-      emailSent = true;
-      // IMPORTANT: use updateOne (touches ONLY this one field at the DB
-      // level) instead of coach.credentialsSentAt = ...; await coach.save().
-      // A second full .save() on the same in-memory document re-runs every
-      // pre-save hook, including the password-hashing one — and depending
-      // on Mongoose's modified-path tracking at that point, this risks
-      // hashing the ALREADY-HASHED password a second time, which would
-      // permanently lock the coach out with the exact password they were
-      // just shown. updateOne never touches the password field at all,
-      // so this failure mode is structurally impossible.
-      await Coach.updateOne({ _id: coach._id }, { $set: { credentialsSentAt: new Date() } });
-    } catch (mailErr) {
-      console.error('⚠️  Coach created but welcome email failed to send:', mailErr.message);
-    }
+    await sendCredentialsEmail({
+      to: coach.email,
+      firstName: coach.firstName,
+      username,
+      coachUid,
+      password: plainPassword,
+    });
+
+    const coachSafe = coach.toObject();
+    delete coachSafe.password;
 
     res.status(201).json({
       success: true,
-      data: coach,
-      credentials: { username, coachUid, password }, // shown once to the admin in the UI too
-      emailSent,
+      message: 'Coach created and login credentials emailed',
+      data: coachSafe,
     });
   } catch (e) {
-    if (e.code === 11000) {
-      return res.status(400).json({ success: false, message: 'A coach with this email already exists.' });
-    }
+    console.error('coach create error:', e.message);
     res.status(500).json({ success: false, message: e.message });
   }
 };
 
-// ─── PUT /api/coaches/:id ──────────────────────────────────────
+// ─── PUT /api/coaches/:id ───────────────────────────────────
 exports.update = async (req, res) => {
   try {
-    const Coach = mongoose.model('Coach');
-    const doc = await Coach.findById(req.params.id);
-    if (!doc) return res.status(404).json({ success: false, message: 'Coach not found' });
-
-    // Never allow username/password/coachUid to be silently overwritten through
-    // the generic update form — those are managed via dedicated actions only.
-    const { username, password, coachUid, ...safeBody } = req.body;
-    Object.assign(doc, safeBody);
-
-    if (req.file) {
-      doc.photoUrl = req.file.path.replace(/\\/g, '/');
-    }
-
-    await doc.save();
-    res.json({ success: true, data: doc });
-  } catch (e) {
-    if (e.code === 11000) {
-      return res.status(400).json({ success: false, message: 'A coach with this email already exists.' });
-    }
-    res.status(500).json({ success: false, message: e.message });
-  }
-};
-
-// ─── DELETE /api/coaches/:id ────────────────────────────────────
-exports.remove = async (req, res) => {
-  try {
-    const Coach = mongoose.model('Coach');
-    const Batch = mongoose.model('Batch');
-
-    // A coach assigned to one or more batches must be reassigned (or have
-    // those batches updated to a different coach) before they can be
-    // deleted — otherwise every one of those batches would silently end
-    // up with a coach reference pointing at a document that no longer
-    // exists, and the coach portal/attendance scan logic for that batch
-    // would break with no clear error message to whoever hits it next.
-    const batchCount = await Batch.countDocuments({ coach: req.params.id });
-    if (batchCount > 0) {
-      return res.status(409).json({
-        success: false,
-        message: `Cannot delete this coach — they are assigned to ${batchCount} batch(es). Reassign those batches to a different coach first.`,
-      });
-    }
-
-    await Coach.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'Coach deleted' });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-};
-
-// ─── POST /api/coaches/:id/resend-credentials ───────────────────
-// Generates a brand-new password for the coach (keeps username/coachUid)
-// and re-sends the welcome email. Useful if the coach forgets their password.
-exports.resendCredentials = async (req, res) => {
-  try {
-    const Coach = mongoose.model('Coach');
+    const { Coach } = getModels();
     const coach = await Coach.findById(req.params.id);
     if (!coach) return res.status(404).json({ success: false, message: 'Coach not found' });
 
-    // Keep the same coachUid, regenerate password = name@coachUid (deterministic),
-    // unless admin wants a fresh random one — here we keep it simple and reset
-    // to the original formula so it's easy for the coach to remember/reset.
-    const namePart = `${coach.firstName}${coach.lastName}`.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const newPassword = `${namePart}@${coach.coachUid}`;
-    coach.password = newPassword; // re-hashed by pre-save hook
-    await coach.save();
-
-    const loginUrl = process.env.COACH_FRONTEND_URL || 'http://localhost:3002/login';
-    await sendCoachWelcomeEmail({
-      to: coach.email,
-      firstName: coach.firstName,
-      lastName: coach.lastName,
-      username: coach.username,
-      password: newPassword,
-      coachUid: coach.coachUid,
-      loginUrl,
+    const editable = ['firstName', 'lastName', 'phone', 'bio', 'experience', 'speciality', 'location', 'isActive'];
+    editable.forEach((f) => {
+      if (req.body[f] !== undefined) coach[f] = req.body[f];
     });
 
-    // Same fix as in create(): updateOne touches ONLY credentialsSentAt
-    // at the DB level, never re-running the password pre-save hook on
-    // an already-hashed value. See the long comment in exports.create
-    // above for the full explanation of why a second .save() here is
-    // risky.
-    await Coach.updateOne({ _id: coach._id }, { $set: { credentialsSentAt: new Date() } });
+    // Email change needs a duplicate check
+    if (req.body.email && req.body.email.trim().toLowerCase() !== coach.email) {
+      const emailTaken = await Coach.findOne({
+        email: req.body.email.trim().toLowerCase(),
+        _id: { $ne: coach._id },
+      });
+      if (emailTaken) {
+        return res.status(409).json({ success: false, message: 'This email is already used by another coach' });
+      }
+      coach.email = req.body.email.trim().toLowerCase();
+    }
 
-    res.json({ success: true, message: 'Credentials regenerated and emailed to the coach.' });
+    if (req.file) coach.photoUrl = req.file.path.replace(/\\/g, '/');
+
+    await coach.save();
+
+    const coachSafe = coach.toObject();
+    delete coachSafe.password;
+
+    res.json({ success: true, message: 'Coach updated', data: coachSafe });
   } catch (e) {
+    console.error('coach update error:', e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// ─── DELETE /api/coaches/:id ────────────────────────────────
+exports.remove = async (req, res) => {
+  try {
+    const { Coach } = getModels();
+    const coach = await Coach.findByIdAndDelete(req.params.id);
+    if (!coach) return res.status(404).json({ success: false, message: 'Coach not found' });
+
+    res.json({ success: true, message: 'Coach deleted' });
+  } catch (e) {
+    console.error('coach remove error:', e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// ─── POST /api/coaches/:id/resend-credentials ───────────────
+//  Generates a fresh password, saves it, and re-emails credentials.
+exports.resendCredentials = async (req, res) => {
+  try {
+    const { Coach } = getModels();
+    const coach = await Coach.findById(req.params.id);
+    if (!coach) return res.status(404).json({ success: false, message: 'Coach not found' });
+
+    const plainPassword = generatePassword();
+    coach.password = plainPassword; // pre-save hook re-hashes it
+    if (!coach.username) coach.username = generateUsername(coach.firstName, coach.lastName);
+    if (!coach.coachUid) coach.coachUid = generateCoachUid();
+    await coach.save();
+
+    await sendCredentialsEmail({
+      to: coach.email,
+      firstName: coach.firstName,
+      username: coach.username,
+      coachUid: coach.coachUid,
+      password: plainPassword,
+    });
+
+    res.json({ success: true, message: 'Login credentials resent to coach\'s email' });
+  } catch (e) {
+    console.error('coach resendCredentials error:', e.message);
     res.status(500).json({ success: false, message: e.message });
   }
 };

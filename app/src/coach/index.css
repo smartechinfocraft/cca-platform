@@ -1,6 +1,6 @@
 /* ============================================================
    index.css — Global styles for CCA Coach Portal
-   Dark cricket green + gold theme (matches Admin Portal)
+   Light, clean theme (blue accent, no green)
    Mobile-first since coaches mostly use this on their phones.
    ============================================================ */
 
@@ -9,8 +9,8 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: #0d1b0e;
-  color: #ffffff;
+  background: #f1f5f9;
+  color: #0f172a;
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -20,18 +20,18 @@ html, body {
 #root { min-height: 100vh; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
-::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.25); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.45); }
+::-webkit-scrollbar-track { background: rgba(15,23,42,0.03); }
+::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.25); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.45); }
 
 input:focus, select:focus, textarea:focus, button:focus {
   outline: none;
-  border-color: rgba(212,175,55,0.5) !important;
-  box-shadow: 0 0 0 2px rgba(212,175,55,0.12);
+  border-color: rgba(37,99,235,0.5) !important;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.12);
 }
 
-a { color: #D4AF37; text-decoration: none; }
-a:hover { color: #F5D97A; }
+a { color: #2563eb; text-decoration: none; }
+a:hover { color: #1d4ed8; }
 
 button { font-family: inherit; cursor: pointer; }
 
@@ -40,7 +40,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 12px;
 }
 #qr-reader-region {
-  border: 2px solid rgba(212,175,55,0.35) !important;
+  border: 2px solid rgba(37,99,235,0.35) !important;
   border-radius: 12px !important;
   overflow: hidden;
 }
