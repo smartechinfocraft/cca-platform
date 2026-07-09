@@ -25,6 +25,8 @@ import WeeklyBatchSelector from "../registration/WeeklyBatchSelector";
 import StripePaymentBox from "../payments/StripePaymentBox";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
 import { getMyStudents, getParentProfile } from "../../services/parentDashboardService";
+import type { StudentWithSummary } from "../../types/parentDashboard";
+import SavedStudentPicker from "../registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 import {
   fetchChatPrograms,
@@ -248,6 +250,10 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
 
   // student
   const [student, setStudent] = useState({ firstName: "", lastName: "", dob: "", gender: "", schoolName: "" });
+  // When the logged-in parent has 2+ saved children, hold them here so a
+  // small radio picker can be shown on the "student" step instead of
+  // silently grabbing the most-recently-added one.
+  const [savedStudentOptions, setSavedStudentOptions] = useState<StudentWithSummary[] | null>(null);
 
   // billing / address
   const [billing, setBilling] = useState({ address: "", city: "", state: "", zip: "" });
@@ -263,9 +269,12 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
 
   // ── Autofill from saved profile (logged-in parents) ──────────
-  // Same idea as the main site: pre-fill the player's details from the
-  // most recently saved child and the billing address from the saved
-  // parent profile, so it's only typed once. Only fills blank fields —
+  // Same idea as the main site: when there's exactly ONE saved child,
+  // pre-fill the player's details automatically. When there are TWO OR
+  // MORE, we can't guess which one this registration is for, so we
+  // surface them via savedStudentOptions and show a small radio picker
+  // on the "student" step instead. The billing address still autofills
+  // from the saved parent profile either way. Only fills blank fields —
   // never overwrites something already entered, and the person can still
   // edit anything before continuing.
   useEffect(() => {
@@ -273,20 +282,27 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
     getMyStudents(token)
       .then((list) => {
         if (!list || list.length === 0) return;
-        const mostRecent = [...list].sort(
-          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-        )[0];
-        setStudent((prev) =>
-          prev.firstName.trim() || prev.lastName.trim()
-            ? prev
-            : {
-                firstName: mostRecent.firstName || "",
-                lastName: mostRecent.lastName || "",
-                dob: mostRecent.dob ? String(mostRecent.dob).slice(0, 10) : "",
-                gender: mostRecent.gender || "",
-                schoolName: mostRecent.schoolName || "",
-              }
-        );
+        if (list.length === 1) {
+          const only = list[0];
+          setStudent((prev) =>
+            prev.firstName.trim() || prev.lastName.trim()
+              ? prev
+              : {
+                  firstName: only.firstName || "",
+                  lastName: only.lastName || "",
+                  dob: only.dob ? String(only.dob).slice(0, 10) : "",
+                  gender: only.gender || "",
+                  schoolName: only.schoolName || "",
+                }
+          );
+        } else {
+          setStudent((prev) => {
+            if (!prev.firstName.trim() && !prev.lastName.trim()) {
+              setSavedStudentOptions(list);
+            }
+            return prev;
+          });
+        }
       })
       .catch(() => {});
     getParentProfile(token)
@@ -304,6 +320,21 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
       })
       .catch(() => {});
   }, [token]);
+
+  // Parent picked a specific child from the SavedStudentPicker.
+  const selectSavedStudent = (picked: StudentWithSummary) => {
+    setStudent({
+      firstName: picked.firstName || "",
+      lastName: picked.lastName || "",
+      dob: picked.dob ? String(picked.dob).slice(0, 10) : "",
+      gender: picked.gender || "",
+      schoolName: picked.schoolName || "",
+    });
+    setSavedStudentOptions(null);
+  };
+
+  // Parent chose "None of these — add a different student".
+  const dismissSavedStudentOptions = () => setSavedStudentOptions(null);
 
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
@@ -868,6 +899,13 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
               </div>
             )}
             <Bubble>Now tell me about the player:</Bubble>
+            {savedStudentOptions && !student.firstName.trim() && !student.lastName.trim() && (
+              <SavedStudentPicker
+                students={savedStudentOptions}
+                onSelect={selectSavedStudent}
+                onSkip={dismissSavedStudentOptions}
+              />
+            )}
             <TextField label="Player first name" value={student.firstName} onChange={(v) => setStudent({ ...student, firstName: v })} placeholder="Arjun" required />
             <TextField label="Player last name" value={student.lastName} onChange={(v) => setStudent({ ...student, lastName: v })} placeholder="Patel" required />
             <TextField label="Date of birth" type="date" value={student.dob} onChange={(v) => setStudent({ ...student, dob: v })} required />
