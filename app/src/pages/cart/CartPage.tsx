@@ -9,6 +9,7 @@ import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
+import { getParentProfile } from "../../services/parentDashboardService";
 import api from "../../api/axios";
 import WaiverConsent from "../../components/registration/WaiverConsent";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
@@ -144,7 +145,9 @@ export default function CartPage() {
   const paypalLoaded = useRef(false);
   const [serverConfirmedAmount, setServerConfirmedAmount] = useState<number | null>(null);
 
-  // Pre-fill parent details from the signed-in account
+  // Pre-fill parent details from the signed-in account — name/email/phone
+  // immediately, then the saved billing address (if any) from their profile,
+  // so returning parents don't have to retype it. They can still edit it.
   useEffect(() => {
     if (user && !parentDetails.parentName) {
       setParentDetails((prev) => ({
@@ -156,6 +159,25 @@ export default function CartPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  useEffect(() => {
+    if (!token) return;
+    getParentProfile(token)
+      .then((profile) => {
+        setParentDetails((prev) =>
+          prev.address.trim()
+            ? prev
+            : {
+                ...prev,
+                address: profile.address || "",
+                city: profile.city || "",
+                state: profile.state || "",
+                zip: profile.zip || "",
+              }
+        );
+      })
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     api.get("/public/coupons").then((res) => {
@@ -170,7 +192,10 @@ export default function CartPage() {
     parentDetails.parentName.trim() &&
     parentDetails.email.trim() &&
     parentDetails.phone.trim() &&
-    parentDetails.address.trim()
+    parentDetails.address.trim() &&
+    parentDetails.city.trim() &&
+    parentDetails.state.trim() &&
+    parentDetails.zip.trim()
   );
   const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
 
@@ -598,7 +623,7 @@ export default function CartPage() {
                         <input type="tel" value={parentDetails.phone} onChange={(e) => updateParent({ phone: e.target.value })} placeholder="(123) 456-7890" className={inputCls} />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700">City</label>
+                        <label className="block text-xs font-semibold text-slate-700">City <span className="text-red-500">*</span></label>
                         <input type="text" value={parentDetails.city} onChange={(e) => updateParent({ city: e.target.value })} placeholder="San Jose" className={inputCls} />
                       </div>
                     </div>
@@ -608,16 +633,16 @@ export default function CartPage() {
                     </div>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700">State</label>
+                        <label className="block text-xs font-semibold text-slate-700">State <span className="text-red-500">*</span></label>
                         <input type="text" value={parentDetails.state} onChange={(e) => updateParent({ state: e.target.value })} placeholder="CA" maxLength={2} className={inputCls} />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-xs font-semibold text-slate-700">ZIP Code</label>
+                        <label className="block text-xs font-semibold text-slate-700">ZIP Code <span className="text-red-500">*</span></label>
                         <input type="text" value={parentDetails.zip} onChange={(e) => updateParent({ zip: e.target.value })} placeholder="95123" className={inputCls} />
                       </div>
                     </div>
                     {parentTouched && !parentValid && (
-                      <p className="text-xs text-amber-600">Name, email, phone, and address are required before you can pay.</p>
+                      <p className="text-xs text-amber-600">Name, email, phone, and full address (street, city, state, ZIP) are required before you can pay.</p>
                     )}
                   </div>
                 </div>
