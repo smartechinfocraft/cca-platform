@@ -3,6 +3,7 @@
 //  View, update status, add notes — Normal Admin
 // ============================================================
 const mongoose = require('mongoose');
+const { logCheckApproval, logCheckRejection, logRefund } = require('../utils/paymentLogger');
 
 const getReg = () => mongoose.model('Registration');
 
@@ -217,6 +218,9 @@ exports.superAdminEdit = async (req, res) => {
 };
 
 // ─── PATCH /api/registrations/:id/confirm-check ──────────────────────────────
+// Admin-only (see routes/index.js). Moves a CHECK payment from
+// SUBMITTED/UNDER_REVIEW to APPROVED. Checks are NEVER auto-approved —
+// this is the only code path that can mark one SUCCESS.
 exports.confirmCheck = async (req, res) => {
   try {
     const reg = await getReg().findById(req.params.id);
@@ -226,21 +230,124 @@ exports.confirmCheck = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This registration was not paid by check.' });
     }
 
-    if (reg.status === 'CONFIRMED' && reg.paymentStatus === 'SUCCESS') {
-      return res.status(400).json({ success: false, message: 'Check already confirmed.' });
+    if (reg.checkPaymentState === 'APPROVED' && reg.paymentStatus === 'SUCCESS') {
+      return res.status(409).json({ success: false, message: 'Check already confirmed.' });
+    }
+    if (reg.checkPaymentState === 'REJECTED') {
+      return res.status(400).json({ success: false, message: 'This check was already rejected. Reverse the rejection before approving.' });
     }
 
     reg.paymentStatus = 'SUCCESS';
+    reg.checkPaymentState = 'APPROVED';
     reg.status = 'CONFIRMED';
     reg.adminNote = reg.adminNote
       ? reg.adminNote + `\n[Check confirmed by admin on ${new Date().toLocaleString()}]`
       : `Check confirmed by admin on ${new Date().toLocaleString()}`;
     reg.updatedBy = req.user._id;
+    reg.paymentAuditLog.push({ event: 'CHECK_APPROVED', performedBy: req.user._id, note: req.body?.note });
 
     await reg.save();
+    logCheckApproval({ registrationId: reg._id.toString(), registrationNumber: reg.registrationNumber, admin: req.user._id.toString() });
 
     res.json({ success: true, message: 'Check confirmed. Registration marked as CONFIRMED.', data: reg });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: 'Could not confirm this check payment.' });
+  }
+};
+
+// ─── PATCH /api/registrations/:id/reject-check ───────────────────────────────
+// Admin-only. Moves a CHECK payment to REJECTED — the counterpart to
+// confirm-check. Also required so a bounced/invalid check can't linger
+// as an indefinite PENDING registration.
+exports.rejectCheck = async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const reg = await getReg().findById(req.params.id);
+    if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
+
+    if (reg.paymentMethod !== 'CHECK') {
+      return res.status(400).json({ success: false, message: 'This registration was not paid by check.' });
+    }
+    if (reg.checkPaymentState === 'APPROVED' && reg.paymentStatus === 'SUCCESS') {
+      return res.status(400).json({ success: false, message: 'This check was already approved. Use the refund flow instead.' });
+    }
+
+    reg.paymentStatus = 'FAILED';
+    reg.checkPaymentState = 'REJECTED';
+    reg.status = 'CANCELLED';
+    reg.adminNote = reg.adminNote
+      ? reg.adminNote + `\n[Check rejected by admin on ${new Date().toLocaleString()}${reason ? `: ${reason}` : ''}]`
+      : `Check rejected by admin on ${new Date().toLocaleString()}${reason ? `: ${reason}` : ''}`;
+    reg.updatedBy = req.user._id;
+    reg.paymentAuditLog.push({ event: 'CHECK_REJECTED', performedBy: req.user._id, note: reason });
+
+    await reg.save();
+    logCheckRejection({ registrationId: reg._id.toString(), registrationNumber: reg.registrationNumber, admin: req.user._id.toString(), reason });
+
+    res.json({ success: true, message: 'Check rejected.', data: reg });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Could not reject this check payment.' });
+  }
+};
+
+// ─── POST /api/registrations/:id/refund ──────────────────────────────────────
+// Super Admin only (see routes/index.js). Refunds a SUCCESSFUL Stripe or
+// PayPal payment. Never available for CHECK (no gateway to call — reverse
+// those via reject-check / manual reconciliation) and never allows a
+// second refund of the same registration.
+exports.refundPayment = async (req, res) => {
+  try {
+    const reg = await getReg().findById(req.params.id);
+    if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
+
+    if (reg.paymentStatus !== 'SUCCESS') {
+      return res.status(400).json({ success: false, message: 'Only a successfully paid registration can be refunded.' });
+    }
+    if (reg.refundStatus === 'REFUNDED') {
+      return res.status(409).json({ success: false, message: 'This registration has already been refunded.' });
+    }
+    if (!['STRIPE', 'PAYPAL'].includes(reg.paymentMethod)) {
+      return res.status(400).json({ success: false, message: 'Only Stripe or PayPal payments can be refunded here.' });
+    }
+    if (!reg.transactionId) {
+      return res.status(400).json({ success: false, message: 'No transaction is on file for this registration.' });
+    }
+
+    let refundReference;
+    if (reg.paymentMethod === 'STRIPE') {
+      const { refundPaymentIntent } = require('../services/stripeService');
+      const refund = await refundPaymentIntent(reg.transactionId);
+      refundReference = refund.id;
+    } else {
+      const { refundCapture } = require('../services/paypalService');
+      const refund = await refundCapture(reg.transactionId);
+      if (refund.statusCode >= 400) {
+        return res.status(502).json({ success: false, message: 'PayPal declined this refund. Please try again or refund manually in the PayPal dashboard.' });
+      }
+      refundReference = refund.id;
+    }
+
+    reg.paymentStatus = 'REFUNDED';
+    reg.refundStatus = 'REFUNDED';
+    reg.refundReference = refundReference;
+    reg.refundAmount = reg.totalAmount;
+    reg.refundedBy = req.user._id;
+    reg.refundedAt = new Date();
+    reg.status = 'REFUNDED';
+    reg.paymentAuditLog.push({ event: 'REFUND_ISSUED', performedBy: req.user._id, note: refundReference });
+    await reg.save();
+
+    logRefund({
+      registrationId: reg._id.toString(),
+      registrationNumber: reg.registrationNumber,
+      paymentMethod: reg.paymentMethod,
+      admin: req.user._id.toString(),
+      refundReference,
+    });
+
+    res.json({ success: true, message: 'Refund issued.', data: reg });
+  } catch (err) {
+    console.error('Refund error:', err);
+    res.status(err.status || 500).json({ success: false, message: 'Could not process this refund.' });
   }
 };
