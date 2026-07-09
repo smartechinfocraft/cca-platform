@@ -22,6 +22,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import WaiverConsent from "../registration/WaiverConsent";
 import WeeklyBatchSelector from "../registration/WeeklyBatchSelector";
+import StripePaymentBox from "../payments/StripePaymentBox";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 import {
@@ -251,7 +252,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const [billing, setBilling] = useState({ address: "", city: "", state: "", zip: "" });
 
   // payment
-  const [paymentMethod, setPaymentMethod] = useState<"PayPal" | "Check" | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"PayPal" | "Stripe" | "Check" | null>(null);
   const [checkNumber, setCheckNumber] = useState("");
   const [result, setResult] = useState<{ registrationNumber: string; programName: string; totalAmount: number; paymentStatus: string } | null>(null);
   const [waiverAccepted, setWaiverAccepted] = useState(false);
@@ -464,8 +465,8 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
     }
   };
 
-  // ── Final submit (Check, or after PayPal capture) ──
-  const finishRegistration = async (method: "PayPal" | "Check", transactionId?: string) => {
+  // ── Final submit (Check, or after PayPal/Stripe capture) ──
+  const finishRegistration = async (method: "PayPal" | "Stripe" | "Check", transactionId?: string) => {
     if (!selectedProgram) return;
     if (!waiverValid) {
       setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
@@ -943,6 +944,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
             {!paymentMethod && (
               <>
                 <OptionButton label="Pay with PayPal" sub="Fast & secure online payment" onClick={() => setPaymentMethod("PayPal")} />
+                <OptionButton label="Pay with Card (Stripe)" sub="Secure card payment via Stripe" onClick={() => setPaymentMethod("Stripe")} />
                 <OptionButton label="Pay by Check" sub="Mail a check, spot held 7 days" onClick={() => setPaymentMethod("Check")} />
               </>
             )}
@@ -955,6 +957,23 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
                 <div ref={paypalRef} className="min-h-[120px] flex items-center justify-center">
                   <p className="text-xs" style={{ color: "var(--ink-400)" }}>Loading PayPal…</p>
                 </div>
+              </div>
+            )}
+
+            {paymentMethod === "Stripe" && (
+              <div className="mb-3">
+                <button onClick={() => setPaymentMethod(null)} className="text-xs font-semibold mb-2" style={{ color: "var(--outfield)" }}>
+                  ← Choose a different payment method
+                </button>
+                <StripePaymentBox
+                  programId={selectedProgram?._id}
+                  batchId={!isWeeklyProgram ? selectedBatch?._id : undefined}
+                  studentCount={1}
+                  sessionsPerWeek={!isWeeklyProgram ? frequency : undefined}
+                  weeklyBatchIds={isWeeklyProgram ? selectedWeeklyBatchIds : undefined}
+                  disabled={submitting}
+                  onSuccess={(paymentIntentId) => finishRegistration("Stripe", paymentIntentId)}
+                />
               </div>
             )}
 
