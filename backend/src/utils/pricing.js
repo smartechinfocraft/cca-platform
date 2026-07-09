@@ -26,7 +26,7 @@ const mongoose = require('mongoose');
  *   coupon: Object|null
  * }>}
  */
-async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, weeklyBatchIds, couponCode }) {
+async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, weeklyBatchIds, couponCode, parentId }) {
   const Program = mongoose.model('Program');
   const Batch   = mongoose.model('Batch');
   const Coupon  = mongoose.model('Coupon');
@@ -132,6 +132,24 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
         const err = new Error(`Coupon requires a minimum order of $${coupon.minAmount}`);
         err.status = 400;
         throw err;
+      }
+
+      // Check per-parent redemption cap ("coupon ownership") — only
+      // enforceable when we know who the parent is (logged-in checkout).
+      // Guest checkouts can't be checked here; the final /register save
+      // re-validates once a Parent record has been resolved.
+      if (coupon.perUserLimit != null && parentId) {
+        const Registration = mongoose.model('Registration');
+        const priorUses = await Registration.countDocuments({
+          parentId,
+          couponCode: coupon.code,
+          paymentStatus: { $ne: 'FAILED' },
+        });
+        if (priorUses >= coupon.perUserLimit) {
+          const err = new Error('You have already used this coupon the maximum number of times.');
+          err.status = 400;
+          throw err;
+        }
       }
 
       if (coupon.type === 'PERCENTAGE') {
