@@ -15,6 +15,7 @@ import { useRegistration } from "../context/RegistrationContext";
 import { getProgramById } from "../services/programService";
 import GenderSelect from "./registration/GenderSelect";
 import WeeklyBatchSelector from "./registration/WeeklyBatchSelector";
+import SavedStudentPicker from "./registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, fmt12, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 
 type ProgramCardProps = {
@@ -351,6 +352,9 @@ function QuickRegisterDrawer({
     updateStudent,
     addStudent,
     removeStudent,
+    savedStudentOptions,
+    selectSavedStudent,
+    dismissSavedStudentOptions,
   } = useRegistration();
   const [step, setStep] = useState<"batch" | "student">("batch");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -661,6 +665,14 @@ function QuickRegisterDrawer({
                   </div>
                 )}
               </div>
+
+              {savedStudentOptions && currentStudentIndex === 0 && !student?.firstName?.trim() && !student?.lastName?.trim() && (
+                <SavedStudentPicker
+                  students={savedStudentOptions}
+                  onSelect={selectSavedStudent}
+                  onSkip={dismissSavedStudentOptions}
+                />
+              )}
 
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
