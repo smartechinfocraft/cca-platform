@@ -128,8 +128,13 @@ function PaymentPage() {
     setWaiverError(null);
     setLoading(true);
     try {
+      // Always send the actual billing address the person confirmed on the
+      // Review Order step (context `parentDetails`) — previously this sent
+      // blank address fields for logged-in users, even though ReviewOrder
+      // collects/pre-fills a real address. Address is now required by the
+      // backend, so this must carry through.
       const parentInfo = user
-        ? { parentName: `${user.firstName} ${user.lastName}`, email: user.email, phone: user.phone, address: "", city: "", state: "", zip: "" }
+        ? { parentName: `${user.firstName} ${user.lastName}`, email: user.email, phone: user.phone, address: parentDetails.address, city: parentDetails.city, state: parentDetails.state, zip: parentDetails.zip }
         : parentDetails;
 
       const response = await api.post(
