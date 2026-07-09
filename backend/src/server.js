@@ -16,6 +16,7 @@ const cookieParser = require('cookie-parser');
 
 const connectDB = require('./config/db');
 const routes    = require('./routes/index');
+const { handleStripeWebhook } = require('./controllers/paymentWebhookController');
 
 require('./models/User');
 require('./models/Program');
@@ -82,6 +83,42 @@ app.use(['/api/auth/refresh', '/api/coach-auth/refresh', '/api/public/auth/refre
   message: { success: false, message: 'Too many refresh attempts. Please log in again.' },
 }));
 app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 500 }));
+
+// ── Payment-specific rate limits ──────────────────────────────
+// Tighter than the general /api limit above, since these endpoints touch
+// money and third-party gateways and are the most attractive targets for
+// abuse (card testing, coupon brute-forcing, webhook flooding).
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { success: false, message: 'Too many payment requests. Please try again later.' },
+});
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120, // generous — this is gateway-to-server traffic, not a user
+});
+app.use(
+  [
+    '/api/public/stripe/create-payment-intent',
+    '/api/public/paypal/create-order',
+    '/api/public/paypal/capture-order',
+    '/api/public/donate/create-order',
+    '/api/public/donate/capture-order',
+    '/api/public/validate-coupon',
+    '/api/public/register',
+  ],
+  paymentLimiter
+);
+app.use('/api/public/stripe/webhook', webhookLimiter);
+
+// ─── Stripe webhook — MUST receive the raw body (for signature
+// verification) and MUST be registered before the global express.json()
+// parser below, or Stripe's signature will never match. ─────────────────
+app.post(
+  '/api/public/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  handleStripeWebhook
+);
 
 // ─── Request parsing ─────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
