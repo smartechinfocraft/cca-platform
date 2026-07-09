@@ -141,7 +141,11 @@ function ReviewOrder() {
   const billingValid =
     parentDetails.parentName.trim() &&
     parentDetails.email.trim() &&
-    parentDetails.phone.trim();
+    parentDetails.phone.trim() &&
+    parentDetails.address.trim() &&
+    parentDetails.city.trim() &&
+    parentDetails.state.trim() &&
+    parentDetails.zip.trim();
 
   const handleProceedToPayment = () => {
     if (!billingValid) { setEditingBilling(true); return; }
@@ -414,26 +418,26 @@ function ReviewOrder() {
                         <input type="tel" value={parentDetails.phone} onChange={e => updateParent({ phone: e.target.value })} placeholder="(123) 456-7890" className={inputCls} />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700">City</label>
+                        <label className="block text-xs font-semibold text-slate-700">City <span className="text-red-500">*</span></label>
                         <input type="text" value={parentDetails.city} onChange={e => updateParent({ city: e.target.value })} placeholder="San Jose" className={inputCls} />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700">Street Address</label>
+                      <label className="block text-xs font-semibold text-slate-700">Street Address <span className="text-red-500">*</span></label>
                       <input type="text" value={parentDetails.address} onChange={e => updateParent({ address: e.target.value })} placeholder="123 Maple Avenue" className={inputCls} />
                     </div>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700">State</label>
+                        <label className="block text-xs font-semibold text-slate-700">State <span className="text-red-500">*</span></label>
                         <input type="text" value={parentDetails.state} onChange={e => updateParent({ state: e.target.value })} placeholder="CA" maxLength={2} className={inputCls} />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-xs font-semibold text-slate-700">ZIP Code</label>
+                        <label className="block text-xs font-semibold text-slate-700">ZIP Code <span className="text-red-500">*</span></label>
                         <input type="text" value={parentDetails.zip} onChange={e => updateParent({ zip: e.target.value })} placeholder="95123" className={inputCls} />
                       </div>
                     </div>
                     {!billingValid && (
-                      <p className="text-xs text-amber-600">Name, email, and phone are required before you can proceed to payment.</p>
+                      <p className="text-xs text-amber-600">Name, email, phone, and full billing address are required before you can proceed to payment.</p>
                     )}
                   </div>
                 )}
