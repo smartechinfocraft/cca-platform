@@ -192,6 +192,9 @@ const couponSchema = new mongoose.Schema(
     minAmount:  { type: Number, default: 0 },               // Min cart value to apply
     maxUses:    { type: Number, default: null },             // null = unlimited
     usedCount:  { type: Number, default: 0 },
+    // Optional per-parent redemption cap (null = no per-user restriction).
+    // Enforced against the Registration collection at registration time.
+    perUserLimit: { type: Number, default: null },
     expiresAt:  { type: Date },
     description:{ type: String },
     isActive:   { type: Boolean, default: true },
@@ -343,8 +346,41 @@ const registrationSchema = new mongoose.Schema(
     // Payment info (no card data stored)
     paymentMethod: { type: String, enum: ['PAYPAL', 'STRIPE', 'CHECK', 'PENDING'], default: 'PENDING' },
     paymentStatus: { type: String, enum: ['PENDING','SUCCESS','FAILED','REFUNDED'], default: 'PENDING' },
-    transactionId: { type: String },
+
+    // transactionId is the gateway's own ID (Stripe PaymentIntent id / PayPal
+    // capture id). sparse+unique so the SAME real-world payment can never be
+    // attached to two different registrations — this is the DB-level guard
+    // against duplicate/replayed payment submissions.
+    transactionId: { type: String, unique: true, sparse: true },
     checkNumber:   { type: String },
+
+    // ── Check-payment workflow (never auto-approved) ─────────────────
+    // Only meaningful when paymentMethod === 'CHECK'. Mirrors paymentStatus
+    // (PENDING/SUCCESS/FAILED) but gives staff a finer-grained state machine
+    // for a payment method that has no gateway to verify itself.
+    checkPaymentState: {
+      type: String,
+      enum: ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'],
+    },
+
+    // ── Refund tracking ──────────────────────────────────────────────
+    refundStatus:    { type: String, enum: ['NONE', 'REFUNDED'], default: 'NONE' },
+    refundReference: { type: String },   // Stripe refund id / PayPal refund id
+    refundAmount:    { type: Number },
+    refundedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    refundedAt:       { type: Date },
+
+    // ── Payment audit trail ───────────────────────────────────────────
+    // Append-only log of every payment-relevant status change. Never
+    // stores card numbers, CVVs, tokens, or secrets — only who/what/when.
+    paymentAuditLog: [
+      {
+        event:       { type: String, required: true }, // e.g. 'CHECK_APPROVED', 'REFUND_ISSUED'
+        note:        { type: String },
+        performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        at:          { type: Date, default: Date.now },
+      },
+    ],
 
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
@@ -364,6 +400,27 @@ registrationSchema.pre('save', async function (next) {
 mongoose.model('Registration', registrationSchema);
 
 
+// ============================================================
+//  models/PaymentWebhookEvent.js
+//  Records every gateway webhook event ID we've already processed, so a
+//  retried/replayed/duplicate webhook delivery (Stripe retries on any
+//  non-2xx, and can also be replayed by an attacker who captured one) is
+//  detected and rejected instead of being applied twice.
+// ============================================================
+const paymentWebhookEventSchema = new mongoose.Schema(
+  {
+    gateway:   { type: String, enum: ['STRIPE', 'PAYPAL'], required: true },
+    eventId:   { type: String, required: true }, // Stripe event.id, unique per delivery
+    eventType: { type: String },
+    processedAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
+paymentWebhookEventSchema.index({ gateway: 1, eventId: 1 }, { unique: true });
+
+mongoose.model('PaymentWebhookEvent', paymentWebhookEventSchema);
+
+
 // Pull in Student + Attendance (defined in their own files, like User.js)
 // Requiring here ensures they're registered whenever models/index.js is required.
 const Student    = require('./Student');
@@ -377,6 +434,7 @@ module.exports = {
   Coupon:       mongoose.model('Coupon'),
   Coach:        mongoose.model('Coach'),
   Registration: mongoose.model('Registration'),
+  PaymentWebhookEvent: mongoose.model('PaymentWebhookEvent'),
   AgeGroup:     mongoose.model('AgeGroup'),   
   Level:        mongoose.model('Level'),  
   Student,
