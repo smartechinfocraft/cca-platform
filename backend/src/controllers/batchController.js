@@ -3,8 +3,23 @@
 //  Normal Admin manages batches: days, time, price, capacity
 // ============================================================
 const mongoose = require('mongoose');
+const { pickAllowedFields } = require('../utils/allowlist');
 
 const getBatch = () => mongoose.model('Batch');
+
+// ── Payload Allowlisting ─────────────────────────────────────
+// Only these fields may ever be written to a Batch document from
+// a request body. Notably excluded: currentCapacity (auto-derived
+// from real registrations, never client-settable), createdBy
+// (server-assigned from the authenticated admin), and any Mongo
+// internal fields (_id, __v, timestamps).
+const BATCH_ALLOWED_FIELDS = [
+  'program', 'location', 'coach',
+  'title', 'dayOfWeek', 'startTime', 'endTime', 'groundLocationNote',
+  'maxCapacity', 'startDate', 'endDate',
+  'price', 'pricePerSession', 'monthOptions',
+  'multiDays', 'sessionsPerWeek', 'timeSlots', 'isActive',
+];
 
 exports.getAll = async (req, res) => {
   try {
@@ -40,7 +55,8 @@ exports.getOne = async (req, res) => {
 
 exports.create = async (req, res) => {
   try {
-    const batch = await getBatch().create({ ...req.body, createdBy: req.user._id });
+    const payload = pickAllowedFields(req.body, BATCH_ALLOWED_FIELDS);
+    const batch = await getBatch().create({ ...payload, createdBy: req.user._id });
     res.status(201).json({ success: true, data: batch });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -49,7 +65,8 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const batch = await getBatch().findByIdAndUpdate(req.params.id, req.body, {
+    const payload = pickAllowedFields(req.body, BATCH_ALLOWED_FIELDS);
+    const batch = await getBatch().findByIdAndUpdate(req.params.id, payload, {
       new: true, runValidators: true,
     });
     if (!batch) return res.status(404).json({ success: false, message: 'Batch not found' });
