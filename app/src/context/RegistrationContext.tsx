@@ -115,7 +115,54 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
 
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+
+  // ── Recover an in-progress registration after a forced reload ──
+  // Previously, selectedProgram/selectedBatch/students/parentDetails
+  // lived ONLY in memory. If the session expired mid-checkout, the app
+  // force-reloads to /login (see api/axios.ts), which wiped all of it —
+  // program details and the billing address the person had just typed
+  // both came back blank after logging back in. We now keep a draft in
+  // sessionStorage (cleared when the tab closes, unlike the cart which
+  // uses localStorage on purpose) so a forced reload can restore it.
+  // Namespaced by account, same reasoning as the cart: so a draft saved
+  // while signed in never bleeds into what a signed-out visitor — or a
+  // different account on the same browser — sees.
+  const draftKey = `cca_registration_draft_${user?.id ?? "guest"}`;
+  const [draftHydrated, setDraftHydrated] = useState(false);
+
+  useEffect(() => {
+    setDraftHydrated(false);
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.selectedProgram) setSelectedProgram(draft.selectedProgram);
+        if (draft.selectedBatch) setSelectedBatch(draft.selectedBatch);
+        if (Array.isArray(draft.students) && draft.students.length) setStudents(draft.students);
+        if (draft.parentDetails) setParentDetails(draft.parentDetails);
+        if (draft.checkoutMode) setCheckoutMode(draft.checkoutMode);
+      }
+    } catch {
+      // Corrupt/blocked storage — just start fresh.
+    }
+    setDraftHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  // Persist the draft on every change, once hydration above has finished
+  // (otherwise we'd immediately overwrite a just-loaded draft with the
+  // initial empty state from this render).
+  useEffect(() => {
+    if (!draftHydrated) return;
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({
+        selectedProgram, selectedBatch, students, parentDetails, checkoutMode,
+      }));
+    } catch {
+      // Non-fatal — worst case the draft doesn't survive a forced reload.
+    }
+  }, [draftHydrated, draftKey, selectedProgram, selectedBatch, students, parentDetails, checkoutMode]);
 
   // ── Autofill from saved profile ──────────────────────────────
   // When a parent is logged in, pre-fill the first student's details from
@@ -204,6 +251,11 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setCheckoutMode("");
     setAppliedCoupon(null);
     setCouponDiscount(0);
+    try {
+      sessionStorage.removeItem(draftKey);
+    } catch {
+      // Non-fatal
+    }
   };
 
   return (
