@@ -50,8 +50,15 @@ function toRelativeUploadPath(absPath) {
 const mongoose = require('mongoose');
 const { startOfTodayCalifornia, startOfDayCalifornia } = require('../utils/californiaTime');
 const { computeRegistrationTotal } = require('../utils/pricing');
+const { pickAllowedFields } = require('../utils/allowlist');
 
-const makeCRUD = (modelName) => ({
+// ── Payload Allowlisting ─────────────────────────────────────
+// `allowedFields` is REQUIRED for every makeCRUD() call below — it's the
+// explicit list of fields a client is permitted to set on that model via
+// the generic create/update handlers. Anything else on req.body (including
+// createdBy, timestamps, or any field not in the list) is silently dropped
+// by pickAllowedFields() before it ever reaches Mongoose.
+const makeCRUD = (modelName, allowedFields = []) => ({
   getAll: async (req, res) => {
     try {
       const data = await mongoose.model(modelName).find().sort({ createdAt: -1 });
@@ -69,7 +76,8 @@ const makeCRUD = (modelName) => ({
   create: async (req, res) => {
     try {
       const Model = mongoose.model(modelName);
-      const doc   = new Model({ ...req.body, createdBy: req.user._id });
+      const payload = pickAllowedFields(req.body, allowedFields);
+      const doc   = new Model({ ...payload, createdBy: req.user._id });
       await doc.save();
       res.status(201).json({ success: true, data: doc });
     } catch (e) {
@@ -84,7 +92,8 @@ const makeCRUD = (modelName) => ({
     try {
       const doc = await mongoose.model(modelName).findById(req.params.id);
       if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
-      Object.assign(doc, req.body);
+      const payload = pickAllowedFields(req.body, allowedFields);
+      Object.assign(doc, payload);
       await doc.save();
       res.json({ success: true, data: doc });
     } catch (e) {
@@ -422,7 +431,11 @@ router.post(  '/programs/bulk',            protect, superAdminOnly, progCtrl.bul
 // ═══════════════════════════════════════════════════════════
 //  CATEGORIES (Seasons) — Super Admin only for CUD
 // ═══════════════════════════════════════════════════════════
-const catCRUD = makeCRUD('Category');
+const catCRUD = makeCRUD('Category', [
+  'title', 'shortDescription', 'detailedDescription', 'holidayNotes',
+  'whatsappGroupLink', 'whatsappQrCodeUrl', 'bannerImageUrl',
+  'isActive', 'sortOrder',
+]);
 router.get(   '/categories',     protect, catCRUD.getAll);
 router.get(   '/categories/:id', protect, catCRUD.getOne);
 router.post(  '/categories',     protect, superAdminOnly, catCRUD.create);
@@ -432,7 +445,10 @@ router.delete('/categories/:id', protect, superAdminOnly, catCRUD.remove);
 // ═══════════════════════════════════════════════════════════
 //  LOCATIONS — Super Admin creates; Normal Admin can view
 // ═══════════════════════════════════════════════════════════
-const locCRUD = makeCRUD('Location');
+const locCRUD = makeCRUD('Location', [
+  'title', 'address', 'city', 'state', 'zipCode',
+  'latitude', 'longitude', 'googleMapUrl', 'isActive',
+]);
 router.get(   '/locations',     protect, locCRUD.getAll);
 router.get(   '/locations/:id', protect, locCRUD.getOne);
 router.post(  '/locations',     protect, superAdminOnly, locCRUD.create);
@@ -442,7 +458,7 @@ router.delete('/locations/:id', protect, superAdminOnly, locCRUD.remove);
 // ═══════════════════════════════════════════════════════════
 //  AGE GROUPS
 // ═══════════════════════════════════════════════════════════
-const ageGroupCRUD = makeCRUD('AgeGroup');
+const ageGroupCRUD = makeCRUD('AgeGroup', ['title', 'label', 'sortOrder', 'isActive']);
 router.get(   '/age-groups',     protect, ageGroupCRUD.getAll);
 router.get(   '/age-groups/:id', protect, ageGroupCRUD.getOne);
 router.post(  '/age-groups',     protect, superAdminOnly, ageGroupCRUD.create);
@@ -452,7 +468,7 @@ router.delete('/age-groups/:id', protect, superAdminOnly, ageGroupCRUD.remove);
 // ═══════════════════════════════════════════════════════════
 //  LEVELS
 // ═══════════════════════════════════════════════════════════
-const levelCRUD = makeCRUD('Level');
+const levelCRUD = makeCRUD('Level', ['title', 'description', 'sortOrder', 'isActive']);
 router.get(   '/levels',     protect, levelCRUD.getAll);
 router.get(   '/levels/:id', protect, levelCRUD.getOne);
 router.post(  '/levels',     protect, superAdminOnly, levelCRUD.create);
@@ -663,11 +679,15 @@ router.post('/attendance/bulk', protect, adminOrSuperAdmin, async (req, res) => 
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Fields a client may set on an Attendance record. Notably excluded:
+// markedBy (always server-assigned from the authenticated admin).
+const ATTENDANCE_ALLOWED_FIELDS = ['studentId', 'registrationId', 'batchId', 'programId', 'date', 'status', 'note'];
+
 router.put('/attendance/:id', protect, adminOrSuperAdmin, async (req, res) => {
   try {
     const doc = await mongoose.model('Attendance').findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
-    Object.assign(doc, req.body, { markedBy: req.user._id });
+    Object.assign(doc, pickAllowedFields(req.body, ATTENDANCE_ALLOWED_FIELDS), { markedBy: req.user._id });
     await doc.save();
     res.json({ success: true, data: doc });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
@@ -770,7 +790,10 @@ router.post('/coach-portal/messages/:threadId/reply', coachAuth, async (req, res
 // ═══════════════════════════════════════════════════════════
 //  COUPONS — Both admins
 // ═══════════════════════════════════════════════════════════
-const couponCRUD = makeCRUD('Coupon');
+const couponCRUD = makeCRUD('Coupon', [
+  'code', 'type', 'value', 'minAmount', 'maxUses',
+  'expiresAt', 'description', 'isActive',
+]);
 router.get(   '/coupons',     protect, couponCRUD.getAll);
 router.get(   '/coupons/:id', protect, couponCRUD.getOne);
 router.post(  '/coupons',     protect, adminOrSuperAdmin, couponCRUD.create);
@@ -814,8 +837,13 @@ const mediaSchema = new mongoose.Schema({
 if (!mongoose.modelNames().includes('Media'))   mongoose.model('Media', mediaSchema);
 if (!mongoose.modelNames().includes('FAQ'))     mongoose.model('FAQ', faqSchema);
 
-const mediaCRUD   = makeCRUD('Media');
-const faqCRUD     = makeCRUD('FAQ');
+// Fields a client may set on a Media document. Notably excluded:
+// imagePath/filePath/galleryImages (only ever derived from a verified
+// multer upload below, never trusted from the body) and createdBy.
+const MEDIA_ALLOWED_FIELDS = ['title', 'type', 'album', 'description', 'publishDate', 'sortOrder', 'isActive'];
+
+const mediaCRUD   = makeCRUD('Media', MEDIA_ALLOWED_FIELDS);
+const faqCRUD     = makeCRUD('FAQ', ['question', 'answer', 'category', 'sortOrder', 'isActive']);
 
 router.get('/content/media', protect, async (req, res) => {
   try {
@@ -837,7 +865,8 @@ router.post('/content/media', protect, adminOrSuperAdmin, (req, res, next) => {
   return uploadMediaWithPdf(req, res, next);
 }, async (req, res) => {
   try {
-    const body = { ...req.body, createdBy: req.user._id };
+    const body = pickAllowedFields(req.body, MEDIA_ALLOWED_FIELDS);
+    body.createdBy = req.user._id;
     // Cover image (single)
     if (req.files?.coverImage?.[0]) {
       body.coverImagePath = toRelativeUploadPath(req.files.coverImage[0].path);
@@ -876,7 +905,7 @@ router.put('/content/media/:id', protect, adminOrSuperAdmin, (req, res, next) =>
   try {
     const doc = await mongoose.model('Media').findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
-    Object.assign(doc, req.body);
+    Object.assign(doc, pickAllowedFields(req.body, MEDIA_ALLOWED_FIELDS));
     if (req.files?.coverImage?.[0]) {
       doc.coverImagePath = toRelativeUploadPath(req.files.coverImage[0].path);
       doc.coverImageUrl  = fileUrl(req, req.files.coverImage[0].path);
@@ -931,12 +960,19 @@ const sponsorSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 if (!mongoose.modelNames().includes('Sponsor')) mongoose.model('Sponsor', sponsorSchema);
-const sponsorCRUD = makeCRUD('Sponsor');
+
+// Fields a client may set on a Sponsor document. Notably excluded:
+// coverImagePath/coverImageUrl (only ever derived from a verified
+// multer upload below, never trusted from the body) and createdBy.
+const SPONSOR_ALLOWED_FIELDS = ['name', 'websiteUrl', 'sortOrder', 'isActive'];
+
+const sponsorCRUD = makeCRUD('Sponsor', SPONSOR_ALLOWED_FIELDS);
 router.get(   '/content/sponsors',     protect, sponsorCRUD.getAll);
 // ISSUE 7: sponsor logo is a file upload, not URL
 router.post(  '/content/sponsors',     protect, adminOrSuperAdmin, uploadCoverImage, async (req, res) => {
   try {
-    const body = { ...req.body, createdBy: req.user._id };
+    const body = pickAllowedFields(req.body, SPONSOR_ALLOWED_FIELDS);
+    body.createdBy = req.user._id;
     if (req.file) {
       body.coverImagePath = toRelativeUploadPath(req.file.path);
       body.coverImageUrl  = fileUrl(req, req.file.path);
@@ -950,7 +986,7 @@ router.put(   '/content/sponsors/:id', protect, adminOrSuperAdmin, uploadCoverIm
   try {
     const doc = await mongoose.model('Sponsor').findById(req.params.id);
     if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
-    Object.assign(doc, req.body);
+    Object.assign(doc, pickAllowedFields(req.body, SPONSOR_ALLOWED_FIELDS));
     if (req.file) {
       doc.coverImagePath = toRelativeUploadPath(req.file.path);
       doc.coverImageUrl  = fileUrl(req, req.file.path);
