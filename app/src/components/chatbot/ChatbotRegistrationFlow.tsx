@@ -829,7 +829,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
             <TextField label="School name" value={student.schoolName} onChange={(v) => setStudent({ ...student, schoolName: v })} placeholder="Sunrise High School" />
             <p className="text-[11px] font-semibold mb-1" style={{ color: "var(--ink-400)" }}>Gender</p>
             <div className="flex gap-2 mb-3">
-              {["Male", "Female", "Other"].map((g) => (
+              {["Male", "Female"].map((g) => (
                 <button
                   key={g}
                   onClick={() => setStudent({ ...student, gender: g })}
