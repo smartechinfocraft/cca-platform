@@ -503,6 +503,16 @@ router.patch('/registrations/:id/whatsapp', protect, regCtrl.toggleWhatsapp);
 // confirm-check button was calling a route that didn't exist.
 router.patch('/registrations/:id/confirm-check', protect, regCtrl.confirmCheck);
 
+// Admin rejects a physical check (bounced, never arrived, wrong amount,
+// etc.) — the counterpart to confirm-check above. Checks must never be
+// left to auto-resolve; an admin explicitly approves or rejects.
+router.patch('/registrations/:id/reject-check', protect, regCtrl.rejectCheck);
+
+// Refunds touch real money at a gateway and are irreversible, so this is
+// held to the same "Super Admin only" bar as destructive/high-trust
+// actions elsewhere in this file (permanent deletes, registration edits).
+router.post('/registrations/:id/refund', protect, superAdminOnly, regCtrl.refundPayment);
+
 // Super admin only — batch reassignment + student field corrections,
 // with automatic diff email to the parent. Higher bar than the regular
 // status/whatsapp toggles above since this can change what a parent
