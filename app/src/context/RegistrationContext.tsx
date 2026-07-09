@@ -1,7 +1,9 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { Program } from "../types/program";
 import type { BatchItem } from "../components/registration/BatchList";
+import { useAuth } from "./AuthContext";
+import { getMyStudents, getParentProfile } from "../services/parentDashboardService";
 
 export type PaymentMethod = "PayPal" | "Stripe" | "Check" | "";
 export type CheckoutMode = "guest" | "account" | "";
@@ -112,6 +114,65 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
+
+  const { token } = useAuth();
+
+  // ── Autofill from saved profile ──────────────────────────────
+  // When a parent is logged in, pre-fill the first student's details from
+  // their most recently saved child (if any) and the billing address from
+  // their saved profile — so returning parents don't retype everything.
+  // Only fills fields that are still blank, and only touches the very
+  // first, still-empty student slot, so it never clobbers what someone is
+  // actively typing (including mid-flow via Quick Register / chatbot).
+  useEffect(() => {
+    if (!token) return;
+
+    (async () => {
+      try {
+        const [myStudents, profile] = await Promise.all([
+          getMyStudents(token).catch(() => []),
+          getParentProfile(token).catch(() => null),
+        ]);
+
+        if (myStudents && myStudents.length > 0) {
+          const mostRecent = [...myStudents].sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          )[0];
+          setStudents((prev) => {
+            if (prev.length !== 1) return prev; // don't touch an in-progress multi-student cart
+            const s = prev[0];
+            if (s.firstName.trim() || s.lastName.trim()) return prev; // already filled in — leave it
+            return [{
+              ...s,
+              firstName: mostRecent.firstName || "",
+              lastName: mostRecent.lastName || "",
+              dob: mostRecent.dob ? String(mostRecent.dob).slice(0, 10) : "",
+              gender: mostRecent.gender || "",
+              schoolName: mostRecent.schoolName || "",
+              medicalNotes: mostRecent.medicalNotes || "",
+            }];
+          });
+        }
+
+        if (profile) {
+          setParentDetails((prev) => {
+            if (prev.parentName.trim() || prev.address.trim()) return prev; // already filled in
+            return {
+              parentName: `${profile.firstName} ${profile.lastName}`.trim(),
+              email: profile.email || "",
+              phone: profile.phone || "",
+              address: profile.address || "",
+              city: profile.city || "",
+              state: profile.state || "",
+              zip: profile.zip || "",
+            };
+          });
+        }
+      } catch {
+        // Non-fatal — the person can just fill the form in manually.
+      }
+    })();
+  }, [token]);
 
   const addStudent = (student: StudentDetails) => {
     setStudents((prev) => [...prev, student]);
