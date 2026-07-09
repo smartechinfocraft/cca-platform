@@ -23,6 +23,12 @@ function fmtMonthDateRange(startDate, endDate, weeks) {
 }
 
 const {
+  logPaymentSuccess,
+  logDuplicatePayment,
+  logUnauthorizedAttempt,
+} = require('../utils/paymentLogger');
+
+const {
   signAccessToken,
   signRefreshToken,
   verifyAccessToken,
@@ -61,6 +67,40 @@ async function parentAuth(req, res, next) {
   } catch {
     res.status(401).json({ success: false, message: 'Invalid token' });
   }
+}
+
+// ── Optional (soft) parent identity resolution ────────────────
+// Used by endpoints that support BOTH guest and logged-in checkout
+// (coupon validation, PayPal/Stripe intent creation, /register). Never
+// throws — an absent/invalid token just means "guest", exactly like
+// before. The important security property is the other direction: if a
+// token IS present and valid, its subject is the ONLY parent identity we
+// will ever trust for that request — a parentId typed into the request
+// body is never authoritative once an Authorization header is present.
+function resolveOptionalParentId(req) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return null;
+  try {
+    const decoded = verifyAccessToken(token);
+    if (decoded.type !== 'parent') return null;
+    return decoded.id;
+  } catch {
+    return null;
+  }
+}
+
+// ── Generic, secure error responder for payment endpoints ────
+// Only ever surfaces err.message to the client when this code base itself
+// set err.status (i.e. a deliberate, descriptive validation error like
+// "Coupon has expired"). Anything else — a thrown Stripe/PayPal SDK
+// error, a DB error, a bug — is logged in full server-side and replaced
+// with a generic message, so internal errors, stack traces, and gateway
+// secrets never reach the browser.
+function sendPaymentError(res, err, fallbackMessage, context) {
+  console.error(`Payment error${context ? ` [${context}]` : ''}:`, err);
+  const status = err.status || 500;
+  const message = err.status ? err.message : (fallbackMessage || 'We could not process this payment request. Please try again.');
+  return res.status(status).json({ success: false, message });
 }
 
 const toSafeParent = (parent) => ({
@@ -267,6 +307,7 @@ router.post('/validate-coupon', async (req, res) => {
       sessionsPerWeek,
       weeklyBatchIds,
       couponCode: couponCode.trim().toUpperCase(),
+      parentId: resolveOptionalParentId(req),
     });
 
     res.json({
@@ -286,8 +327,7 @@ router.post('/validate-coupon', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Validate coupon error:', err);
-    res.status(err.status || 400).json({ success: false, message: err.message });
+    sendPaymentError(res, err, 'Could not validate this coupon.', 'validate-coupon');
   }
 });
 
@@ -310,14 +350,17 @@ router.post('/paypal/create-order', async (req, res) => {
       sessionsPerWeek,
       weeklyBatchIds,
       couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+      parentId: resolveOptionalParentId(req),
     });
 
     if (!priced.total || priced.total <= 0)
       return res.status(400).json({ success: false, message: 'This program has no payable price configured.' });
 
     const order = await createOrder(priced.total, priced.currency);
-    if (!order.id)
-      return res.status(500).json({ success: false, message: 'Failed to create PayPal order.', detail: order });
+    if (!order.id) {
+      console.error('Failed to create PayPal order:', order);
+      return res.status(502).json({ success: false, message: 'Could not start the PayPal payment. Please try again.' });
+    }
 
     res.json({
       success: true,
@@ -327,8 +370,7 @@ router.post('/paypal/create-order', async (req, res) => {
       currency: priced.currency,
     });
   } catch (err) {
-    console.error('PayPal create order error:', err);
-    res.status(err.status || 500).json({ success: false, message: err.message });
+    sendPaymentError(res, err, 'Could not start the PayPal payment.', 'paypal/create-order');
   }
 });
 
@@ -340,18 +382,34 @@ router.post('/paypal/capture-order', async (req, res) => {
       return res.status(400).json({ success: false, message: 'orderID required.' });
 
     const capture = await captureOrder(orderID);
-    if (capture.status !== 'COMPLETED')
-      return res.status(400).json({ success: false, message: 'Payment not completed.', detail: capture });
+    if (capture.status !== 'COMPLETED') {
+      console.error('PayPal capture not completed:', capture?.status, orderID);
+      return res.status(400).json({ success: false, message: 'Payment not completed.' });
+    }
 
     const txnId = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id;
     const capturedValue = parseFloat(
       capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value || '0'
     );
 
+    // ── Duplicate/replay protection ──────────────────────────
+    // A capture ID can only ever be attached to ONE registration. If it's
+    // already on file, this is a replayed or duplicated capture request —
+    // never honor it twice.
+    if (txnId) {
+      const Registration = mongoose.model('Registration');
+      const existing = await Registration.findOne({ transactionId: txnId }).select('_id').lean();
+      if (existing) {
+        console.error(`Duplicate PayPal capture reuse attempt: ${txnId}`);
+        return res.status(409).json({ success: false, message: 'This transaction has already been used.' });
+      }
+    }
+
     if (programId) {
       const priced = await computeRegistrationTotal({
         programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+        parentId: resolveOptionalParentId(req),
       });
       if (Math.abs(capturedValue - priced.total) > 0.01) {
         console.error(
@@ -364,10 +422,9 @@ router.post('/paypal/capture-order', async (req, res) => {
       }
     }
 
-    res.json({ success: true, transactionId: txnId, capturedAmount: capturedValue, capture });
+    res.json({ success: true, transactionId: txnId, capturedAmount: capturedValue });
   } catch (err) {
-    console.error('PayPal capture error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    sendPaymentError(res, err, 'Could not verify the PayPal payment.', 'paypal/capture-order');
   }
 });
 
@@ -388,6 +445,7 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
       sessionsPerWeek,
       weeklyBatchIds,
       couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+      parentId: resolveOptionalParentId(req),
     });
 
     if (!priced.total || priced.total <= 0)
@@ -411,8 +469,7 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
     });
   } catch (err) {
-    console.error('Stripe create payment intent error:', err);
-    res.status(err.status || 500).json({ success: false, message: err.message });
+    sendPaymentError(res, err, 'Could not start the card payment.', 'stripe/create-payment-intent');
   }
 });
 
@@ -430,13 +487,14 @@ router.post('/donate/create-order', async (req, res) => {
 
     const rounded = round2(amount);
     const order = await createOrder(rounded, 'USD');
-    if (!order.id)
-      return res.status(500).json({ success: false, message: 'Failed to create PayPal order.', detail: order });
+    if (!order.id) {
+      console.error('Failed to create PayPal donation order:', order);
+      return res.status(502).json({ success: false, message: 'Could not start the donation payment. Please try again.' });
+    }
 
     res.json({ success: true, orderID: order.id, amount: rounded, currency: 'USD' });
   } catch (err) {
-    console.error('PayPal donation create-order error:', err);
-    res.status(err.status || 500).json({ success: false, message: err.message });
+    sendPaymentError(res, err, 'Could not start the donation payment.', 'donate/create-order');
   }
 });
 
@@ -448,8 +506,10 @@ router.post('/donate/capture-order', async (req, res) => {
       return res.status(400).json({ success: false, message: 'orderID required.' });
 
     const capture = await captureOrder(orderID);
-    if (capture.status !== 'COMPLETED')
-      return res.status(400).json({ success: false, message: 'Payment not completed.', detail: capture });
+    if (capture.status !== 'COMPLETED') {
+      console.error('PayPal donation capture not completed:', capture?.status, orderID);
+      return res.status(400).json({ success: false, message: 'Payment not completed.' });
+    }
 
     const txnId = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id;
     const capturedValue = parseFloat(
@@ -460,8 +520,7 @@ router.post('/donate/capture-order', async (req, res) => {
 
     res.json({ success: true, transactionId: txnId, capturedAmount: capturedValue });
   } catch (err) {
-    console.error('PayPal donation capture error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    sendPaymentError(res, err, 'Could not verify the donation payment.', 'donate/capture-order');
   }
 });
 
@@ -487,6 +546,38 @@ router.post('/register', async (req, res) => {
 
     if (!selectedProgram?._id)
       return res.status(400).json({ success: false, message: 'Program is required.' });
+
+    // ── SECURITY: never trust req.body.parentId ─────────────────────
+    // The frontend sends parentId for logged-in checkouts, but a client
+    // can put ANY id there. The only parentId this endpoint will ever
+    // act on is the one recovered from a verified Bearer access token —
+    // "Parent can pay only their own registrations." If the body claims
+    // an identity that the token doesn't back (missing token, wrong
+    // token, or a mismatched id), the request is rejected outright
+    // rather than silently downgraded to a guest registration.
+    const authenticatedParentId = resolveOptionalParentId(req);
+    if (parentId && !authenticatedParentId) {
+      logUnauthorizedAttempt({ reason: 'parentId in body with no valid session', claimedParentId: String(parentId) });
+      return res.status(401).json({ success: false, message: 'Your session has expired. Please log in again to complete this registration.' });
+    }
+    if (parentId && authenticatedParentId && String(parentId) !== String(authenticatedParentId)) {
+      logUnauthorizedAttempt({ reason: 'parentId mismatch', claimedParentId: String(parentId), authenticatedParentId: String(authenticatedParentId) });
+      return res.status(403).json({ success: false, message: 'You are not authorized to register under that account.' });
+    }
+
+    // ── SECURITY: duplicate / replayed payment protection ───────────
+    // A transactionId is a real-world gateway payment that can only ever
+    // be attached to one registration. Reject early if it's already on
+    // file (also enforced at the DB layer via a unique index, but this
+    // gives a clean 409 instead of a generic 500 for the common case).
+    if (transactionId && (paymentMethod === 'Stripe' || paymentMethod === 'PayPal')) {
+      const existing = await mongoose.model('Registration')
+        .findOne({ transactionId }).select('_id').lean();
+      if (existing) {
+        logDuplicatePayment({ transactionId, paymentMethod });
+        return res.status(409).json({ success: false, message: 'This transaction has already been used for a registration.' });
+      }
+    }
 
     // ── Weekly batch selection (multi-select) ──────────────────
     // batchType is always re-checked from the DB — never trust the client
@@ -563,6 +654,7 @@ router.post('/register', async (req, res) => {
         sessionsPerWeek,
         weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+        parentId: authenticatedParentId,
       });
     } else {
       // Price each student's batch individually, then sum
@@ -589,6 +681,7 @@ router.post('/register', async (req, res) => {
         sessionsPerWeek,
         weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+        parentId: authenticatedParentId,
       });
 
       // Use the real per-student sum but take discount from the coupon computation
@@ -613,8 +706,8 @@ router.post('/register', async (req, res) => {
     // Resolve or create parent ref
     const Parent = require('../models/Parent');
     let resolvedParentId;
-    if (parentId) {
-      resolvedParentId = parentId;
+    if (authenticatedParentId) {
+      resolvedParentId = authenticatedParentId;
       // Logged-in parent — keep their profile address in sync with whatever
       // billing address they submitted here, so it's pre-filled by default
       // on future registrations (they can still edit it any time).
@@ -704,13 +797,15 @@ router.post('/register', async (req, res) => {
       try {
         const captureDetails = await getCaptureDetails(transactionId);
         const capturedValue = parseFloat(captureDetails?.amount?.value || '0');
+        const capturedCurrency = captureDetails?.amount?.currency_code;
         const isCompleted = captureDetails?.status === 'COMPLETED';
         const amountMatches = Math.abs(capturedValue - priced.total) <= 0.01;
+        const currencyMatches = !capturedCurrency || capturedCurrency === priced.currency;
 
-        if (isCompleted && amountMatches) {
+        if (isCompleted && amountMatches && currencyMatches) {
           pmStatus = 'SUCCESS';
         } else {
-          verificationNote = `PayPal verification failed (status=${captureDetails?.status}, captured=$${capturedValue}, expected=$${priced.total}). Registration held as PENDING for staff review.`;
+          verificationNote = `PayPal verification failed (status=${captureDetails?.status}, captured=$${capturedValue} ${capturedCurrency}, expected=$${priced.total} ${priced.currency}). Registration held as PENDING for staff review.`;
           console.error(verificationNote, '— transactionId:', transactionId);
         }
       } catch (verifyErr) {
@@ -724,11 +819,21 @@ router.post('/register', async (req, res) => {
         const expectedCents = toMinorUnits(priced.total);
         const isCompleted = intent.status === 'succeeded';
         const amountMatches = Math.abs(capturedCents - expectedCents) <= 1;
+        const currencyMatches = !intent.currency || intent.currency.toUpperCase() === priced.currency;
+        // SECURITY: the PaymentIntent's own metadata.programId (set by our
+        // server when the intent was created — see /stripe/create-payment-intent
+        // above) must match the program actually being registered for here.
+        // Without this check, a PaymentIntent created (and paid) for a cheap
+        // program could be replayed against a /register call for an
+        // expensive one, since amount/currency alone don't prove *what* was
+        // being paid for.
+        const metadataMatches = !intent.metadata?.programId
+          || String(intent.metadata.programId) === String(selectedProgram._id);
 
-        if (isCompleted && amountMatches) {
+        if (isCompleted && amountMatches && currencyMatches && metadataMatches) {
           pmStatus = 'SUCCESS';
         } else {
-          verificationNote = `Stripe verification failed (status=${intent?.status}, captured=${capturedCents}, expected=${expectedCents}). Registration held as PENDING for staff review.`;
+          verificationNote = `Stripe verification failed (status=${intent?.status}, captured=${capturedCents}, expected=${expectedCents}, metadataMatches=${metadataMatches}). Registration held as PENDING for staff review.`;
           console.error(verificationNote, '— paymentIntentId:', transactionId);
         }
       } catch (verifyErr) {
@@ -739,11 +844,27 @@ router.post('/register', async (req, res) => {
 
     // ── Decrement coupon usedCount AFTER payment is confirmed ──
     // Only do this when the registration has a coupon and the payment
-    // was either successful (PayPal/Stripe) or submitted (Check). This ensures
-    // the counter only goes up for real completed/intended registrations.
+    // was either successful (PayPal/Stripe) or submitted (Check). Uses an
+    // ATOMIC conditional update (only increments if still under the
+    // limit) rather than read-then-write, so two concurrent registrations
+    // racing on the last remaining use of a maxUses coupon can't both
+    // succeed — this closes the duplicate-usage race window.
+    let couponHonored = !!priced.coupon;
     if (priced.coupon && (pmStatus === 'SUCCESS' || paymentMethod === 'Check')) {
       const Coupon = mongoose.model('Coupon');
-      await Coupon.findByIdAndUpdate(priced.coupon._id, { $inc: { usedCount: 1 } });
+      const incremented = await Coupon.findOneAndUpdate(
+        {
+          _id: priced.coupon._id,
+          isActive: true,
+          $or: [{ maxUses: null }, { $expr: { $lt: ['$usedCount', '$maxUses'] } }],
+        },
+        { $inc: { usedCount: 1 } },
+        { new: true }
+      );
+      if (!incremented) {
+        couponHonored = false;
+        console.error(`Coupon abuse/race detected — ${priced.coupon.code} was already at its usage limit at save time.`);
+      }
     }
 
     const studentNote = studentInputs
@@ -785,11 +906,15 @@ router.post('/register', async (req, res) => {
       subtotal: priced.subtotal,
       discountAmount: priced.discount,
       totalAmount: priced.total,
-      couponCode: priced.coupon ? priced.coupon.code : undefined,
+      couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
       paymentMethod: pmMethod,
       paymentStatus: pmStatus,
       transactionId: transactionId || undefined,
       checkNumber: checkNumber || undefined,
+      // Check payments are NEVER auto-approved — they start life as
+      // SUBMITTED and can only move forward via the admin-only
+      // confirm-check / reject-check endpoints.
+      checkPaymentState: pmMethod === 'CHECK' ? 'SUBMITTED' : undefined,
       status: pmStatus === 'SUCCESS' ? 'CONFIRMED' : 'AWAITING_PAYMENT',
       customerNote: studentNote,
       adminNote: verificationNote || undefined,
@@ -800,9 +925,28 @@ router.post('/register', async (req, res) => {
       waiverAgreementVersion: waiverConsent.agreementVersion || 'CCA-WAIVER-2025-10-30',
       mediaConsent: true,
       medicalConsent: true,
+      paymentAuditLog: [{
+        event: pmStatus === 'SUCCESS' ? 'PAYMENT_VERIFIED' : (pmMethod === 'CHECK' ? 'CHECK_SUBMITTED' : 'PAYMENT_PENDING_REVIEW'),
+        note: pmMethod,
+      }],
     });
 
-    await reg.save();
+    try {
+      await reg.save();
+    } catch (saveErr) {
+      // Unique index on transactionId is the last line of defense against
+      // a duplicate/replayed payment slipping past the earlier check due
+      // to a race between two near-simultaneous requests.
+      if (saveErr.code === 11000 && saveErr.keyPattern?.transactionId) {
+        logDuplicatePayment({ transactionId, paymentMethod, reason: 'unique index conflict at save time' });
+        return res.status(409).json({ success: false, message: 'This transaction has already been used for a registration.' });
+      }
+      throw saveErr;
+    }
+
+    if (pmStatus === 'SUCCESS') {
+      logPaymentSuccess({ gateway: pmMethod, transactionId, registrationNumber: reg.registrationNumber, amount: priced.total });
+    }
 
     sendRegistrationEmail({
       to: parentInfo.email,
@@ -829,11 +973,10 @@ router.post('/register', async (req, res) => {
       subtotal: priced.subtotal,
       discount: priced.discount,
       totalAmount: priced.total,
-      couponCode: priced.coupon ? priced.coupon.code : undefined,
+      couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
     });
   } catch (err) {
-    console.error('Registration error:', err);
-    res.status(err.status || 500).json({ success: false, message: err.message });
+    sendPaymentError(res, err, 'We could not complete this registration. Please try again.', 'register');
   }
 });
 
