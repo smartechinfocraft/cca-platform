@@ -129,4 +129,43 @@ async function getCaptureDetails(captureId) {
   });
 }
 
-module.exports = { createOrder, captureOrder, getCaptureDetails };
+/**
+ * Refund a completed capture. Only ever called from an admin-gated route.
+ * `amount` (if provided) must be a positive number in major currency units
+ * (e.g. dollars) — a partial refund. Omit for a full refund.
+ */
+async function refundCapture(captureId, amount, currency = 'USD') {
+  const token = await getAccessToken();
+  const body = JSON.stringify(
+    amount != null
+      ? { amount: { value: parseFloat(amount).toFixed(2), currency_code: currency } }
+      : {}
+  );
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: BASE.replace('https://', ''),
+      path: `/v2/payments/captures/${captureId}/refund`,
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'PayPal-Request-Id': `refund-${captureId}`, // PayPal-side idempotency key
+      },
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (d) => { data += d; });
+      res.on('end', () => {
+        try { resolve({ statusCode: res.statusCode, ...JSON.parse(data || '{}') }); }
+        catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+module.exports = { createOrder, captureOrder, getCaptureDetails, refundCapture };
