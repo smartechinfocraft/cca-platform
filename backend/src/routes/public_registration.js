@@ -543,6 +543,9 @@ router.post('/register', async (req, res) => {
     if (!parentInfo?.email)
       return res.status(400).json({ success: false, message: 'Parent email is required.' });
 
+    if (!parentInfo?.address || !parentInfo?.city || !parentInfo?.state || !parentInfo?.zip)
+      return res.status(400).json({ success: false, message: 'A complete billing address (street, city, state, ZIP) is required.' });
+
     // ── SECURITY: server-computed price, coupon also re-validated here ──
     // Students may each have their own batch (multi-child with different batches).
     // If all students share the same batch, use the fast single computeRegistrationTotal path.
@@ -612,6 +615,17 @@ router.post('/register', async (req, res) => {
     let resolvedParentId;
     if (parentId) {
       resolvedParentId = parentId;
+      // Logged-in parent — keep their profile address in sync with whatever
+      // billing address they submitted here, so it's pre-filled by default
+      // on future registrations (they can still edit it any time).
+      if (parentInfo?.address || parentInfo?.city || parentInfo?.state || parentInfo?.zip) {
+        await Parent.findByIdAndUpdate(resolvedParentId, {
+          ...(parentInfo.address ? { address: parentInfo.address } : {}),
+          ...(parentInfo.city ? { city: parentInfo.city } : {}),
+          ...(parentInfo.state ? { state: parentInfo.state } : {}),
+          ...(parentInfo.zip ? { zip: parentInfo.zip } : {}),
+        });
+      }
     } else {
       let parent = await Parent.findOne({ email: parentInfo.email.toLowerCase() });
       if (!parent) {
@@ -627,6 +641,14 @@ router.post('/register', async (req, res) => {
           state: parentInfo.state,
           zip: parentInfo.zip,
         });
+        await parent.save();
+      } else if (parentInfo?.address || parentInfo?.city || parentInfo?.state || parentInfo?.zip) {
+        // Existing guest-checkout parent found by email — keep their saved
+        // address current too, same as the logged-in path above.
+        if (parentInfo.address) parent.address = parentInfo.address;
+        if (parentInfo.city) parent.city = parentInfo.city;
+        if (parentInfo.state) parent.state = parentInfo.state;
+        if (parentInfo.zip) parent.zip = parentInfo.zip;
         await parent.save();
       }
       resolvedParentId = parent._id;
