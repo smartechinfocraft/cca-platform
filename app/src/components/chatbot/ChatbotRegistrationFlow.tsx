@@ -24,6 +24,7 @@ import WaiverConsent from "../registration/WaiverConsent";
 import WeeklyBatchSelector from "../registration/WeeklyBatchSelector";
 import StripePaymentBox from "../payments/StripePaymentBox";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
+import { getMyStudents, getParentProfile } from "../../services/parentDashboardService";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 import {
   fetchChatPrograms,
@@ -260,6 +261,49 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   const [waiverDrawnSignature, setWaiverDrawnSignature] = useState("");
   const [waiverError, setWaiverError] = useState<string | null>(null);
   const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
+
+  // ── Autofill from saved profile (logged-in parents) ──────────
+  // Same idea as the main site: pre-fill the player's details from the
+  // most recently saved child and the billing address from the saved
+  // parent profile, so it's only typed once. Only fills blank fields —
+  // never overwrites something already entered, and the person can still
+  // edit anything before continuing.
+  useEffect(() => {
+    if (!token) return;
+    getMyStudents(token)
+      .then((list) => {
+        if (!list || list.length === 0) return;
+        const mostRecent = [...list].sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        )[0];
+        setStudent((prev) =>
+          prev.firstName.trim() || prev.lastName.trim()
+            ? prev
+            : {
+                firstName: mostRecent.firstName || "",
+                lastName: mostRecent.lastName || "",
+                dob: mostRecent.dob ? String(mostRecent.dob).slice(0, 10) : "",
+                gender: mostRecent.gender || "",
+                schoolName: mostRecent.schoolName || "",
+              }
+        );
+      })
+      .catch(() => {});
+    getParentProfile(token)
+      .then((profile) => {
+        setBilling((prev) =>
+          prev.address.trim()
+            ? prev
+            : {
+                address: profile.address || "",
+                city: profile.city || "",
+                state: profile.state || "",
+                zip: profile.zip || "",
+              }
+        );
+      })
+      .catch(() => {});
+  }, [token]);
 
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
@@ -859,13 +903,19 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
                 ? `Thanks, ${user.firstName}! We have your email and phone on file — just need your address for billing/records:`
                 : "Last step before payment — your billing address:"}
             </Bubble>
-            <TextField label="Street address" value={billing.address} onChange={(v) => setBilling({ ...billing, address: v })} placeholder="123 Maple Avenue" />
-            <TextField label="City" value={billing.city} onChange={(v) => setBilling({ ...billing, city: v })} placeholder="San Jose" />
+            <TextField label="Street address" value={billing.address} onChange={(v) => setBilling({ ...billing, address: v })} placeholder="123 Maple Avenue" required />
+            <TextField label="City" value={billing.city} onChange={(v) => setBilling({ ...billing, city: v })} placeholder="San Jose" required />
             <div className="grid grid-cols-2 gap-2">
-              <TextField label="State" value={billing.state} onChange={(v) => setBilling({ ...billing, state: v })} placeholder="CA" />
-              <TextField label="ZIP code" value={billing.zip} onChange={(v) => setBilling({ ...billing, zip: v })} placeholder="95123" />
+              <TextField label="State" value={billing.state} onChange={(v) => setBilling({ ...billing, state: v })} placeholder="CA" required />
+              <TextField label="ZIP code" value={billing.zip} onChange={(v) => setBilling({ ...billing, zip: v })} placeholder="95123" required />
             </div>
-            <button onClick={() => goTo("review")} className="cca-flow-btn">Continue to Review</button>
+            <button
+              onClick={() => goTo("review")}
+              disabled={!billing.address.trim() || !billing.city.trim() || !billing.state.trim() || !billing.zip.trim()}
+              className="cca-flow-btn"
+            >
+              Continue to Review
+            </button>
           </>
         )}
 
