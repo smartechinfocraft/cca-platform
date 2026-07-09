@@ -277,7 +277,7 @@ export interface ChatRegistrationPayload {
   parent: { parentName: string; email: string; phone: string; address?: string; city?: string; state?: string; zip?: string };
   parentId?: string;
   sessionsPerWeek?: number;
-  paymentMethod: "PayPal" | "Check";
+  paymentMethod: "PayPal" | "Stripe" | "Check";
   transactionId?: string;
   checkNumber?: string;
   couponCode?: string;
