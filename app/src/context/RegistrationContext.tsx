@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { Program } from "../types/program";
 import type { BatchItem } from "../components/registration/BatchList";
+import type { StudentWithSummary } from "../types/parentDashboard";
 import { useAuth } from "./AuthContext";
 import { getMyStudents, getParentProfile } from "../services/parentDashboardService";
 
@@ -63,6 +64,14 @@ export interface RegistrationContextValue {
   appliedCoupon: AppliedCoupon | null;
   couponDiscount: number;
 
+  // When a logged-in parent has 2+ saved children, we don't guess which
+  // one this registration is for — this holds the list so a
+  // SavedStudentPicker can be shown, and is cleared once the parent
+  // picks one (or chooses to skip and type in a new student).
+  savedStudentOptions: StudentWithSummary[] | null;
+  selectSavedStudent: (student: StudentWithSummary) => void;
+  dismissSavedStudentOptions: () => void;
+
   // Setters
   setSelectedProgram: (program: Program | null) => void;
   setSelectedBatch: (batch: BatchItem | null) => void;
@@ -114,6 +123,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
+  const [savedStudentOptions, setSavedStudentOptions] = useState<StudentWithSummary[] | null>(null);
 
   const { token, user } = useAuth();
 
@@ -165,12 +175,18 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [draftHydrated, draftKey, selectedProgram, selectedBatch, students, parentDetails, checkoutMode]);
 
   // ── Autofill from saved profile ──────────────────────────────
-  // When a parent is logged in, pre-fill the first student's details from
-  // their most recently saved child (if any) and the billing address from
-  // their saved profile — so returning parents don't retype everything.
-  // Only fills fields that are still blank, and only touches the very
-  // first, still-empty student slot, so it never clobbers what someone is
-  // actively typing (including mid-flow via Quick Register / chatbot).
+  // When a parent is logged in with exactly ONE saved child, pre-fill
+  // the first student's details automatically (same as before) and the
+  // billing address from their saved profile — so returning parents
+  // don't retype everything. Only fills fields that are still blank,
+  // and only touches the very first, still-empty student slot, so it
+  // never clobbers what someone is actively typing (including mid-flow
+  // via Quick Register / chatbot).
+  //
+  // When the parent has TWO OR MORE saved children, we can't guess
+  // which one this registration is for, so instead of silently grabbing
+  // the most-recently-added one, we surface them via savedStudentOptions
+  // so the UI can show a small radio picker ("Who is this for?").
   useEffect(() => {
     if (!token) return;
 
@@ -181,23 +197,29 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
           getParentProfile(token).catch(() => null),
         ]);
 
-        if (myStudents && myStudents.length > 0) {
-          const mostRecent = [...myStudents].sort(
-            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-          )[0];
+        if (myStudents && myStudents.length === 1) {
+          const only = myStudents[0];
           setStudents((prev) => {
             if (prev.length !== 1) return prev; // don't touch an in-progress multi-student cart
             const s = prev[0];
             if (s.firstName.trim() || s.lastName.trim()) return prev; // already filled in — leave it
             return [{
               ...s,
-              firstName: mostRecent.firstName || "",
-              lastName: mostRecent.lastName || "",
-              dob: mostRecent.dob ? String(mostRecent.dob).slice(0, 10) : "",
-              gender: mostRecent.gender || "",
-              schoolName: mostRecent.schoolName || "",
-              medicalNotes: mostRecent.medicalNotes || "",
+              firstName: only.firstName || "",
+              lastName: only.lastName || "",
+              dob: only.dob ? String(only.dob).slice(0, 10) : "",
+              gender: only.gender || "",
+              schoolName: only.schoolName || "",
+              medicalNotes: only.medicalNotes || "",
             }];
+          });
+        } else if (myStudents && myStudents.length > 1) {
+          setStudents((prev) => {
+            if (prev.length !== 1) return prev; // in-progress multi-student cart — leave alone
+            const s = prev[0];
+            if (s.firstName.trim() || s.lastName.trim()) return prev; // already filled in — leave it
+            setSavedStudentOptions(myStudents);
+            return prev;
           });
         }
 
@@ -239,6 +261,32 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setParentDetails((prev) => ({ ...prev, ...parent }));
   };
 
+  // Parent picked a specific child from the SavedStudentPicker — fetch
+  // their details into the first (still-blank) student slot and close
+  // the picker.
+  const selectSavedStudent = (picked: StudentWithSummary) => {
+    setStudents((prev) => {
+      const base = prev.length > 0 ? prev[0] : emptyStudent();
+      const filled: StudentDetails = {
+        ...base,
+        firstName: picked.firstName || "",
+        lastName: picked.lastName || "",
+        dob: picked.dob ? String(picked.dob).slice(0, 10) : "",
+        gender: picked.gender || "",
+        schoolName: picked.schoolName || "",
+        medicalNotes: picked.medicalNotes || "",
+      };
+      return prev.length > 0 ? [filled, ...prev.slice(1)] : [filled];
+    });
+    setSavedStudentOptions(null);
+  };
+
+  // Parent chose "None of these — add a different student" — just close
+  // the picker and leave the form blank for manual entry.
+  const dismissSavedStudentOptions = () => {
+    setSavedStudentOptions(null);
+  };
+
   const resetRegistration = () => {
     setSelectedProgram(null);
     setSelectedBatch(null);
@@ -251,6 +299,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setCheckoutMode("");
     setAppliedCoupon(null);
     setCouponDiscount(0);
+    setSavedStudentOptions(null);
     try {
       sessionStorage.removeItem(draftKey);
     } catch {
@@ -272,6 +321,9 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
         checkoutMode,
         appliedCoupon,
         couponDiscount,
+        savedStudentOptions,
+        selectSavedStudent,
+        dismissSavedStudentOptions,
         setSelectedProgram,
         setSelectedBatch,
         addStudent,
