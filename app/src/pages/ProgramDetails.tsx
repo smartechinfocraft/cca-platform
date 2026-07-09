@@ -14,6 +14,7 @@ import { useRegistration } from "../context/RegistrationContext";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import GenderSelect from "../components/registration/GenderSelect";
+import SavedStudentPicker from "../components/registration/SavedStudentPicker";
 // WEEKLY batchType support — same component + pricing helpers Quick Register
 // uses, so "View Details" behaves identically for Weekly programs.
 import WeeklyBatchSelector from "../components/registration/WeeklyBatchSelector";
@@ -116,6 +117,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     students, currentStudentIndex, setCurrentStudentIndex,
     updateStudent, addStudent, removeStudent,
     setSelectedBatch, setSelectedProgram,
+    savedStudentOptions, selectSavedStudent, dismissSavedStudentOptions,
   } = useRegistration();
 
   // Batch / month / day state
@@ -544,6 +546,14 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               </div>
             )}
           </div>
+
+          {savedStudentOptions && currentStudentIndex === 0 && !student?.firstName?.trim() && !student?.lastName?.trim() && (
+            <SavedStudentPicker
+              students={savedStudentOptions}
+              onSelect={selectSavedStudent}
+              onSkip={dismissSavedStudentOptions}
+            />
+          )}
 
           {/* Form fields */}
           <div className="space-y-3">
