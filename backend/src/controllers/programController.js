@@ -7,6 +7,7 @@
 const mongoose = require('mongoose');
 const Program  = require('../models/Program');
 const { fileUrl } = require('../middleware/upload');
+const { pickAllowedFields } = require('../utils/allowlist');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,6 +18,22 @@ const toSKU = (category, title) => {
   const parts = [category, title].join('-').toUpperCase().replace(/[^A-Z0-9]+/g, '-');
   return `CCA-${parts}`.substring(0, 60);
 };
+
+// ── Payload Allowlisting ─────────────────────────────────────
+// Only these fields may ever be written to a Program document from
+// a request body. Notably excluded: coverImagePath/coverImageUrl
+// (only ever set from a verified multer upload, never trusted from
+// the body directly), createdBy/updatedBy (server-assigned from the
+// authenticated admin), and any Mongo internal fields.
+const PROGRAM_ALLOWED_FIELDS = [
+  'category', 'location', 'title', 'slug', 'sku', 'batchType',
+  'ageGroups', 'skillLevels', 'cities',
+  'basePrice', 'discountedPrice',
+  'startDate', 'endDate', 'registrationDeadline',
+  'maxCapacity', 'shortDescription', 'detailedDescription', 'specialNote',
+  'isFeatured', 'isActive', 'coachId', 'sessionsPerWeek',
+  'monthOptions', 'weekOptions', 'weeklyBatches', 'scheduleDays',
+];
 
 // ─── GET /api/programs ────────────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
@@ -57,7 +74,7 @@ exports.getOne = async (req, res) => {
 // ─── POST /api/programs ── Super Admin only ───────────────────────────────────
 exports.create = async (req, res) => {
   try {
-    const body = { ...req.body };
+    const body = pickAllowedFields(req.body, PROGRAM_ALLOWED_FIELDS);
 
     if (req.file) {
       body.coverImagePath = req.file.path.replace(/\\/g, '/');
@@ -110,7 +127,7 @@ exports.update = async (req, res) => {
     const program = await Program.findById(req.params.id);
     if (!program) return res.status(404).json({ success: false, message: 'Program not found' });
 
-    const body = { ...req.body };
+    const body = pickAllowedFields(req.body, PROGRAM_ALLOWED_FIELDS);
 
     if (req.file) {
       if (program.coverImagePath) {
