@@ -41,7 +41,9 @@ interface StripePaymentBoxProps {
   batchId?: string;
   studentCount: number;
   sessionsPerWeek?: number;
+  selectedDays?: string;
   selectedMonth?: string | { label?: string };
+  expectedUnitPrice?: number;
   weeklyBatchIds?: string[];
   cartItems?: unknown[];
   couponCode?: string;
@@ -55,7 +57,9 @@ export default function StripePaymentBox({
   batchId,
   studentCount,
   sessionsPerWeek,
+  selectedDays,
   selectedMonth,
+  expectedUnitPrice,
   weeklyBatchIds,
   cartItems,
   couponCode,
@@ -93,7 +97,9 @@ export default function StripePaymentBox({
           batchId,
           studentCount,
           sessionsPerWeek,
+          selectedDays,
           selectedMonth,
+          expectedUnitPrice,
           weeklyBatchIds,
           cartItems,
           couponCode,
@@ -129,7 +135,7 @@ export default function StripePaymentBox({
       paymentElementRef.current?.unmount();
       paymentElementRef.current = null;
     };
-  }, [programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, cartItems, couponCode]);
+  }, [programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, cartItems, couponCode]);
 
   const handlePay = async () => {
     if (!stripeRef.current || !elementsRef.current) return;

@@ -22,6 +22,23 @@ function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string 
   return weeks ? `${range} ( ${weeks} week )` : range;
 }
 
+function splitSelectedDays(days?: string): string[] {
+  return (days ?? "")
+    .split(/\s*(?:\+|\||,|\n)\s*/)
+    .map((day) => day.trim())
+    .filter(Boolean);
+}
+
+function getEffectiveBatchFee(batch: any, fallbackPrice = 0): number {
+  if (!batch) return fallbackPrice;
+  const selectedMonthPrice = Number(batch.selectedMonth?.price);
+  const selectedDayCount = splitSelectedDays(batch.days || batch.timing).length;
+  if (selectedMonthPrice > 0 && selectedDayCount > 0) {
+    return selectedMonthPrice * selectedDayCount;
+  }
+  return Number(batch.fee ?? fallbackPrice) || 0;
+}
+
 function ReviewOrder() {
   const navigate = useNavigate();
   const {
@@ -38,7 +55,7 @@ function ReviewOrder() {
     setCouponDiscount,
   } = useRegistration();
   const { user } = useAuth();
-  const { items: cartItems, addItem } = useCart();
+  const { upsertItem } = useCart();
   const cartSyncedRef = useRef(false);
 
   const [editingBilling, setEditingBilling] = useState(false);
@@ -68,44 +85,26 @@ function ReviewOrder() {
     if (cartStudents.length === 0) return;
 
     const batchId = selectedBatch._id ?? selectedBatch.name ?? "selected-batch";
-    const selectedMonth = (selectedBatch as any).selectedMonth?.label ?? "";
+    const selectedMonthOption = (selectedBatch as any).selectedMonth;
+    const selectedMonth = selectedMonthOption?.label ?? "";
     const selectedDays = selectedBatch.days ?? selectedBatch.timing ?? "";
-    const sameRegistrationExists = cartItems.some((item) => {
-      const sameStudents =
-        item.students.length === cartStudents.length &&
-        item.students.every((student, index) =>
-          student.firstName === cartStudents[index]?.firstName &&
-          student.lastName === cartStudents[index]?.lastName &&
-          student.dob === cartStudents[index]?.dob
-        );
-
-      return (
-        item.programId === selectedProgram._id &&
-        item.batchId === batchId &&
-        item.selectedMonth === selectedMonth &&
-        item.selectedDays === selectedDays &&
-        sameStudents
-      );
+    const effectiveSelectedBatchFee = getEffectiveBatchFee(selectedBatch as any, selectedProgram.basePrice ?? 0);
+    upsertItem({
+      programId: selectedProgram._id,
+      programTitle: selectedProgram.title,
+      programImage: (selectedProgram as any).coverImageUrl,
+      batchId,
+      batchName: selectedBatch.name,
+      selectedMonth,
+      selectedMonthOption,
+      selectedDays,
+      sessionsPerWeek: Math.max(selectedBatch.sessionsPerWeek ?? 1, splitSelectedDays(selectedDays).length || 1),
+      fee: effectiveSelectedBatchFee,
+      students: cartStudents,
     });
 
-    if (!sameRegistrationExists) {
-      addItem({
-        programId: selectedProgram._id,
-        programTitle: selectedProgram.title,
-        programImage: (selectedProgram as any).coverImageUrl,
-        batchId,
-        batchName: selectedBatch.name,
-        selectedMonth,
-        selectedMonthOption: (selectedBatch as any).selectedMonth,
-        selectedDays,
-        sessionsPerWeek: selectedBatch.sessionsPerWeek ?? 1,
-        fee: selectedBatch.fee,
-        students: cartStudents,
-      });
-    }
-
     cartSyncedRef.current = true;
-  }, [addItem, cartItems, selectedBatch, selectedProgram, students]);
+  }, [selectedBatch, selectedProgram, students, upsertItem]);
 
   useEffect(() => {
     if (user) {
@@ -132,9 +131,9 @@ function ReviewOrder() {
   // Sum each student's individual fee; fall back to the global selectedBatch fee,
   // then the program base price, so the total is always accurate.
   const studentFees = students.map(
-    (s) => s.selectedBatch?.fee ?? selectedBatch?.fee ?? selectedProgram?.basePrice ?? 0
+    (s) => getEffectiveBatchFee(s.selectedBatch ?? selectedBatch, selectedProgram?.basePrice ?? 0)
   );
-  const perStudentFee = selectedBatch?.fee ?? selectedProgram?.basePrice ?? 0; // kept for "fee per student" display line
+  const perStudentFee = getEffectiveBatchFee(selectedBatch as any, selectedProgram?.basePrice ?? 0);
   const subtotal = studentFees.reduce((sum, fee) => sum + fee, 0);
   const discount = couponDiscount;
   const grandTotal = Math.max(0, subtotal - discount);
@@ -316,7 +315,7 @@ function ReviewOrder() {
                           ))}
                       </ul>
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--gold)]">${selectedBatch.fee} </p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--gold)]">${perStudentFee} </p>
                   </div>
                 )}
               </div>

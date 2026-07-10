@@ -2,3 +2,4 @@ backend/.env
 backend/uploads/media/
 app/.env
 app/.env
+app/.env

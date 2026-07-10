@@ -54,6 +54,7 @@ interface CartContextValue {
   coupon: AppliedCartCoupon | null;
   couponDiscount: number;
   addItem: (item: Omit<CartItem, "cartId">) => void;
+  upsertItem: (item: Omit<CartItem, "cartId">) => void;
   removeItem: (cartId: string) => void;
   clearCart: () => void;
   updateStudents: (cartId: string, students: CartStudent[]) => void;
@@ -124,6 +125,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const upsertItem = (item: Omit<CartItem, "cartId">) => {
+    setItems((prev) => {
+      const existingIndex = prev.findIndex((existing) => {
+        const sameStudents =
+          existing.students.length === item.students.length &&
+          existing.students.every((student, index) =>
+            student.firstName === item.students[index]?.firstName &&
+            student.lastName === item.students[index]?.lastName &&
+            student.dob === item.students[index]?.dob
+          );
+
+        return (
+          existing.programId === item.programId &&
+          existing.batchId === item.batchId &&
+          existing.selectedMonth === item.selectedMonth &&
+          existing.selectedDays === item.selectedDays &&
+          sameStudents
+        );
+      });
+
+      const next =
+        existingIndex >= 0
+          ? prev.map((existing, index) => (index === existingIndex ? { ...existing, ...item } : existing))
+          : [...prev, { ...item, cartId: `${item.programId}-${item.batchId}-${Date.now()}` }];
+      persist(activeKeyRef.current, next);
+      return next;
+    });
+  };
+
   const removeItem = (cartId: string) => {
     setItems((prev) => {
       const next = prev.filter((i) => i.cartId !== cartId);
@@ -166,7 +196,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     <CartContext.Provider
       value={{
         items, coupon, couponDiscount,
-        addItem, removeItem, clearCart, updateStudents,
+        addItem, upsertItem, removeItem, clearCart, updateStudents,
         setCoupon, setCouponDiscount,
         itemCount, subtotal, grandTotal,
       }}

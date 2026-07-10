@@ -293,7 +293,7 @@ router.post('/auth/forgot-password', async (req, res) => {
 // registration is actually saved (in POST /register below).
 router.post('/validate-coupon', async (req, res) => {
   try {
-    const { couponCode, programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, cartItems } = req.body;
+    const { couponCode, programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, cartItems } = req.body;
 
     if (!couponCode || (!programId && (!Array.isArray(cartItems) || cartItems.length === 0)))
       return res.status(400).json({ success: false, message: 'couponCode and programId are required.' });
@@ -312,7 +312,9 @@ router.post('/validate-coupon', async (req, res) => {
           batchId,
           studentCount: studentCount || 1,
           sessionsPerWeek,
+          selectedDays,
           selectedMonth,
+          expectedUnitPrice,
           weeklyBatchIds,
           couponCode: couponCode.trim().toUpperCase(),
           parentId,
@@ -346,7 +348,7 @@ router.post('/validate-coupon', async (req, res) => {
 // less than the real price (or for $0).
 router.post('/paypal/create-order', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, cartItems } = req.body;
+    const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems } = req.body;
 
     if (!programId && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'programId is required.' });
@@ -363,7 +365,9 @@ router.post('/paypal/create-order', async (req, res) => {
           batchId,
           studentCount,
           sessionsPerWeek,
+          selectedDays,
           selectedMonth,
+          expectedUnitPrice,
           weeklyBatchIds,
           couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
           parentId,
@@ -393,7 +397,7 @@ router.post('/paypal/create-order', async (req, res) => {
 // ── POST /api/public/paypal/capture-order ────────────────────
 router.post('/paypal/capture-order', async (req, res) => {
   try {
-    const { orderID, programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, cartItems } = req.body;
+    const { orderID, programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems } = req.body;
     if (!orderID)
       return res.status(400).json({ success: false, message: 'orderID required.' });
 
@@ -430,7 +434,7 @@ router.post('/paypal/capture-order', async (req, res) => {
             parentId,
           })
         : await computeRegistrationTotal({
-            programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds,
+            programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds,
             couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
             parentId,
           });
@@ -456,7 +460,7 @@ router.post('/paypal/capture-order', async (req, res) => {
 // never a trusted amount. The server recomputes the payable total.
 router.post('/stripe/create-payment-intent', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, cartItems } = req.body;
+    const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems } = req.body;
 
     if (!programId && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'programId is required.' });
@@ -473,7 +477,9 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
           batchId,
           studentCount,
           sessionsPerWeek,
+          selectedDays,
           selectedMonth,
+          expectedUnitPrice,
           weeklyBatchIds,
           couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
           parentId,
