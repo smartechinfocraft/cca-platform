@@ -683,12 +683,14 @@ router.post('/register', async (req, res) => {
 
     let priced;
     if (allSameBatch) {
+      const firstStudentBatch = studentInputs[0]?.selectedBatch || selectedBatch;
       priced = await computeRegistrationTotal({
         programId: selectedProgram._id,
         batchId: studentBatchIds[0],
         studentCount: studentInputs.length,
-        sessionsPerWeek,
-        selectedMonth: selectedBatch?.selectedMonth,
+        sessionsPerWeek: firstStudentBatch?.sessionsPerWeek ?? sessionsPerWeek,
+        selectedMonth: firstStudentBatch?.selectedMonth,
+        expectedUnitPrice: firstStudentBatch?.fee,
         weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
         parentId: authenticatedParentId,
@@ -704,6 +706,7 @@ router.post('/register', async (req, res) => {
             studentCount: 1,
             sessionsPerWeek: studentInputs[index]?.selectedBatch?.sessionsPerWeek ?? sessionsPerWeek,
             selectedMonth: studentInputs[index]?.selectedBatch?.selectedMonth ?? selectedBatch?.selectedMonth,
+            expectedUnitPrice: studentInputs[index]?.selectedBatch?.fee ?? selectedBatch?.fee,
             weeklyBatchIds: weeklyBatchIdsForPricing,
             // Coupon applied once on total below, not per-student
           })
@@ -718,6 +721,7 @@ router.post('/register', async (req, res) => {
         studentCount: studentInputs.length,
         sessionsPerWeek,
         selectedMonth: selectedBatch?.selectedMonth,
+        expectedUnitPrice: selectedBatch?.fee,
         weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
         parentId: authenticatedParentId,

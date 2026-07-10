@@ -155,7 +155,8 @@ export default function CartPage() {
     batchId: item.batchId,
     studentCount: item.students.length || 1,
     sessionsPerWeek: item.sessionsPerWeek,
-    selectedMonth: item.selectedMonth,
+    selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth },
+    fee: item.fee,
     students: item.students,
   })), [items]);
   const paymentCartKey = JSON.stringify(paymentCartItems);
@@ -284,7 +285,7 @@ export default function CartPage() {
             fee: item.fee,
             seats: 999,
             sessionsPerWeek: item.sessionsPerWeek,
-            selectedMonth: { label: item.selectedMonth },
+            selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth, price: item.fee / Math.max(1, item.sessionsPerWeek || 1) },
           },
         }))
       );
@@ -301,7 +302,7 @@ export default function CartPage() {
             fee: firstItem.fee,
             seats: 999,
             sessionsPerWeek: firstItem.sessionsPerWeek,
-            selectedMonth: { label: firstItem.selectedMonth },
+            selectedMonth: firstItem.selectedMonthOption ?? { label: firstItem.selectedMonth, price: firstItem.fee / Math.max(1, firstItem.sessionsPerWeek || 1) },
           },
           students: allStudents,
           parent: parentInfo,

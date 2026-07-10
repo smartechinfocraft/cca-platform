@@ -96,6 +96,7 @@ function ReviewOrder() {
         batchId,
         batchName: selectedBatch.name,
         selectedMonth,
+        selectedMonthOption: (selectedBatch as any).selectedMonth,
         selectedDays,
         sessionsPerWeek: selectedBatch.sessionsPerWeek ?? 1,
         fee: selectedBatch.fee,

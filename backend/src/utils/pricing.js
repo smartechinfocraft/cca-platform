@@ -14,6 +14,7 @@ const mongoose = require('mongoose');
  * @param {Number} opts.studentCount
  * @param {Number} [opts.sessionsPerWeek]
  * @param {String|Object} [opts.selectedMonth] - selected month option label/object
+ * @param {Number} [opts.expectedUnitPrice]    - client-displayed per-student line fee, validated against stored pricing
  * @param {String[]} [opts.weeklyBatchIds] - IDs of Program.weeklyBatches the
  *                                           parent selected (WEEKLY batchType
  *                                           only). Price = unit price × the
@@ -27,7 +28,7 @@ const mongoose = require('mongoose');
  *   coupon: Object|null
  * }>}
  */
-async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, parentId }) {
+async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, parentId }) {
   const Program = mongoose.model('Program');
   const Batch   = mongoose.model('Batch');
   const Coupon  = mongoose.model('Coupon');
@@ -87,6 +88,16 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     ? batch.monthOptions.find((m) => String(m.label || '').trim() === String(selectedMonthLabel).trim())
     : null;
   const selectedFrequency = Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1;
+  const expectedUnit = Number(expectedUnitPrice);
+  const matchedMonthByPrice = !matchedMonthOption && expectedUnit > 0 && Array.isArray(batch?.monthOptions)
+    ? batch.monthOptions.find((m) => Math.abs((Number(m.price) * selectedFrequency) - expectedUnit) <= 0.01)
+    : null;
+  const selectedMonthPrice =
+    matchedMonthOption?.price != null
+      ? Number(matchedMonthOption.price)
+      : matchedMonthByPrice?.price != null
+        ? Number(matchedMonthByPrice.price)
+        : 0;
 
   // Price priority (most specific wins):
   //   1. WEEKLY batchType with batches selected: (discountedPrice||basePrice) × weekCount
@@ -98,8 +109,8 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   if (program.batchType === 'WEEKLY' && weekCount > 0) {
     const perWeekPrice = program.discountedPrice != null ? program.discountedPrice : program.basePrice;
     unitPrice = perWeekPrice * weekCount;
-  } else if (matchedMonthOption?.price != null && Number(matchedMonthOption.price) > 0) {
-    unitPrice = Number(matchedMonthOption.price) * selectedFrequency;
+  } else if (selectedMonthPrice > 0) {
+    unitPrice = selectedMonthPrice * selectedFrequency;
   } else if (batch?.pricePerSession && sessionsPerWeek && Number(sessionsPerWeek) > 0) {
     unitPrice = batch.pricePerSession * Number(sessionsPerWeek);
   } else if (batch?.price != null) {
@@ -279,6 +290,7 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
       studentCount: Array.isArray(item.students) && item.students.length ? item.students.length : (item.studentCount || 1),
       sessionsPerWeek: item.sessionsPerWeek,
       selectedMonth: item.selectedMonth,
+      expectedUnitPrice: item.fee,
       weeklyBatchIds,
     });
   }));

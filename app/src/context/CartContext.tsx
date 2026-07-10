@@ -34,6 +34,7 @@ export interface CartItem {
   batchId: string;
   batchName: string;
   selectedMonth: string;    // month label e.g. "July 2025"
+  selectedMonthOption?: { label?: string; startDate?: string; endDate?: string; weeks?: string | number; price?: string | number };
   selectedDays: string;     // e.g. "Monday + Wednesday"
   sessionsPerWeek: number;
   fee: number;              // total fee for this item

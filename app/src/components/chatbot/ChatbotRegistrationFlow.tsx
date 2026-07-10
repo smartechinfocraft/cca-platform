@@ -613,6 +613,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
       batchId: selectedBatch._id,
       batchName: selectedBatch.title || selectedBatch.name || "Batch",
       selectedMonth: selectedMonth?.label || "",
+      selectedMonthOption: selectedMonth || undefined,
       selectedDays: daySlots.filter(Boolean).join(" + "),
       sessionsPerWeek: frequency,
       fee: computedFee,

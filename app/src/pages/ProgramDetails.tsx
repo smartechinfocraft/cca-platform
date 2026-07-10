@@ -262,6 +262,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
       batchId: batchCtx._id,
       batchName: batchCtx.name,
       selectedMonth: (batchCtx as any).selectedMonth?.label ?? "",
+      selectedMonthOption: (batchCtx as any).selectedMonth,
       selectedDays: batchCtx.days,
       sessionsPerWeek: batchCtx.sessionsPerWeek ?? 1,
       fee: batchCtx.fee,
