@@ -150,15 +150,19 @@ export default function CartPage() {
   const [waiverError, setWaiverError] = useState<string | null>(null);
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
-  const paymentCartItems = useMemo(() => items.map((item) => ({
-    programId: item.programId,
-    batchId: item.batchId,
-    studentCount: item.students.length || 1,
-    sessionsPerWeek: item.sessionsPerWeek,
-    selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth },
-    fee: item.fee,
-    students: item.students,
-  })), [items]);
+  const paymentCartItems = useMemo(() => items.map((item) => {
+    const effectiveSessionsPerWeek = Math.max(item.sessionsPerWeek || 1, splitScheduleItems(item.selectedDays).length || 1);
+    return {
+      programId: item.programId,
+      batchId: item.batchId,
+      studentCount: item.students.length || 1,
+      sessionsPerWeek: effectiveSessionsPerWeek,
+      selectedDays: item.selectedDays,
+      selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth },
+      fee: item.fee,
+      students: item.students,
+    };
+  }), [items]);
   const paymentCartKey = JSON.stringify(paymentCartItems);
 
   // Pre-fill parent details from the signed-in account — name/email/phone
@@ -275,20 +279,24 @@ export default function CartPage() {
       // a reference to their own batch so mixed-program carts still price
       // and record correctly.
       const allStudents = items.flatMap((item) =>
-        item.students.map((s) => ({
-          ...s,
-          selectedBatch: {
-            _id: item.batchId,
-            name: item.batchName,
-            days: item.selectedDays,
-            timing: item.selectedDays,
-            fee: item.fee,
-            seats: 999,
-            sessionsPerWeek: item.sessionsPerWeek,
-            selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth, price: item.fee / Math.max(1, item.sessionsPerWeek || 1) },
-          },
-        }))
+        item.students.map((s) => {
+          const effectiveSessionsPerWeek = Math.max(item.sessionsPerWeek || 1, splitScheduleItems(item.selectedDays).length || 1);
+          return {
+            ...s,
+            selectedBatch: {
+              _id: item.batchId,
+              name: item.batchName,
+              days: item.selectedDays,
+              timing: item.selectedDays,
+              fee: item.fee,
+              seats: 999,
+              sessionsPerWeek: effectiveSessionsPerWeek,
+              selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth, price: item.fee / effectiveSessionsPerWeek },
+            },
+          };
+        })
       );
+      const firstItemSessionsPerWeek = Math.max(firstItem.sessionsPerWeek || 1, splitScheduleItems(firstItem.selectedDays).length || 1);
 
       const response = await api.post(
         "/public/register",
@@ -301,13 +309,13 @@ export default function CartPage() {
             timing: firstItem.selectedDays,
             fee: firstItem.fee,
             seats: 999,
-            sessionsPerWeek: firstItem.sessionsPerWeek,
-            selectedMonth: firstItem.selectedMonthOption ?? { label: firstItem.selectedMonth, price: firstItem.fee / Math.max(1, firstItem.sessionsPerWeek || 1) },
+            sessionsPerWeek: firstItemSessionsPerWeek,
+            selectedMonth: firstItem.selectedMonthOption ?? { label: firstItem.selectedMonth, price: firstItem.fee / firstItemSessionsPerWeek },
           },
           students: allStudents,
           parent: parentInfo,
           parentId: user ? user.id : undefined,
-          sessionsPerWeek: firstItem.sessionsPerWeek,
+          sessionsPerWeek: firstItemSessionsPerWeek,
           paymentMethod: method,
           transactionId,
           checkNumber: method === "Check" ? checkNumber : undefined,

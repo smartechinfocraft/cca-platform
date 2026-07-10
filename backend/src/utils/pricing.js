@@ -13,6 +13,7 @@ const mongoose = require('mongoose');
  * @param {String} [opts.batchId]
  * @param {Number} opts.studentCount
  * @param {Number} [opts.sessionsPerWeek]
+ * @param {String} [opts.selectedDays]         - selected schedule/day labels
  * @param {String|Object} [opts.selectedMonth] - selected month option label/object
  * @param {Number} [opts.expectedUnitPrice]    - client-displayed per-student line fee, validated against stored pricing
  * @param {String[]} [opts.weeklyBatchIds] - IDs of Program.weeklyBatches the
@@ -28,7 +29,7 @@ const mongoose = require('mongoose');
  *   coupon: Object|null
  * }>}
  */
-async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, parentId }) {
+async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, parentId }) {
   const Program = mongoose.model('Program');
   const Batch   = mongoose.model('Batch');
   const Coupon  = mongoose.model('Coupon');
@@ -87,7 +88,8 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   const matchedMonthOption = selectedMonthLabel && Array.isArray(batch?.monthOptions)
     ? batch.monthOptions.find((m) => String(m.label || '').trim() === String(selectedMonthLabel).trim())
     : null;
-  const selectedFrequency = Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1;
+  const selectedDayCount = countSelectedDays(selectedDays);
+  const selectedFrequency = Math.max(Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1, selectedDayCount);
   const expectedUnit = Number(expectedUnitPrice);
   const matchedMonthByPrice = !matchedMonthOption && expectedUnit > 0 && Array.isArray(batch?.monthOptions)
     ? batch.monthOptions.find((m) => Math.abs((Number(m.price) * selectedFrequency) - expectedUnit) <= 0.01)
@@ -111,8 +113,8 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     unitPrice = perWeekPrice * weekCount;
   } else if (selectedMonthPrice > 0) {
     unitPrice = selectedMonthPrice * selectedFrequency;
-  } else if (batch?.pricePerSession && sessionsPerWeek && Number(sessionsPerWeek) > 0) {
-    unitPrice = batch.pricePerSession * Number(sessionsPerWeek);
+  } else if (batch?.pricePerSession && selectedFrequency > 0) {
+    unitPrice = batch.pricePerSession * selectedFrequency;
   } else if (batch?.price != null) {
     unitPrice = batch.price;
   } else if (program.discountedPrice != null) {
@@ -210,6 +212,16 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+function countSelectedDays(selectedDays) {
+  if (!selectedDays || typeof selectedDays !== 'string') return 1;
+  const count = selectedDays
+    .split(/\s*(?:\+|\||,|\n)\s*/)
+    .map((day) => day.trim())
+    .filter(Boolean)
+    .length;
+  return Math.max(1, count);
+}
+
 async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
   const Coupon = mongoose.model('Coupon');
   const safeSubtotal = round2(subtotal);
@@ -289,6 +301,7 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
       batchId: item.batchId,
       studentCount: Array.isArray(item.students) && item.students.length ? item.students.length : (item.studentCount || 1),
       sessionsPerWeek: item.sessionsPerWeek,
+      selectedDays: item.selectedDays,
       selectedMonth: item.selectedMonth,
       expectedUnitPrice: item.fee,
       weeklyBatchIds,
