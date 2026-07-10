@@ -316,6 +316,7 @@ export default function CartPage() {
           parent: parentInfo,
           parentId: user ? user.id : undefined,
           sessionsPerWeek: firstItemSessionsPerWeek,
+          cartItems: paymentCartItems,
           paymentMethod: method,
           transactionId,
           checkNumber: method === "Check" ? checkNumber : undefined,

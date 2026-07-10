@@ -565,7 +565,7 @@ router.post('/donate/capture-order', async (req, res) => {
 router.post('/register', async (req, res) => {
   try {
     const {
-      selectedProgram, selectedBatch, selectedWeeklyBatches, students,
+      selectedProgram, selectedBatch, selectedWeeklyBatches, students, cartItems,
       parent: parentInfo, parentId,
       paymentMethod,
       transactionId, checkNumber,
@@ -688,7 +688,13 @@ router.post('/register', async (req, res) => {
     const weeklyBatchIdsForPricing = matchedWeeklyBatches.map(b => String(b._id));
 
     let priced;
-    if (allSameBatch) {
+    if (Array.isArray(cartItems) && cartItems.length > 0) {
+      priced = await computeCartTotal({
+        cartItems,
+        couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+        parentId: authenticatedParentId,
+      });
+    } else if (allSameBatch) {
       const firstStudentBatch = studentInputs[0]?.selectedBatch || selectedBatch;
       priced = await computeRegistrationTotal({
         programId: selectedProgram._id,
