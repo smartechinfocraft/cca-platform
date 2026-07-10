@@ -293,7 +293,9 @@ router.post('/auth/forgot-password', async (req, res) => {
 // registration is actually saved (in POST /register below).
 router.post('/validate-coupon', async (req, res) => {
   try {
-    const { couponCode, programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, cartItems } = req.body;
+    const { couponCode, programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, cartItems, checkoutMode } = req.body;
+    if (checkoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
+      return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
 
     if (!couponCode || (!programId && (!Array.isArray(cartItems) || cartItems.length === 0)))
       return res.status(400).json({ success: false, message: 'couponCode and programId are required.' });
@@ -348,7 +350,9 @@ router.post('/validate-coupon', async (req, res) => {
 // less than the real price (or for $0).
 router.post('/paypal/create-order', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems } = req.body;
+    const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems, checkoutMode } = req.body;
+    if (checkoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
+      return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
 
     if (!programId && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'programId is required.' });
@@ -397,7 +401,9 @@ router.post('/paypal/create-order', async (req, res) => {
 // ── POST /api/public/paypal/capture-order ────────────────────
 router.post('/paypal/capture-order', async (req, res) => {
   try {
-    const { orderID, programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems } = req.body;
+    const { orderID, programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems, checkoutMode } = req.body;
+    if (checkoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
+      return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
     if (!orderID)
       return res.status(400).json({ success: false, message: 'orderID required.' });
 
@@ -460,7 +466,9 @@ router.post('/paypal/capture-order', async (req, res) => {
 // never a trusted amount. The server recomputes the payable total.
 router.post('/stripe/create-payment-intent', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems } = req.body;
+    const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems, checkoutMode } = req.body;
+    if (checkoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
+      return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
 
     if (!programId && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'programId is required.' });
@@ -569,6 +577,7 @@ router.post('/register', async (req, res) => {
       parent: parentInfo, parentId,
       paymentMethod,
       transactionId, checkNumber,
+      cartCheckoutMode,
       sessionsPerWeek,
       couponCode,   // NEW — optional coupon applied at checkout
     } = req.body;
@@ -583,6 +592,9 @@ router.post('/register', async (req, res) => {
 
     if (!selectedProgram?._id)
       return res.status(400).json({ success: false, message: 'Program is required.' });
+
+    if (cartCheckoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
+      return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
 
     // ── SECURITY: never trust req.body.parentId ─────────────────────
     // The frontend sends parentId for logged-in checkouts, but a client

@@ -228,6 +228,7 @@ export default function CartPage() {
     try {
       const res = await api.post("/public/validate-coupon", {
         couponCode: code,
+        checkoutMode: "cart",
         cartItems: paymentCartItems,
       });
       if (res.data.success) {
@@ -317,6 +318,7 @@ export default function CartPage() {
           parentId: user ? user.id : undefined,
           sessionsPerWeek: firstItemSessionsPerWeek,
           cartItems: paymentCartItems,
+          cartCheckoutMode: "cart",
           paymentMethod: method,
           transactionId,
           checkNumber: method === "Check" ? checkNumber : undefined,
@@ -374,6 +376,7 @@ export default function CartPage() {
         style: { layout: "vertical", color: "blue", shape: "pill", label: "pay" },
         createOrder: async () => {
           const res = await api.post("/public/paypal/create-order", {
+            checkoutMode: "cart",
             cartItems: paymentCartItems,
             couponCode: coupon?.code ?? undefined,
           });
@@ -386,6 +389,7 @@ export default function CartPage() {
           try {
             const capture = await api.post("/public/paypal/capture-order", {
               orderID: data.orderID,
+              checkoutMode: "cart",
               cartItems: paymentCartItems,
               couponCode: coupon?.code ?? undefined,
             });
@@ -753,6 +757,7 @@ export default function CartPage() {
                         studentCount={itemCount || 1}
                         sessionsPerWeek={firstItem.sessionsPerWeek}
                         cartItems={paymentCartItems}
+                        checkoutMode="cart"
                         couponCode={coupon?.code ?? undefined}
                         disabled={paying}
                         onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}

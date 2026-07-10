@@ -296,23 +296,36 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
     throw err;
   }
 
-  const lineItems = await Promise.all(cartItems.map((item) => {
+  const lineItems = await Promise.all(cartItems.map(async (item) => {
     const weeklyBatchIds = Array.isArray(item.weeklyBatchIds)
       ? item.weeklyBatchIds
       : Array.isArray(item.selectedWeeklyBatches)
         ? item.selectedWeeklyBatches.map((b) => (typeof b === 'string' ? b : b?._id)).filter(Boolean)
         : [];
+    const studentCount = Array.isArray(item.students) && item.students.length ? item.students.length : (item.studentCount || 1);
+    const unitPrice = round2(Number(item.fee));
+    if (!item.programId || !item.batchId || !unitPrice || unitPrice <= 0) {
+      const err = new Error('Each cart item must include programId, batchId, and a payable line fee.');
+      err.status = 400;
+      throw err;
+    }
 
-    return computeRegistrationTotal({
+    const priced = await computeRegistrationTotal({
       programId: item.programId,
       batchId: item.batchId,
-      studentCount: Array.isArray(item.students) && item.students.length ? item.students.length : (item.studentCount || 1),
+      studentCount,
       sessionsPerWeek: item.sessionsPerWeek,
       selectedDays: item.selectedDays,
       selectedMonth: item.selectedMonth,
       expectedUnitPrice: item.fee,
       weeklyBatchIds,
     });
+
+    return {
+      ...priced,
+      unitPrice,
+      subtotal: round2(unitPrice * studentCount),
+    };
   }));
 
   const subtotal = round2(lineItems.reduce((sum, item) => sum + item.subtotal, 0));
