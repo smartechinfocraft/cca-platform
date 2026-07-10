@@ -3,7 +3,7 @@
 //  Checkout no longer navigates to /review-order or /payment: the parent
 //  details form and PayPal/Check payment are embedded right here.
 // ============================================================
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
@@ -21,6 +21,13 @@ import {
 import { HiOutlineArrowLeft } from "react-icons/hi";
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
+
+function splitScheduleItems(selectedDays?: string): string[] {
+  return (selectedDays ?? "")
+    .split(/\s*(?:\+|\||,|\n)\s*/)
+    .map((day) => day.trim())
+    .filter(Boolean);
+}
 
 // ── Inline login modal (same pattern as ProgramDetails) ──────────────────────
 function LoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
@@ -117,7 +124,7 @@ export default function CartPage() {
   const { isLoggedIn, user, token } = useAuth();
   const {
     items, coupon, couponDiscount,
-    removeItem, clearCart, setCoupon,
+    removeItem, clearCart, setCoupon, setCouponDiscount,
     subtotal, grandTotal, itemCount,
   } = useCart();
 
@@ -143,6 +150,15 @@ export default function CartPage() {
   const [waiverError, setWaiverError] = useState<string | null>(null);
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
+  const paymentCartItems = useMemo(() => items.map((item) => ({
+    programId: item.programId,
+    batchId: item.batchId,
+    studentCount: item.students.length || 1,
+    sessionsPerWeek: item.sessionsPerWeek,
+    selectedMonth: item.selectedMonth,
+    students: item.students,
+  })), [items]);
+  const paymentCartKey = JSON.stringify(paymentCartItems);
 
   // Pre-fill parent details from the signed-in account — name/email/phone
   // immediately, then the saved billing address (if any) from their profile,
@@ -204,14 +220,10 @@ export default function CartPage() {
     if (!code) return;
     if (items.length === 0) { setCouponError("Add a program to your cart first."); return; }
     setCouponError(null); setCouponLoading(true);
-    const firstItem = items[0];
     try {
       const res = await api.post("/public/validate-coupon", {
         couponCode: code,
-        programId: firstItem.programId,
-        batchId: firstItem.batchId,
-        studentCount: itemCount || 1,
-        sessionsPerWeek: firstItem.sessionsPerWeek,
+        cartItems: paymentCartItems,
       });
       if (res.data.success) {
         setCoupon({
@@ -221,11 +233,7 @@ export default function CartPage() {
           description: res.data.coupon.description,
           discount: res.data.discount,
         });
-        // BUG FIX: setCouponDiscount doesn't exist on the cart context —
-        // couponDiscount is derived automatically from (items, coupon) by
-        // CartContext via calculateCartTotals, so there's nothing to set
-        // here. Calling it used to throw "setCouponDiscount is not a
-        // function" the instant a coupon was applied.
+        setCouponDiscount(res.data.discount || 0);
         setCouponInput(res.data.coupon.code);
       } else {
         setCouponError(res.data.message || "Invalid coupon.");
@@ -238,9 +246,10 @@ export default function CartPage() {
   };
 
   const handleRemoveCoupon = () => {
-    // BUG FIX: same as above — setCouponDiscount doesn't exist; clearing
-    // the coupon itself is enough, the derived discount drops to 0 on its own.
-    setCoupon(null); setCouponInput(""); setCouponError(null);
+    setCoupon(null);
+    setCouponDiscount(0);
+    setCouponInput("");
+    setCouponError(null);
   };
 
   // First cart item anchors the program/batch used for server-side pricing —
@@ -275,6 +284,7 @@ export default function CartPage() {
             fee: item.fee,
             seats: 999,
             sessionsPerWeek: item.sessionsPerWeek,
+            selectedMonth: { label: item.selectedMonth },
           },
         }))
       );
@@ -291,6 +301,7 @@ export default function CartPage() {
             fee: firstItem.fee,
             seats: 999,
             sessionsPerWeek: firstItem.sessionsPerWeek,
+            selectedMonth: { label: firstItem.selectedMonth },
           },
           students: allStudents,
           parent: parentInfo,
@@ -341,7 +352,7 @@ export default function CartPage() {
 
   // Render PayPal buttons when the tab is selected and parent details are valid
   useEffect(() => {
-    if (paymentMethod !== "PayPal" || !parentValid || !waiverValid || paypalLoaded.current) return;
+    if (paymentMethod !== "PayPal" || !parentValid || !waiverValid) return;
     if (!paypalRef.current || !firstItem) return;
 
     const tryRender = () => {
@@ -353,10 +364,7 @@ export default function CartPage() {
         style: { layout: "vertical", color: "blue", shape: "pill", label: "pay" },
         createOrder: async () => {
           const res = await api.post("/public/paypal/create-order", {
-            programId: firstItem.programId,
-            batchId: firstItem.batchId,
-            studentCount: itemCount || 1,
-            sessionsPerWeek: firstItem.sessionsPerWeek,
+            cartItems: paymentCartItems,
             couponCode: coupon?.code ?? undefined,
           });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
@@ -368,10 +376,7 @@ export default function CartPage() {
           try {
             const capture = await api.post("/public/paypal/capture-order", {
               orderID: data.orderID,
-              programId: firstItem.programId,
-              batchId: firstItem.batchId,
-              studentCount: itemCount || 1,
-              sessionsPerWeek: firstItem.sessionsPerWeek,
+              cartItems: paymentCartItems,
               couponCode: coupon?.code ?? undefined,
             });
             if (!capture.data.success) throw new Error(capture.data.message || "Payment capture failed");
@@ -390,8 +395,7 @@ export default function CartPage() {
     };
 
     tryRender();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentMethod, parentValid, waiverValid]);
+  }, [paymentMethod, parentValid, waiverValid, paymentCartKey, coupon?.code]);
 
   // Reset PayPal render flag when switching away so it can re-render later
   useEffect(() => {
@@ -514,7 +518,15 @@ export default function CartPage() {
                           </div>
                           <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Schedule</p>
-                            <p className="mt-0.5 text-xs font-bold text-[#0F172A] leading-tight">{item.selectedDays}</p>
+                            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs font-bold text-[#0F172A] leading-tight">
+                              {splitScheduleItems(item.selectedDays).length > 0 ? (
+                                splitScheduleItems(item.selectedDays).map((day) => (
+                                  <li key={day}>{day}</li>
+                                ))
+                              ) : (
+                                <li className="list-none -ml-4">—</li>
+                              )}
+                            </ul>
                           </div>
                         </div>
                       </div>
@@ -730,6 +742,7 @@ export default function CartPage() {
                         batchId={firstItem.batchId}
                         studentCount={itemCount || 1}
                         sessionsPerWeek={firstItem.sessionsPerWeek}
+                        cartItems={paymentCartItems}
                         couponCode={coupon?.code ?? undefined}
                         disabled={paying}
                         onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}

@@ -13,6 +13,7 @@ const mongoose = require('mongoose');
  * @param {String} [opts.batchId]
  * @param {Number} opts.studentCount
  * @param {Number} [opts.sessionsPerWeek]
+ * @param {String|Object} [opts.selectedMonth] - selected month option label/object
  * @param {String[]} [opts.weeklyBatchIds] - IDs of Program.weeklyBatches the
  *                                           parent selected (WEEKLY batchType
  *                                           only). Price = unit price × the
@@ -26,7 +27,7 @@ const mongoose = require('mongoose');
  *   coupon: Object|null
  * }>}
  */
-async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, weeklyBatchIds, couponCode, parentId }) {
+async function computeRegistrationTotal({ programId, batchId, studentCount = 1, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, parentId }) {
   const Program = mongoose.model('Program');
   const Batch   = mongoose.model('Batch');
   const Coupon  = mongoose.model('Coupon');
@@ -78,6 +79,15 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   }
   const weekCount = matchedWeeklyBatches.length;
 
+  const selectedMonthLabel =
+    typeof selectedMonth === 'string'
+      ? selectedMonth
+      : (selectedMonth?.label || selectedMonth?.name || '');
+  const matchedMonthOption = selectedMonthLabel && Array.isArray(batch?.monthOptions)
+    ? batch.monthOptions.find((m) => String(m.label || '').trim() === String(selectedMonthLabel).trim())
+    : null;
+  const selectedFrequency = Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1;
+
   // Price priority (most specific wins):
   //   1. WEEKLY batchType with batches selected: (discountedPrice||basePrice) × weekCount
   //   2. Batch per-session price × sessions/week
@@ -88,6 +98,8 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   if (program.batchType === 'WEEKLY' && weekCount > 0) {
     const perWeekPrice = program.discountedPrice != null ? program.discountedPrice : program.basePrice;
     unitPrice = perWeekPrice * weekCount;
+  } else if (matchedMonthOption?.price != null && Number(matchedMonthOption.price) > 0) {
+    unitPrice = Number(matchedMonthOption.price) * selectedFrequency;
   } else if (batch?.pricePerSession && sessionsPerWeek && Number(sessionsPerWeek) > 0) {
     unitPrice = batch.pricePerSession * Number(sessionsPerWeek);
   } else if (batch?.price != null) {
@@ -187,4 +199,106 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
-module.exports = { computeRegistrationTotal, round2 };
+async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
+  const Coupon = mongoose.model('Coupon');
+  const safeSubtotal = round2(subtotal);
+  if (!couponCode) return { discount: 0, total: safeSubtotal, coupon: null };
+
+  const coupon = await Coupon.findOne({
+    code: couponCode.trim().toUpperCase(),
+    isActive: true,
+  }).lean();
+
+  if (!coupon) {
+    const err = new Error('Invalid or inactive coupon code');
+    err.status = 400;
+    throw err;
+  }
+
+  const now = new Date();
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < now) {
+    const err = new Error('Coupon has expired');
+    err.status = 400;
+    throw err;
+  }
+
+  if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
+    const err = new Error('Coupon usage limit has been reached');
+    err.status = 400;
+    throw err;
+  }
+
+  if (safeSubtotal < coupon.minAmount) {
+    const err = new Error(`Coupon requires a minimum order of $${coupon.minAmount}`);
+    err.status = 400;
+    throw err;
+  }
+
+  if (coupon.perUserLimit != null && parentId) {
+    const Registration = mongoose.model('Registration');
+    const priorUses = await Registration.countDocuments({
+      parentId,
+      couponCode: coupon.code,
+      paymentStatus: { $ne: 'FAILED' },
+    });
+    if (priorUses >= coupon.perUserLimit) {
+      const err = new Error('You have already used this coupon the maximum number of times.');
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  const discount = coupon.type === 'PERCENTAGE'
+    ? round2(safeSubtotal * (coupon.value / 100))
+    : round2(Math.min(coupon.value, safeSubtotal));
+
+  return {
+    discount,
+    total: round2(safeSubtotal - discount),
+    coupon,
+  };
+}
+
+async function computeCartTotal({ cartItems, couponCode, parentId }) {
+  if (!Array.isArray(cartItems) || cartItems.length === 0) {
+    const err = new Error('cartItems are required to compute cart checkout price');
+    err.status = 400;
+    throw err;
+  }
+
+  const lineItems = await Promise.all(cartItems.map((item) => {
+    const weeklyBatchIds = Array.isArray(item.weeklyBatchIds)
+      ? item.weeklyBatchIds
+      : Array.isArray(item.selectedWeeklyBatches)
+        ? item.selectedWeeklyBatches.map((b) => (typeof b === 'string' ? b : b?._id)).filter(Boolean)
+        : [];
+
+    return computeRegistrationTotal({
+      programId: item.programId,
+      batchId: item.batchId,
+      studentCount: Array.isArray(item.students) && item.students.length ? item.students.length : (item.studentCount || 1),
+      sessionsPerWeek: item.sessionsPerWeek,
+      selectedMonth: item.selectedMonth,
+      weeklyBatchIds,
+    });
+  }));
+
+  const subtotal = round2(lineItems.reduce((sum, item) => sum + item.subtotal, 0));
+  const couponResult = await applyCouponToSubtotal({
+    subtotal,
+    couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+    parentId,
+  });
+
+  return {
+    unitPrice: subtotal,
+    subtotal,
+    discount: couponResult.discount,
+    total: couponResult.total,
+    currency: 'USD',
+    lineItems,
+    coupon: couponResult.coupon,
+  };
+}
+
+module.exports = { computeRegistrationTotal, computeCartTotal, applyCouponToSubtotal, round2 };

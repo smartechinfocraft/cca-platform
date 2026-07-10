@@ -9,7 +9,7 @@ const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
 const { createPaymentIntent, getPaymentIntent, toMinorUnits } = require('../services/stripeService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
-const { computeRegistrationTotal, round2 } = require('../utils/pricing');
+const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
 
 // Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
 function fmtMonthDateRange(startDate, endDate, weeks) {
@@ -293,22 +293,30 @@ router.post('/auth/forgot-password', async (req, res) => {
 // registration is actually saved (in POST /register below).
 router.post('/validate-coupon', async (req, res) => {
   try {
-    const { couponCode, programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds } = req.body;
+    const { couponCode, programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, cartItems } = req.body;
 
-    if (!couponCode || !programId)
+    if (!couponCode || (!programId && (!Array.isArray(cartItems) || cartItems.length === 0)))
       return res.status(400).json({ success: false, message: 'couponCode and programId are required.' });
 
     // computeRegistrationTotal will throw a descriptive error if the
     // coupon is invalid, expired, over-limit, or below minimum amount.
-    const priced = await computeRegistrationTotal({
-      programId,
-      batchId,
-      studentCount: studentCount || 1,
-      sessionsPerWeek,
-      weeklyBatchIds,
-      couponCode: couponCode.trim().toUpperCase(),
-      parentId: resolveOptionalParentId(req),
-    });
+    const parentId = resolveOptionalParentId(req);
+    const priced = Array.isArray(cartItems) && cartItems.length > 0
+      ? await computeCartTotal({
+          cartItems,
+          couponCode: couponCode.trim().toUpperCase(),
+          parentId,
+        })
+      : await computeRegistrationTotal({
+          programId,
+          batchId,
+          studentCount: studentCount || 1,
+          sessionsPerWeek,
+          selectedMonth,
+          weeklyBatchIds,
+          couponCode: couponCode.trim().toUpperCase(),
+          parentId,
+        });
 
     res.json({
       success: true,
@@ -338,20 +346,28 @@ router.post('/validate-coupon', async (req, res) => {
 // less than the real price (or for $0).
 router.post('/paypal/create-order', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds, couponCode } = req.body;
+    const { programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, cartItems } = req.body;
 
-    if (!programId)
+    if (!programId && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'programId is required.' });
 
-    const priced = await computeRegistrationTotal({
-      programId,
-      batchId,
-      studentCount,
-      sessionsPerWeek,
-      weeklyBatchIds,
-      couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
-      parentId: resolveOptionalParentId(req),
-    });
+    const parentId = resolveOptionalParentId(req);
+    const priced = Array.isArray(cartItems) && cartItems.length > 0
+      ? await computeCartTotal({
+          cartItems,
+          couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+          parentId,
+        })
+      : await computeRegistrationTotal({
+          programId,
+          batchId,
+          studentCount,
+          sessionsPerWeek,
+          selectedMonth,
+          weeklyBatchIds,
+          couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+          parentId,
+        });
 
     if (!priced.total || priced.total <= 0)
       return res.status(400).json({ success: false, message: 'This program has no payable price configured.' });
@@ -377,7 +393,7 @@ router.post('/paypal/create-order', async (req, res) => {
 // ── POST /api/public/paypal/capture-order ────────────────────
 router.post('/paypal/capture-order', async (req, res) => {
   try {
-    const { orderID, programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds, couponCode } = req.body;
+    const { orderID, programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, cartItems } = req.body;
     if (!orderID)
       return res.status(400).json({ success: false, message: 'orderID required.' });
 
@@ -405,12 +421,19 @@ router.post('/paypal/capture-order', async (req, res) => {
       }
     }
 
-    if (programId) {
-      const priced = await computeRegistrationTotal({
-        programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds,
-        couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
-        parentId: resolveOptionalParentId(req),
-      });
+    if (programId || (Array.isArray(cartItems) && cartItems.length > 0)) {
+      const parentId = resolveOptionalParentId(req);
+      const priced = Array.isArray(cartItems) && cartItems.length > 0
+        ? await computeCartTotal({
+            cartItems,
+            couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+            parentId,
+          })
+        : await computeRegistrationTotal({
+            programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds,
+            couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+            parentId,
+          });
       if (Math.abs(capturedValue - priced.total) > 0.01) {
         console.error(
           `PayPal capture amount mismatch: captured $${capturedValue}, expected $${priced.total} for program ${programId}`
@@ -433,20 +456,28 @@ router.post('/paypal/capture-order', async (req, res) => {
 // never a trusted amount. The server recomputes the payable total.
 router.post('/stripe/create-payment-intent', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds, couponCode } = req.body;
+    const { programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, couponCode, cartItems } = req.body;
 
-    if (!programId)
+    if (!programId && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'programId is required.' });
 
-    const priced = await computeRegistrationTotal({
-      programId,
-      batchId,
-      studentCount,
-      sessionsPerWeek,
-      weeklyBatchIds,
-      couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
-      parentId: resolveOptionalParentId(req),
-    });
+    const parentId = resolveOptionalParentId(req);
+    const priced = Array.isArray(cartItems) && cartItems.length > 0
+      ? await computeCartTotal({
+          cartItems,
+          couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+          parentId,
+        })
+      : await computeRegistrationTotal({
+          programId,
+          batchId,
+          studentCount,
+          sessionsPerWeek,
+          selectedMonth,
+          weeklyBatchIds,
+          couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+          parentId,
+        });
 
     if (!priced.total || priced.total <= 0)
       return res.status(400).json({ success: false, message: 'This program has no payable price configured.' });
@@ -642,7 +673,12 @@ router.post('/register', async (req, res) => {
     // If all students share the same batch, use the fast single computeRegistrationTotal path.
     // If they differ, price each student individually and sum, then apply the coupon on top.
     const studentBatchIds = studentInputs.map(s => s.selectedBatch?._id ?? selectedBatch?._id);
-    const allSameBatch = studentBatchIds.every(id => String(id) === String(studentBatchIds[0]));
+    const studentPriceKeys = studentInputs.map((s, index) => {
+      const month = s.selectedBatch?.selectedMonth ?? selectedBatch?.selectedMonth;
+      const monthLabel = typeof month === 'string' ? month : (month?.label || '');
+      return `${studentBatchIds[index] || ''}:${monthLabel}`;
+    });
+    const allSameBatch = studentPriceKeys.every(key => key === studentPriceKeys[0]);
     const weeklyBatchIdsForPricing = matchedWeeklyBatches.map(b => String(b._id));
 
     let priced;
@@ -652,6 +688,7 @@ router.post('/register', async (req, res) => {
         batchId: studentBatchIds[0],
         studentCount: studentInputs.length,
         sessionsPerWeek,
+        selectedMonth: selectedBatch?.selectedMonth,
         weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
         parentId: authenticatedParentId,
@@ -660,12 +697,13 @@ router.post('/register', async (req, res) => {
       // Price each student's batch individually, then sum
       const { round2 } = require('../utils/pricing');
       const perStudentPriced = await Promise.all(
-        studentBatchIds.map(batchId =>
+        studentBatchIds.map((batchId, index) =>
           computeRegistrationTotal({
             programId: selectedProgram._id,
             batchId,
             studentCount: 1,
-            sessionsPerWeek,
+            sessionsPerWeek: studentInputs[index]?.selectedBatch?.sessionsPerWeek ?? sessionsPerWeek,
+            selectedMonth: studentInputs[index]?.selectedBatch?.selectedMonth ?? selectedBatch?.selectedMonth,
             weeklyBatchIds: weeklyBatchIdsForPricing,
             // Coupon applied once on total below, not per-student
           })
@@ -679,6 +717,7 @@ router.post('/register', async (req, res) => {
         batchId: studentBatchIds[0],
         studentCount: studentInputs.length,
         sessionsPerWeek,
+        selectedMonth: selectedBatch?.selectedMonth,
         weeklyBatchIds: weeklyBatchIdsForPricing,
         couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
         parentId: authenticatedParentId,

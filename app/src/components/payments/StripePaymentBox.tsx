@@ -41,7 +41,9 @@ interface StripePaymentBoxProps {
   batchId?: string;
   studentCount: number;
   sessionsPerWeek?: number;
+  selectedMonth?: string | { label?: string };
   weeklyBatchIds?: string[];
+  cartItems?: unknown[];
   couponCode?: string;
   disabled?: boolean;
   onAmountConfirmed?: (amount: number) => void;
@@ -53,7 +55,9 @@ export default function StripePaymentBox({
   batchId,
   studentCount,
   sessionsPerWeek,
+  selectedMonth,
   weeklyBatchIds,
+  cartItems,
   couponCode,
   disabled = false,
   onAmountConfirmed,
@@ -76,7 +80,7 @@ export default function StripePaymentBox({
       paymentElementRef.current?.unmount();
       paymentElementRef.current = null;
 
-      if (!programId || !STRIPE_PUBLISHABLE_KEY) {
+      if ((!programId && (!cartItems || cartItems.length === 0)) || !STRIPE_PUBLISHABLE_KEY) {
         setError(!STRIPE_PUBLISHABLE_KEY ? "Stripe is not configured yet." : "Program is required.");
         return;
       }
@@ -89,7 +93,9 @@ export default function StripePaymentBox({
           batchId,
           studentCount,
           sessionsPerWeek,
+          selectedMonth,
           weeklyBatchIds,
+          cartItems,
           couponCode,
         });
 
@@ -123,7 +129,7 @@ export default function StripePaymentBox({
       paymentElementRef.current?.unmount();
       paymentElementRef.current = null;
     };
-  }, [programId, batchId, studentCount, sessionsPerWeek, weeklyBatchIds, couponCode]);
+  }, [programId, batchId, studentCount, sessionsPerWeek, selectedMonth, weeklyBatchIds, cartItems, couponCode]);
 
   const handlePay = async () => {
     if (!stripeRef.current || !elementsRef.current) return;

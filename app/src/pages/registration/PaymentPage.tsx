@@ -76,6 +76,7 @@ function PaymentPage() {
             batchId:         selectedBatch?._id,
             studentCount:    students.length || 1,
             sessionsPerWeek: selectedBatch?.sessionsPerWeek,
+            selectedMonth:    (selectedBatch as any)?.selectedMonth,
             couponCode:      appliedCoupon?.code ?? undefined,
           });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
@@ -91,6 +92,7 @@ function PaymentPage() {
               batchId:         selectedBatch?._id,
               studentCount:    students.length || 1,
               sessionsPerWeek: selectedBatch?.sessionsPerWeek,
+              selectedMonth:    (selectedBatch as any)?.selectedMonth,
               couponCode:      appliedCoupon?.code ?? undefined,
             });
             if (!capture.data.success) throw new Error(capture.data.message || "Payment capture failed");
@@ -283,6 +285,7 @@ function PaymentPage() {
                     batchId={selectedBatch?._id}
                     studentCount={students.length || 1}
                     sessionsPerWeek={selectedBatch?.sessionsPerWeek}
+                    selectedMonth={(selectedBatch as any)?.selectedMonth}
                     couponCode={appliedCoupon?.code ?? undefined}
                     disabled={loading}
                     onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
