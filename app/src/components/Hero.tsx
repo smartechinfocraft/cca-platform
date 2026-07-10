@@ -132,9 +132,29 @@ export default function Hero() {
                 className="btn-glow px-8 py-3.5 rounded-full font-semibold text-sm shadow-lg hover:scale-105 transition-transform"
                 style={{ background: "var(--outfield)", color: "var(--pitch)" }}
               >
-                Explore Programs →
+                Fall 2026 Programs →
               </button>
-              <button
+
+                  {/* All Programs option */}
+                <button
+                  onClick={() => window.open("https://legacy.calcricket.org/product_cat/summer-2026/", "_blank")}
+                  className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
+                >
+                  Summer 2026  <span className="flex gap-1 text-black/50">Legacy Site <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M13 3H8.33333V4H11.2933L7.31333 7.98L8.02 8.68667L12 4.70667V7.66667H13V3ZM4.33333 3.66667C3.97971 3.66667 3.64057 3.80714 3.39052 4.05719C3.14048 4.30724 3 4.64638 3 5V11.6667C3 12.0203 3.14048 12.3594 3.39052 12.6095C3.64057 12.8595 3.97971 13 4.33333 13H11C11.3536 13 11.6928 12.8595 11.9428 12.6095C12.1929 12.3594 12.3333 12.0203 12.3333 11.6667V9.66667H11.3333V11.6667C11.3333 11.7551 11.2982 11.8399 11.2357 11.9024C11.1732 11.9649 11.0884 12 11 12H4.33333C4.24493 12 4.16014 11.9649 4.09763 11.9024C4.03512 11.8399 4 11.7551 4 11.6667V5C4 4.91159 4.03512 4.82681 4.09763 4.7643C4.16014 4.70179 4.24493 4.66667 4.33333 4.66667H6.33333V3.66667H4.33333Z" fill="black"/>
+</svg></span>
+                </button>
+
+                <button
+                  onClick={() => window.open("https://legacy.calcricket.org/product_cat/week-long/", "_blank")}
+                  className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
+                >
+                  Week Long Camps <span className="flex gap-1 text-black/50">Legacy Site <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M13 3H8.33333V4H11.2933L7.31333 7.98L8.02 8.68667L12 4.70667V7.66667H13V3ZM4.33333 3.66667C3.97971 3.66667 3.64057 3.80714 3.39052 4.05719C3.14048 4.30724 3 4.64638 3 5V11.6667C3 12.0203 3.14048 12.3594 3.39052 12.6095C3.64057 12.8595 3.97971 13 4.33333 13H11C11.3536 13 11.6928 12.8595 11.9428 12.6095C12.1929 12.3594 12.3333 12.0203 12.3333 11.6667V9.66667H11.3333V11.6667C11.3333 11.7551 11.2982 11.8399 11.2357 11.9024C11.1732 11.9649 11.0884 12 11 12H4.33333C4.24493 12 4.16014 11.9649 4.09763 11.9024C4.03512 11.8399 4 11.7551 4 11.6667V5C4 4.91159 4.03512 4.82681 4.09763 4.7643C4.16014 4.70179 4.24493 4.66667 4.33333 4.66667H6.33333V3.66667H4.33333Z" fill="black"/>
+</svg></span>
+
+                </button>
+              {/* <button
                 onClick={() => document.querySelector("#programs")?.scrollIntoView({ behavior: "smooth" })}
                 className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
                 style={{ borderColor: "var(--cca-red)", color: "var(--cca-red)" }}
@@ -142,7 +162,7 @@ export default function Hero() {
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--cca-red)"; }}
               >
                 Register Now
-              </button>
+              </button> */}
 
 
            

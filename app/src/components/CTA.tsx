@@ -20,7 +20,7 @@ function CTA() {
                 Ready to Start Your<br />Cricket Journey?
               </h2>
               <p className="text-slate-300 mt-5 leading-7 text-base">
-                Enrollment is open for the 2025 season. Spots fill fast — register now to secure your child's place in California's premier cricket academy.
+                Enrollment is open for the current season. Spots fill fast — register now to secure your child's place in California's premier cricket academy.
               </p>
             </div>
 
