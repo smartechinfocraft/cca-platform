@@ -288,7 +288,7 @@ function StudentDetails() {
                   { label: "Date of Birth", value: student.dob || "—" },
                   { label: "Gender", value: student.gender || "—" },
                   { label: "School", value: student.schoolName || "—" },
-                  { label: "Batch", value: student.selectedBatch?.name ?? selectedBatch?.name ?? "—" },
+                  { label: "Batch", value: selectedBatch?.name ?? student.selectedBatch?.name ?? "—" },
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <p className="text-xs uppercase tracking-widest text-slate-500">{label}</p>

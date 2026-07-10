@@ -127,11 +127,12 @@ function ReviewOrder() {
     }).catch(() => { });
   }, []);
 
-  // Each student may have their own batch (different batch for a second child).
-  // Sum each student's individual fee; fall back to the global selectedBatch fee,
-  // then the program base price, so the total is always accurate.
+  // The currently selected batch is authoritative for this registration.
+  // Saved draft/student records can carry an old selectedBatch from a previous
+  // flow, so do not let stale per-student batch data override the visible
+  // selected program/batch card.
   const studentFees = students.map(
-    (s) => getEffectiveBatchFee(s.selectedBatch ?? selectedBatch, selectedProgram?.basePrice ?? 0)
+    () => getEffectiveBatchFee(selectedBatch as any, selectedProgram?.basePrice ?? 0)
   );
   const perStudentFee = getEffectiveBatchFee(selectedBatch as any, selectedProgram?.basePrice ?? 0);
   const subtotal = studentFees.reduce((sum, fee) => sum + fee, 0);
@@ -165,15 +166,12 @@ function ReviewOrder() {
       // Instead omit batchId so it falls back to program-level pricing for the
       // minimum-amount check. The discount % is applied to our already-correct
       // frontend subtotal.
-      const allSameBatch = students.every(
-        (s) => (s.selectedBatch?._id ?? selectedBatch?._id) === (students[0].selectedBatch?._id ?? selectedBatch?._id)
-      );
       const res = await api.post("/public/validate-coupon", {
         couponCode: code,
         programId: selectedProgram?._id,
-        batchId: allSameBatch ? selectedBatch?._id : undefined,
+        batchId: selectedBatch?._id,
         studentCount: students.length || 1,
-        sessionsPerWeek: allSameBatch ? selectedBatch?.sessionsPerWeek : undefined,
+        sessionsPerWeek: selectedBatch?.sessionsPerWeek,
         weeklyBatchIds: (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id),
       });
       if (res.data.success) {
@@ -484,7 +482,7 @@ function ReviewOrder() {
                   ) : (
                     students.map((s, i) => {
                       const fee = studentFees[i];
-                      const batchName = s.selectedBatch?.name ?? selectedBatch?.name ?? "—";
+                      const batchName = selectedBatch?.name ?? "—";
                       const label = `${s.firstName || `Student ${i + 1}`} (${batchName})`;
                       return (
                         <div key={i} className="flex justify-between text-sm">

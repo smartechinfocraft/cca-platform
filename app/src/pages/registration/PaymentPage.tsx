@@ -58,7 +58,7 @@ function PaymentPage() {
 
   // Sum each student's individual batch fee (they may have different batches)
   const studentFees    = students.map(
-    (s: any) => getEffectiveBatchFee(s.selectedBatch ?? selectedBatch, selectedProgram?.basePrice ?? 0)
+    () => getEffectiveBatchFee(selectedBatch, selectedProgram?.basePrice ?? 0)
   );
   const perStudentFee  = getEffectiveBatchFee(selectedBatch, selectedProgram?.basePrice ?? 0);
   const selectedDays = selectedBatch?.days ?? selectedBatch?.timing;
@@ -157,13 +157,17 @@ function PaymentPage() {
       const parentInfo = user
         ? { parentName: `${user.firstName} ${user.lastName}`, email: user.email, phone: user.phone, address: parentDetails.address, city: parentDetails.city, state: parentDetails.state, zip: parentDetails.zip }
         : parentDetails;
+      const normalizedStudents = students.map((student) => ({
+        ...student,
+        selectedBatch: selectedBatch ?? student.selectedBatch,
+      }));
 
       const response = await api.post(
         "/public/register",
         {
           selectedProgram,
           selectedBatch,
-          students,
+          students: normalizedStudents,
           parent:          parentInfo,
           parentId:        user ? user.id : undefined,
           sessionsPerWeek: selectedBatch?.sessionsPerWeek,
