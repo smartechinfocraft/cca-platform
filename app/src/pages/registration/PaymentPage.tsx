@@ -49,6 +49,19 @@ function PaymentPage() {
   const grandTotal     = serverConfirmedAmount ?? estimatedTotal;
   const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
 
+  // BUG FIX: serverConfirmedAmount is a one-time price quote fetched when
+  // PayPal/Stripe's create-order call runs. It used to stay in state
+  // forever, so going back and changing the program/batch/students, or
+  // applying/removing a coupon, or switching PayPal to Stripe to Check kept
+  // showing that old quote (e.g. "Fee/student $870" but "Total $430" left
+  // over from a previous, different program). Clearing it whenever any of
+  // the underlying inputs change means the displayed total always reflects
+  // either the live client-side estimate or a quote that was actually
+  // fetched for the CURRENT selection.
+  useEffect(() => {
+    setServerConfirmedAmount(null);
+  }, [selectedProgram, selectedBatch, students, appliedCoupon, paymentMethod]);
+
   // Load PayPal SDK
   useEffect(() => {
     if (!PAYPAL_CLIENT_ID || window.paypal) return;
