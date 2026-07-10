@@ -117,7 +117,7 @@ export default function CartPage() {
   const { isLoggedIn, user, token } = useAuth();
   const {
     items, coupon, couponDiscount,
-    removeItem, clearCart, setCoupon, setCouponDiscount,
+    removeItem, clearCart, setCoupon,
     subtotal, grandTotal, itemCount,
   } = useCart();
 
@@ -144,6 +144,20 @@ export default function CartPage() {
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
   const [serverConfirmedAmount, setServerConfirmedAmount] = useState<number | null>(null);
+
+  // BUG FIX: serverConfirmedAmount is a price quote from PayPal/Stripe's
+  // create-order call. It used to be left in state forever, so if the
+  // person added another program, changed the coupon, or switched payment
+  // tabs afterwards, the page kept showing that old quote instead of the
+  // freshly-computed grandTotal — e.g. Subtotal correctly becomes $720
+  // after adding a 2nd program, but "Grand Total" stayed frozen at an old
+  // $860 quote from before that item was added. Clearing it any time the
+  // cart, coupon, or selected payment method changes means the displayed
+  // total is always either the live client-side grandTotal, or a quote
+  // that was actually fetched for the CURRENT cart/coupon/method.
+  useEffect(() => {
+    setServerConfirmedAmount(null);
+  }, [items, coupon, paymentMethod]);
 
   // Pre-fill parent details from the signed-in account — name/email/phone
   // immediately, then the saved billing address (if any) from their profile,
@@ -222,7 +236,11 @@ export default function CartPage() {
           description: res.data.coupon.description,
           discount: res.data.discount,
         });
-        setCouponDiscount(res.data.discount);
+        // BUG FIX: setCouponDiscount doesn't exist on the cart context —
+        // couponDiscount is derived automatically from (items, coupon) by
+        // CartContext via calculateCartTotals, so there's nothing to set
+        // here. Calling it used to throw "setCouponDiscount is not a
+        // function" the instant a coupon was applied.
         setCouponInput(res.data.coupon.code);
       } else {
         setCouponError(res.data.message || "Invalid coupon.");
@@ -235,7 +253,9 @@ export default function CartPage() {
   };
 
   const handleRemoveCoupon = () => {
-    setCoupon(null); setCouponDiscount(0); setCouponInput(""); setCouponError(null);
+    // BUG FIX: same as above — setCouponDiscount doesn't exist; clearing
+    // the coupon itself is enough, the derived discount drops to 0 on its own.
+    setCoupon(null); setCouponInput(""); setCouponError(null);
   };
 
   // First cart item anchors the program/batch used for server-side pricing —
