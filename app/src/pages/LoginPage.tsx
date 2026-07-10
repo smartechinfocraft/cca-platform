@@ -3,7 +3,7 @@
 //  + Forgot Password flow for all three roles
 // ============================================================
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useAdminAuth } from "../admin/context/AuthContext";
@@ -174,7 +174,10 @@ function LoginPage() {
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
         <div className="text-center mb-8">
-          <motion.div
+          <Link to="/" className="inline-flex mx-auto mb-4">
+            <img src="/logo.svg" alt="CCA Logo" className="h-12 w-auto" />
+          </Link>
+          {/* <motion.div
             className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-[var(--pitch)] text-lg border-2 mx-auto"
             style={{ background: "var(--outfield)", borderColor: "var(--gold)" }}
             initial={{ scale: 0.8, rotate: -8 }}
@@ -183,8 +186,10 @@ function LoginPage() {
           >
             CCA
           </motion.div>
+
           <h1 className="font-display mt-4 text-[28px] font-semibold text-[var(--outfield)]">California Cricket Academy</h1>
-          <div className="flex justify-center mt-2">
+         */}
+         <div className="flex justify-center mt-2">
             <span className="scoreboard-label">
               {mode === "staff" ? "Coach & Admin Sign In" : "Parent Portal"}
             </span>
