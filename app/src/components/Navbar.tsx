@@ -165,6 +165,21 @@ function Navbar() {
                   );
                 })}
 
+                   {/* All Programs option */}
+                <button
+                  onClick={() => { setProgramsOpen(false); setOpen(false); window.location.href = "https://legacy.calcricket.org/product_cat/summer-2026/"; }}
+                  className="block w-full text-left px-5 py-3 text-sm font-medium text-[var(--ink-600)] hover:bg-[var(--pitch-soft)] hover:text-[var(--outfield)] transition"
+                >
+                  Summer 2026
+                </button>
+
+                <button
+                  onClick={() => { setProgramsOpen(false); setOpen(false); window.location.href = "https://legacy.calcricket.org/product_cat/week-long/"; }}
+                  className="block w-full text-left px-5 py-3 text-sm font-medium text-[var(--ink-600)] hover:bg-[var(--pitch-soft)] hover:text-[var(--outfield)] transition"
+                >
+                  Week Long (Summer) Camps
+                </button>
+
                 {categories.length === 0 && (
                   <p className="px-5 py-3 text-sm text-[var(--ink-400)]">Loading...</p>
                 )}
