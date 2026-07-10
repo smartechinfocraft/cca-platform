@@ -90,10 +90,37 @@ function Navbar() {
   ];
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 w-full z-50 transition-all duration-300 ${scrolled ? "bg-white shadow-lg shadow-black/5" : "bg-white/95 backdrop-blur-md"}`}
-      style={{ borderBottom: scrolled ? "1px solid var(--pitch-deep)" : "1px solid transparent" }}
-    >
+   
+     
+
+      <header
+        className={`fixed top-[0] left-0 right-0 w-full z-50 transition-all duration-300 ${scrolled ? "bg-white shadow-lg shadow-black/5" : "bg-white/95 backdrop-blur-md"}`}
+        style={{ borderBottom: scrolled ? "1px solid var(--pitch-deep)" : "1px solid transparent" }}
+      >
+      {/* Pre-Header Announcement Banner */}
+      <div className="top-0 left-0 right-0 w-full bg-black text-white text-sm py-2 px-6 z-[60] text-center font-medium">
+        <p>
+          📢 Registration for <a
+            href="https://legacy.calcricket.org/product_cat/summer-2026/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-[var(--gold)] font-semibold hover:text-gray-300 transition-colors"
+          > Summer 2026 Programs</a> &   <a
+            href="https://legacy.calcricket.org/product_cat/week-long/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-[var(--gold)] font-semibold hover:text-gray-300 transition-colors"
+          >Week Long Camps </a> available on{" "}
+          <a
+            href="https://legacy.calcricket.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-[var(--gold)] font-semibold hover:text-gray-300 transition-colors"
+          >
+            legacy.calcricket.org
+          </a>
+        </p>
+      </div>
       <div className="max-w-7xl mx-auto px-6">
         <div className="h-20 flex items-center justify-between">
 
