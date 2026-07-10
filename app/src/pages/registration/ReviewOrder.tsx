@@ -177,16 +177,33 @@ function ReviewOrder() {
         weeklyBatchIds: (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id),
       });
       if (res.data.success) {
+        // Don't trust res.data.discount blindly — the backend computes it
+        // against its OWN independently-derived subtotal (from Program/Batch
+        // lookup), which can differ from what's actually shown on screen
+        // (studentFees sum below), e.g. when it falls back to program-level
+        // pricing for multi-batch carts. That mismatch makes a % coupon look
+        // like a flat/fixed discount. Instead, recompute the discount here
+        // using only the coupon's type/value against our real displayed
+        // subtotal. The backend still independently re-validates and
+        // recomputes the authoritative total at actual payment time, so this
+        // is purely a display fix.
+        const couponType = res.data.coupon.type;
+        const couponValue = res.data.coupon.value;
+        const displayDiscount =
+          couponType === "PERCENTAGE"
+            ? Math.round(subtotal * (couponValue / 100) * 100) / 100
+            : Math.min(couponValue, subtotal);
+
         setAppliedCoupon({
           code: res.data.coupon.code,
-          type: res.data.coupon.type,
-          value: res.data.coupon.value,
+          type: couponType,
+          value: couponValue,
           description: res.data.coupon.description,
-          discount: res.data.discount,
+          discount: displayDiscount,
           usedCount: res.data.coupon.usedCount,
           maxUses: res.data.coupon.maxUses,
         });
-        setCouponDiscount(res.data.discount);
+        setCouponDiscount(displayDiscount);
         setCouponInput(res.data.coupon.code);
       } else {
         setCouponError(res.data.message || "Invalid coupon.");
