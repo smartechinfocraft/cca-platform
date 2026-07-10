@@ -88,11 +88,14 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   const matchedMonthOption = selectedMonthLabel && Array.isArray(batch?.monthOptions)
     ? batch.monthOptions.find((m) => String(m.label || '').trim() === String(selectedMonthLabel).trim())
     : null;
-  const selectedDayCount = countSelectedDays(selectedDays);
-  const selectedFrequency = Math.max(Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1, selectedDayCount);
   const expectedUnit = Number(expectedUnitPrice);
+  const selectedDayCount = countSelectedDays(selectedDays);
+  const requestedFrequency = Math.max(Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1, selectedDayCount);
   const matchedMonthByPrice = !matchedMonthOption && expectedUnit > 0 && Array.isArray(batch?.monthOptions)
-    ? batch.monthOptions.find((m) => Math.abs((Number(m.price) * selectedFrequency) - expectedUnit) <= 0.01)
+    ? batch.monthOptions.find((m) => {
+        const price = Number(m.price);
+        return price > 0 && Math.abs(Math.round(expectedUnit / price) * price - expectedUnit) <= 0.01;
+      })
     : null;
   const selectedMonthPrice =
     matchedMonthOption?.price != null
@@ -100,6 +103,10 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
       : matchedMonthByPrice?.price != null
         ? Number(matchedMonthByPrice.price)
         : 0;
+  const frequencyFromExpected = selectedMonthPrice > 0 && expectedUnit > 0
+    ? Math.round(expectedUnit / selectedMonthPrice)
+    : 0;
+  const selectedFrequency = Math.max(requestedFrequency, frequencyFromExpected || 1);
 
   // Price priority (most specific wins):
   //   1. WEEKLY batchType with batches selected: (discountedPrice||basePrice) × weekCount
