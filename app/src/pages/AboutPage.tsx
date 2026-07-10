@@ -72,8 +72,8 @@ const testimonials = [
 const founders = {
   names: "Hemant & Kinjal Buch",
   bio: [
-    "Hemant and Kinjal Buch have called California home since 1987. Hemant holds a Master's degree in Industrial and Systems Engineering, works at a leading Silicon Valley tech company, and serves as a visiting professor at San Jose State University.",
-    "Kinjal trained as an architect and currently works with the Los Gatos parks and public works department while taking on freelance home-remodeling projects. Both remain deeply active in the local Indian community — Kinjal has served as president of a valley nonprofit and volunteers with the local school district — and are widely respected and trusted figures in the community they've served for decades.",
+    "Hemant and Kinjal Buch have been living in California since 1987. Hemant has a Masters degree in Industrial and Systems Engineering and Kinjal is an Architect. Hemant is with a leading High-Tech company in Silicon Valley. Hemant is a visiting professor at San Jose State University in California. Kinjal is currently working at the Los Gatos City parks and public works department and is a freelance architect working on home remodelling projects.",
+    "Both Hemant and Kinjal are culturally active in the Indian community. Kinjal has been President of an Indian non-profit organization in the valley and has been volunteering for the local school district. Both Hemant and Kinjal enjoy unquestionable respect, credibility and confidence in the local community.",
   ],
 };
 
@@ -263,8 +263,8 @@ function AboutPage() {
       </section>
 
       {/* ───────────── MEET THE FOUNDERS ───────────── */}
-      <section className="py-20">
-        <div className="max-w-5xl mx-auto px-6">
+      <section className="py-10">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
             <motion.div {...fadeUp} transition={{ duration: 0.4 }}>
               <span className="scoreboard-label justify-center">Meet the Founders</span>
@@ -278,14 +278,18 @@ function AboutPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="grid sm:grid-cols-[180px_1fr] gap-8 items-start bg-white rounded-3xl p-8 sm:p-10 border"
+            className="grid sm:grid-cols-[40%_1fr] gap-12 items-start bg-white rounded-3xl p-8 sm:p-10 border"
             style={{ borderColor: "var(--pitch-deep)", boxShadow: "var(--shadow-card)" }}
           >
             <div
-              className="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl mx-auto flex items-center justify-center text-5xl font-display font-semibold flex-shrink-0"
-              style={{ background: "var(--gold-glow)", color: "var(--outfield)" }}
+              className="rounded-2xl mx-auto overflow-hidden flex items-center justify-center flex-shrink-0"
+              style={{ background: "var(--gold-glow)" }}
             >
-              HK
+              <img
+                src="/hemant-and-kinjal-buch.jpg"
+                alt="Hemant and Kinjal Buch"
+                className="w-full h-full object-cover"
+              />
             </div>
             <div>
               {founders.bio.map((p, i) => (
