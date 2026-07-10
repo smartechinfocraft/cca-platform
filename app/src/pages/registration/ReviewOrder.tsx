@@ -150,7 +150,7 @@ function ReviewOrder() {
   const handleProceedToPayment = () => {
     if (!billingValid) { setEditingBilling(true); return; }
     setTotalAmount(grandTotal);
-    navigate("/payment");
+    navigate("/cart");
   };
 
   // ── Apply coupon ──────────────────────────────────────────

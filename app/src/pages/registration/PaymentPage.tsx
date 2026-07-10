@@ -335,8 +335,8 @@ function PaymentPage() {
                   { label: "Fee/student", value: `$${perStudentFee}` },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between text-sm">
-                    <span className="text-slate-600">{label}</span>
-                    <span className="font-semibold text-[#0F172A] truncate max-w-[150px] text-right">{value}</span>
+                    <span className="text-slate-600 max-w-[150px]">{label}</span>
+                    <span className="font-semibold text-[#0F172A] truncate  text-right">{value}</span>
                   </div>
                 ))}
 

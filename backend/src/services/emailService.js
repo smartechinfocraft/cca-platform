@@ -183,7 +183,7 @@ async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber,
 async function sendForgotPasswordEmail({ to, firstName, tempPassword, role, loginUrl }) {
   const subject = `CCA — Your Temporary Password`;
 
-  const roleColor = role === 'Admin' ? '#9C5460' : role === 'Coach' ? '#D4AF37' : '#3F7D4F';
+  const roleColor = role === 'Admin' ? '#9C5460' : role === 'Coach' ? '#D4AF37' : '#FFFFFF';
   const roleBg    = role === 'Admin' ? '#2D1B1B'  : role === 'Coach' ? '#0a2416'  : '#0F172A';
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/></head>

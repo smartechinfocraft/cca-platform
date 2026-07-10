@@ -172,9 +172,10 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     if (isWeeklyProgram) {
       if (selectedWeeklyBatchIds.length === 0) return null;
       const snapshots = toWeeklyBatchSnapshots(weeklyBatches ?? [], selectedWeeklyBatchIds);
+      const weeklyBatchName = snapshots.map((s) => s.label).filter(Boolean).join(" + ");
       return {
         _id: programId,
-        name: programTitle,
+        name: weeklyBatchName || "Selected weekly batches",
         days: snapshots.map((s) => s.label).join(" + "),
         timing: snapshots.map((s) => `${s.startTime} - ${s.endTime}`).join(" | "),
         fee: weeklyTotalPrice,

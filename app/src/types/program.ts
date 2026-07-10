@@ -17,6 +17,8 @@ export interface Program {
   slug?: string;
   shortDescription?: string;
   detailedDescription?: string;
+  startDate?: string;
+  endDate?: string;
   basePrice?: number;
   discountedPrice?: number;
   maxCapacity?: number;

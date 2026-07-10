@@ -884,7 +884,7 @@ export default function CartPage() {
               </div>
 
               {/* Start checkout — scrolls to / unlocks parent details + payment below */}
-              {!isLoggedIn || !paymentMethod ? (
+              {/* {!isLoggedIn || !paymentMethod ? (
                 <button
                   type="button"
                   onClick={handleStartCheckout}
@@ -893,7 +893,7 @@ export default function CartPage() {
                 >
                   Proceed to Checkout <HiOutlineArrowRight className="h-5 w-5" />
                 </button>
-              ) : null}
+              ) : null} */}
 
               {!isLoggedIn && (
                 <p className="text-xs text-slate-400 text-center">You'll sign in before completing purchase.</p>

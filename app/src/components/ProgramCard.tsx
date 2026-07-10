@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import {
+  HiOutlineCalendar,
   HiOutlineLocationMarker,
   HiOutlineCurrencyDollar,
   HiOutlineUserGroup,
@@ -24,6 +25,8 @@ type ProgramCardProps = {
     title: string;
     shortDescription?: string;
     category?: string | { title?: string } | null;
+    startDate?: string;
+    endDate?: string;
     basePrice?: number;
     discountedPrice?: number;
     location?: { title?: string } | null;
@@ -32,6 +35,26 @@ type ProgramCardProps = {
     skillLevels?: string[];
   };
 };
+
+function formatProgramDate(date?: string): string {
+  if (!date) return "";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+   
+  });
+}
+
+function formatProgramDateRange(startDate?: string, endDate?: string): string {
+  const start = formatProgramDate(startDate);
+  const end = formatProgramDate(endDate);
+  if (start && end) return `${start} - ${end}`;
+  return start || end || "Dates not available";
+}
 
 function ProgramCard({ program }: ProgramCardProps) {
   const navigate = useNavigate();
@@ -161,11 +184,17 @@ function ProgramCard({ program }: ProgramCardProps) {
             (program.category && typeof program.category === "object" && program.category.title && program.category.title.trim() !== "")
           ) && (
             <div className="mt-2">
-              <span className="inline-flex items-center no-wrap rounded-full bg-[#A33B2B]/10 text-[#A33B2B] text-sm font-semibold uppercase tracking-[0.1em] px-3 py-2">
+              <span className="inline-flex items-center no-wrap rounded-full bg-[#A33B2B]/10 text-[#A33B2B] text-sm font-semibold uppercase no-wrap tracking-[0.1em] px-3 py-2">
                 {typeof program.category === "string" ? program.category : program.category?.title}
               </span>
             </div>
           )}
+          </div>
+
+          <div className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-slate-900">
+            <HiOutlineCalendar className="h-5 w-5 text-[#A33B2B]" />
+            <span className="text-slate-600">Program Starts:</span>
+            <span>{formatProgramDateRange(program.startDate)}</span>
           </div>
 
           <p className="mt-4 text-sm leading-6 text-slate-600">
@@ -461,9 +490,10 @@ function QuickRegisterDrawer({
     if (isWeeklyProgram) {
       if (selectedWeeklyBatchIds.length === 0) return null;
       const snapshots = toWeeklyBatchSnapshots(weeklyBatches, selectedWeeklyBatchIds);
+      const weeklyBatchName = snapshots.map((s) => s.label).filter(Boolean).join(" + ");
       return {
         _id: fullProgram?._id ?? program._id,
-        name: fullProgram?.title ?? program.title,
+        name: weeklyBatchName || "Selected weekly batches",
         days: snapshots.map((s) => s.label).join(" + "),
         timing: snapshots.map((s) => `${s.startTime} - ${s.endTime}`).join(" | "),
         fee: weeklyTotalPrice,
