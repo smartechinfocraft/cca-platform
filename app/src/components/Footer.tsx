@@ -87,7 +87,7 @@ function Footer() {
     Level: levelLinks,
     Company: [
       { label: "About CCA", href: "/about" },
-      { label: "Media", href: "/media" },
+   //   { label: "Media", href: "/media" },
       { label: "FAQ", href: "/faq" },
       { label: "Donate Now", href: "/donate" },
     ],
