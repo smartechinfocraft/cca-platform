@@ -143,21 +143,6 @@ export default function CartPage() {
   const [waiverError, setWaiverError] = useState<string | null>(null);
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
-  const [serverConfirmedAmount, setServerConfirmedAmount] = useState<number | null>(null);
-
-  // BUG FIX: serverConfirmedAmount is a price quote from PayPal/Stripe's
-  // create-order call. It used to be left in state forever, so if the
-  // person added another program, changed the coupon, or switched payment
-  // tabs afterwards, the page kept showing that old quote instead of the
-  // freshly-computed grandTotal — e.g. Subtotal correctly becomes $720
-  // after adding a 2nd program, but "Grand Total" stayed frozen at an old
-  // $860 quote from before that item was added. Clearing it any time the
-  // cart, coupon, or selected payment method changes means the displayed
-  // total is always either the live client-side grandTotal, or a quote
-  // that was actually fetched for the CURRENT cart/coupon/method.
-  useEffect(() => {
-    setServerConfirmedAmount(null);
-  }, [items, coupon, paymentMethod]);
 
   // Pre-fill parent details from the signed-in account — name/email/phone
   // immediately, then the saved billing address (if any) from their profile,
@@ -375,7 +360,6 @@ export default function CartPage() {
             couponCode: coupon?.code ?? undefined,
           });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
-          if (typeof res.data.amount === "number") setServerConfirmedAmount(res.data.amount);
           return res.data.orderID;
         },
         onApprove: async (data: { orderID: string }) => {
@@ -432,7 +416,7 @@ export default function CartPage() {
   const inputCls =
     "mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15";
 
-  const finalTotal = serverConfirmedAmount ?? grandTotal;
+  const finalTotal = grandTotal;
 
   // ── Empty cart ──
   if (items.length === 0) {
@@ -748,7 +732,6 @@ export default function CartPage() {
                         sessionsPerWeek={firstItem.sessionsPerWeek}
                         couponCode={coupon?.code ?? undefined}
                         disabled={paying}
-                        onAmountConfirmed={setServerConfirmedAmount}
                         onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
                       />
                     </div>

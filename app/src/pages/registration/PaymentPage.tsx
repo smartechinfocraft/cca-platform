@@ -38,7 +38,6 @@ function PaymentPage() {
   const [waiverError, setWaiverError] = useState<string | null>(null);
   const paypalRef    = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
-  const [serverConfirmedAmount, setServerConfirmedAmount] = useState<number | null>(null);
 
   // Sum each student's individual batch fee (they may have different batches)
   const studentFees    = students.map(
@@ -46,22 +45,8 @@ function PaymentPage() {
   );
   const perStudentFee  = selectedBatch?.fee ?? selectedProgram?.basePrice ?? 0; // for display fallback
   const estimatedTotal = totalAmount || Math.max(0, studentFees.reduce((sum: number, f: number) => sum + f, 0) - couponDiscount);
-  const grandTotal     = serverConfirmedAmount ?? estimatedTotal;
+  const grandTotal     = estimatedTotal;
   const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
-
-  // BUG FIX: serverConfirmedAmount is a one-time price quote fetched when
-  // PayPal/Stripe's create-order call runs. It used to stay in state
-  // forever, so going back and changing the program/batch/students, or
-  // applying/removing a coupon, or switching PayPal to Stripe to Check kept
-  // showing that old quote (e.g. "Fee/student $870" but "Total $430" left
-  // over from a previous, different program). Clearing it whenever any of
-  // the underlying inputs change means the displayed total always reflects
-  // either the live client-side estimate or a quote that was actually
-  // fetched for the CURRENT selection.
-  useEffect(() => {
-    setServerConfirmedAmount(null);
-  }, [selectedProgram, selectedBatch, students, appliedCoupon, paymentMethod]);
-
   // Load PayPal SDK
   useEffect(() => {
     if (!PAYPAL_CLIENT_ID || window.paypal) return;
@@ -94,7 +79,6 @@ function PaymentPage() {
             couponCode:      appliedCoupon?.code ?? undefined,
           });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
-          if (typeof res.data.amount === "number") setServerConfirmedAmount(res.data.amount);
           return res.data.orderID;
         },
         onApprove: async (data: { orderID: string }) => {
@@ -301,7 +285,6 @@ function PaymentPage() {
                     sessionsPerWeek={selectedBatch?.sessionsPerWeek}
                     couponCode={appliedCoupon?.code ?? undefined}
                     disabled={loading}
-                    onAmountConfirmed={setServerConfirmedAmount}
                     onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
                   />
                 ) : (
