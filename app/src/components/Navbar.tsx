@@ -82,8 +82,8 @@ function Navbar() {
 
   const links = [
     { label: "Home", href: "/" },
-    { label: "Locations", href: "#locations" },
-    { label: "Media", href: "/media" },
+  //  { label: "Locations", href: "#locations" },
+  //  { label: "Media", href: "/media" },
     { label: "About", href: "/about" },
     { label: "FAQ", href: "/faq" },
     { label: "Donate Now", href: "/donate" },
