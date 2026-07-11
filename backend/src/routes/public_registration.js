@@ -7,7 +7,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
-const { createPaymentIntent, getPaymentIntent, toMinorUnits } = require('../services/stripeService');
+const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits } = require('../services/stripeService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
 
@@ -595,6 +595,29 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
 // above — there's no Program/Batch price to recompute the amount
 // from. We still guard against bad input: amount must be a finite
 // number, at least $1, and capped at $100,000 per transaction.
+router.post('/stripe/cancel-payment-intent', async (req, res) => {
+  try {
+    const { paymentIntentId, clientSecret } = req.body || {};
+    if (!paymentIntentId || !clientSecret) {
+      return res.status(400).json({ success: false, message: 'paymentIntentId and clientSecret are required.' });
+    }
+
+    const intent = await getPaymentIntent(paymentIntentId);
+    if (intent.client_secret !== clientSecret) {
+      return res.status(403).json({ success: false, message: 'PaymentIntent verification failed.' });
+    }
+
+    if (['succeeded', 'canceled', 'processing'].includes(intent.status)) {
+      return res.json({ success: true, status: intent.status });
+    }
+
+    const cancelled = await cancelPaymentIntent(paymentIntentId);
+    return res.json({ success: true, status: cancelled.status });
+  } catch (err) {
+    sendPaymentError(res, err, 'Could not cancel the card payment.', 'stripe/cancel-payment-intent');
+  }
+});
+
 router.post('/donate/create-order', async (req, res) => {
   try {
     const amount = parseFloat(req.body.amount);

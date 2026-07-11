@@ -83,6 +83,13 @@ async function getPaymentIntent(paymentIntentId) {
   return stripeRequest('GET', `/v1/payment_intents/${encodeURIComponent(paymentIntentId)}`);
 }
 
+async function cancelPaymentIntent(paymentIntentId) {
+  if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
+    throw Object.assign(new Error('Invalid Stripe PaymentIntent ID.'), { status: 400 });
+  }
+  return stripeRequest('POST', `/v1/payment_intents/${encodeURIComponent(paymentIntentId)}/cancel`, {});
+}
+
 // ── Refunds ────────────────────────────────────────────────
 // Only ever called from an admin-gated route. `amount` (if given) must be
 // in the SAME currency's major units (e.g. dollars) — converted here to
@@ -163,6 +170,7 @@ function verifyStripeWebhookSignature(rawBody, signatureHeader, secret, toleranc
 module.exports = {
   createPaymentIntent,
   getPaymentIntent,
+  cancelPaymentIntent,
   refundPaymentIntent,
   verifyStripeWebhookSignature,
   toMinorUnits,

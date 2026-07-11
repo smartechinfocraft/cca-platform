@@ -116,6 +116,16 @@ function SuccessPage() {
 
     let y = 160;
 
+    const ensureSpace = (height: number) => {
+      if (y + height <= pageHeight - 95) return;
+      doc.addPage();
+      y = 56;
+    };
+
+    const estimateWrappedHeight = (text: string, width: number, lineHeight: number) => {
+      return doc.splitTextToSize(text || "-", width).length * lineHeight;
+    };
+
     // Paid badge
     doc.setFillColor(GRASS);
     const badgeLabel = "PAID";
@@ -140,8 +150,8 @@ function SuccessPage() {
       y += 30;
     };
 
-    rowLabel("STUDENT", studentName);
-    rowLabel("PROGRAM", programName);
+    rowLabel("REGISTRATION", registrationNumber);
+    rowLabel("PAYMENT METHOD", paymentMethod);
 
     // Itemized box
     doc.setFillColor(OUTFIELD);
@@ -153,6 +163,98 @@ function SuccessPage() {
     doc.text("AMOUNT", pageWidth - marginX - 12, y + 17, { align: "right" });
     y += 26;
 
+    if (orderItems.length) {
+      orderItems.forEach((item, index) => {
+        const students = item.students ?? [];
+        const schedule = splitScheduleItems(item.selectedDays);
+        const studentCount = item.studentCount || students.length || 1;
+        const itemTotal = item.itemTotal ?? ((item.feePerStudent || 0) * studentCount);
+        const titleHeight = estimateWrappedHeight(item.programTitle || programName, pageWidth - marginX * 2 - 125, 13);
+        const blockHeight = 88 + titleHeight + Math.max(1, schedule.length) * 12 + Math.max(1, students.length) * 18;
+        ensureSpace(blockHeight);
+
+        const blockTop = y;
+        doc.setDrawColor(INK_LIGHT);
+        doc.setFillColor(index % 2 === 0 ? "#FFFFFF" : "#FBFAF5");
+        doc.roundedRect(marginX, blockTop, pageWidth - marginX * 2, blockHeight, 8, 8, "FD");
+
+        y += 18;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(OUTFIELD);
+        doc.text(doc.splitTextToSize(item.programTitle || programName, pageWidth - marginX * 2 - 125), marginX + 14, y);
+        doc.setTextColor(LEATHER);
+        doc.text(money(itemTotal), pageWidth - marginX - 14, blockTop + 24, { align: "right" });
+        y += titleHeight + 6;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(GOLD);
+        doc.text("BATCH", marginX + 14, y);
+        doc.text("MONTH", marginX + 230, y);
+        y += 12;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(INK);
+        doc.text(item.batchName || "-", marginX + 14, y, { maxWidth: 195 });
+        doc.text(item.selectedMonthLabel || item.selectedMonth?.label || "-", marginX + 230, y, { maxWidth: 165 });
+        y += 20;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(GOLD);
+        doc.text("SCHEDULE", marginX + 14, y);
+        y += 12;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(OUTFIELD);
+        if (schedule.length) {
+          schedule.forEach((day) => {
+            doc.text(`- ${day}`, marginX + 20, y, { maxWidth: pageWidth - marginX * 2 - 40 });
+            y += 12;
+          });
+        } else {
+          doc.text("-", marginX + 20, y);
+          y += 12;
+        }
+
+        y += 6;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(GOLD);
+        doc.text(`STUDENTS (${studentCount})`, marginX + 14, y);
+        doc.text("PRICE", pageWidth - marginX - 14, y, { align: "right" });
+        y += 12;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(OUTFIELD);
+        if (students.length) {
+          students.forEach((student) => {
+            const name = `${student.firstName || ""} ${student.lastName || ""}`.trim() || "Student";
+            const meta = [student.dob ? `DOB: ${student.dob}` : "", student.gender || ""].filter(Boolean).join(" - ");
+            doc.text(name, marginX + 20, y, { maxWidth: 130 });
+            if (meta) {
+              doc.setTextColor(INK);
+              doc.text(meta, marginX + 160, y, { maxWidth: 230 });
+              doc.setTextColor(OUTFIELD);
+            }
+            doc.setFont("helvetica", "bold");
+            doc.text(money(item.feePerStudent), pageWidth - marginX - 14, y, { align: "right" });
+            doc.setFont("helvetica", "normal");
+            y += 18;
+          });
+        } else {
+          doc.text(`${studentCount} student(s)`, marginX + 20, y);
+          doc.setFont("helvetica", "bold");
+          doc.text(money(item.feePerStudent), pageWidth - marginX - 14, y, { align: "right" });
+          doc.setFont("helvetica", "normal");
+          y += 18;
+        }
+
+        y = blockTop + blockHeight + 14;
+      });
+    } else {
     doc.setDrawColor(INK_LIGHT);
     doc.setFillColor("#FFFFFF");
     doc.rect(marginX, y, pageWidth - marginX * 2, 32, "FD");
@@ -162,8 +264,10 @@ function SuccessPage() {
     doc.text(`${programName} — ${studentName}`, marginX + 12, y + 20);
     doc.text(`$${totalAmount}`, pageWidth - marginX - 12, y + 20, { align: "right" });
     y += 32 + 30;
+    }
 
     // Total
+    ensureSpace(84);
     const totalsX = pageWidth - marginX - 200;
     doc.setDrawColor(INK_LIGHT);
     doc.line(totalsX, y, pageWidth - marginX, y);
@@ -173,7 +277,7 @@ function SuccessPage() {
     doc.setTextColor(OUTFIELD);
     doc.text("Total Paid", totalsX, y);
     doc.setTextColor(LEATHER);
-    doc.text(`$${totalAmount}`, pageWidth - marginX, y, { align: "right" });
+    doc.text(money(totalAmount), pageWidth - marginX, y, { align: "right" });
     y += 44;
 
     // Payment method
