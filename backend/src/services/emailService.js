@@ -6,9 +6,27 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_ADDRESS = process.env.EMAIL_FROM || 'noreply@calcricket.org';
+const ADMIN_REGISTRATION_EMAILS = (process.env.REGISTRATION_ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
+  .split(',')
+  .map(email => email.trim())
+  .filter(Boolean);
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function money(value) {
+  const amount = Number(value) || 0;
+  return `$${amount.toFixed(2)}`;
+}
 
 async function sendRegistrationEmail({ to, registrationNumber, studentName, programName,
-  batchInfo, parentName, paymentMethod, totalAmount, transactionId }) {
+  batchInfo, parentName, paymentMethod, totalAmount, transactionId, orderItems = [] }) {
   const subject = `CCA Registration Confirmed — ${registrationNumber}`;
 
   // Generate barcode SVG
@@ -25,6 +43,28 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
     return rect;
   }).join('');
   const barcodeSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="60" viewBox="0 0 300 60"><rect width="300" height="60" fill="#ffffff"/>${barRects}<text x="150" y="58" font-family="monospace" font-size="9" text-anchor="middle" fill="#0F172A">${registrationNumber}</text></svg>`;
+  const itemRows = Array.isArray(orderItems) && orderItems.length
+    ? orderItems.map((item) => {
+      const students = Array.isArray(item.students) ? item.students : [];
+      const studentLines = students.length
+        ? students.map(s => `${escapeHtml(`${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Student')}${s.dob ? ` <span style="color:#94a3b8;">DOB: ${escapeHtml(s.dob)}</span>` : ''}${s.gender ? ` <span style="color:#94a3b8;">${escapeHtml(s.gender)}</span>` : ''}`).join('<br/>')
+        : `${Number(item.studentCount) || 1} student(s)`;
+      const monthLabel = item.selectedMonthLabel || item.selectedMonth?.label || '';
+      const itemTotal = item.itemTotal || ((Number(item.feePerStudent) || 0) * (Number(item.studentCount) || 1));
+      return `
+      <tr>
+        <td style="padding:12px;border-bottom:1px solid #f1f5f9;">
+          <p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(item.programTitle || programName)}</p>
+          ${item.batchName ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</p>` : ''}
+          ${monthLabel ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Month: ${escapeHtml(monthLabel)}</p>` : ''}
+          ${item.selectedDays ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Schedule: ${escapeHtml(item.selectedDays)}</p>` : ''}
+          <p style="margin:6px 0 0;font-size:12px;color:#334155;line-height:1.5;">${studentLines}</p>
+          <p style="margin:6px 0 0;font-size:12px;color:#64748b;">${money(item.feePerStudent)} x ${Number(item.studentCount) || students.length || 1} student(s)</p>
+        </td>
+        <td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(itemTotal)}</td>
+      </tr>`;
+    }).join('')
+    : `<tr><td style="padding:12px;border-bottom:1px solid #f1f5f9;"><p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(programName)}</p><p style="margin:2px 0 0;font-size:12px;color:#64748b;">Student: ${escapeHtml(studentName)}</p>${batchInfo ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(batchInfo)}</p>` : ''}</td><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(totalAmount)}</td></tr>`;
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:30px auto;">
@@ -40,8 +80,8 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;"/>
     <table width="100%" style="border-collapse:collapse;">
       <tr style="background:#f8fafc;"><th style="text-align:left;font-size:12px;color:#64748b;padding:10px 12px;border-bottom:1px solid #e2e8f0;">Description</th><th style="text-align:right;font-size:12px;color:#64748b;padding:10px 12px;border-bottom:1px solid #e2e8f0;">Amount</th></tr>
-      <tr><td style="padding:12px;border-bottom:1px solid #f1f5f9;"><p style="margin:0;font-weight:bold;color:#0F172A;">${programName}</p><p style="margin:2px 0 0;font-size:12px;color:#64748b;">Student: ${studentName}</p>${batchInfo ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Batch: ${batchInfo}</p>` : ''}</td><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">$${totalAmount}</td></tr>
-      <tr style="background:#FEF4E6;"><td style="padding:12px;font-weight:bold;color:#0F172A;">Total</td><td style="padding:12px;text-align:right;font-weight:bold;color:#A33B2B;font-size:18px;">$${totalAmount}</td></tr>
+      ${itemRows}
+      <tr style="background:#FEF4E6;"><td style="padding:12px;font-weight:bold;color:#0F172A;">Total</td><td style="padding:12px;text-align:right;font-weight:bold;color:#A33B2B;font-size:18px;">${money(totalAmount)}</td></tr>
     </table>
     <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Payment: <strong>${paymentMethod}</strong>${transactionId ? ` — Txn: ${transactionId}` : ''}</p>
   </td></tr>
@@ -60,6 +100,7 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
   await resend.emails.send({
     from: `California Cricket Academy <${FROM_ADDRESS}>`,
     to,
+    ...(ADMIN_REGISTRATION_EMAILS.length ? { bcc: ADMIN_REGISTRATION_EMAILS } : {}),
     subject,
     html,
   });

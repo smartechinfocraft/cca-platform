@@ -11,7 +11,35 @@ interface SuccessData {
   paymentMethod?: string;
   totalAmount?: number;
   email?: string;
+  orderItems?: OrderItem[];
 }
+
+interface OrderStudent {
+  firstName?: string;
+  lastName?: string;
+  dob?: string;
+  gender?: string;
+}
+
+interface OrderItem {
+  programTitle?: string;
+  batchName?: string;
+  selectedMonth?: { label?: string };
+  selectedMonthLabel?: string;
+  selectedDays?: string;
+  feePerStudent?: number;
+  studentCount?: number;
+  itemTotal?: number;
+  students?: OrderStudent[];
+}
+
+const money = (value?: number) => `$${(Number(value) || 0).toFixed(2)}`;
+
+const splitScheduleItems = (value?: string) =>
+  String(value || "")
+    .split(/\s*(?:\n|;|\s+\|\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
 
 function SuccessPage() {
   const location = useLocation();
@@ -23,6 +51,7 @@ function SuccessPage() {
   const programName = response?.programName ?? "—";
   const paymentMethod = response?.paymentMethod ?? "—";
   const totalAmount = response?.totalAmount ?? 0;
+  const orderItems = response?.orderItems ?? [];
 
   const handleDownloadReceipt = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -199,7 +228,7 @@ function SuccessPage() {
                   { label: "Program", value: programName },
                   { label: "Student", value: studentName },
                   { label: "Payment Method", value: paymentMethod },
-                  { label: "Total Paid", value: `$${totalAmount}` },
+                  { label: "Total Paid", value: money(totalAmount) },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
                     <p className="text-xs uppercase tracking-widest text-slate-500">{label}</p>
@@ -207,6 +236,63 @@ function SuccessPage() {
                   </div>
                 ))}
               </div>
+
+              {orderItems.length > 0 && (
+                <div className="space-y-4">
+                  <p className="text-xs uppercase tracking-widest font-semibold text-slate-500">Order Details</p>
+                  {orderItems.map((item, index) => {
+                    const students = item.students ?? [];
+                    const schedule = splitScheduleItems(item.selectedDays);
+                    const itemTotal = item.itemTotal ?? ((item.feePerStudent || 0) * (item.studentCount || students.length || 1));
+                    return (
+                      <div key={`${item.programTitle || "program"}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-widest font-semibold text-[#C9A227]">Program</p>
+                            <h2 className="mt-1 text-lg font-bold text-[#0F172A]">{item.programTitle || programName}</h2>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Item total</p>
+                            <p className="text-xl font-bold text-[#A33B2B]">{money(itemTotal)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Batch</p>
+                            <p className="mt-0.5 text-xs font-bold text-[#0F172A]">{item.batchName || "—"}</p>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Month</p>
+                            <p className="mt-0.5 text-xs font-bold text-[#0F172A]">{item.selectedMonthLabel || item.selectedMonth?.label || "—"}</p>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Schedule</p>
+                            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs font-bold text-[#0F172A]">
+                              {schedule.length ? schedule.map((day) => <li key={day}>{day}</li>) : <li className="list-none -ml-4">—</li>}
+                            </ul>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 border-t border-slate-200 pt-4">
+                          <p className="text-xs uppercase tracking-widest font-semibold text-slate-400">Students ({item.studentCount || students.length})</p>
+                          <div className="mt-3 space-y-2">
+                            {students.map((student, studentIndex) => (
+                              <div key={`${student.firstName || ""}-${student.lastName || ""}-${studentIndex}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#ECE6D4] px-4 py-3">
+                                <p className="text-sm font-bold text-[#0F172A]">
+                                  {`${student.firstName || ""} ${student.lastName || ""}`.trim() || "Student"}
+                                  <span className="ml-2 text-xs font-medium text-slate-500">{student.dob ? `DOB: ${student.dob}` : ""}{student.gender ? ` · ${student.gender}` : ""}</span>
+                                </p>
+                                <p className="text-sm font-bold text-[#0F172A]">{money(item.feePerStudent)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Notification confirmation */}
               <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-5">

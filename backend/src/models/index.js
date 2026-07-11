@@ -318,6 +318,41 @@ const registrationSchema = new mongoose.Schema(
       },
     ],
 
+    // Snapshot of the exact checkout line items. This is intentionally
+    // display-oriented so receipts, emails, and admin history remain readable
+    // even if programs/batches are edited after the order is placed.
+    orderItems: [
+      {
+        programId:       { type: String },
+        programTitle:    { type: String },
+        batchId:         { type: String },
+        batchName:       { type: String },
+        selectedMonth: {
+          label:     { type: String },
+          startDate: { type: String },
+          endDate:   { type: String },
+          weeks:     { type: String },
+          price:     { type: Number },
+        },
+        selectedMonthLabel: { type: String },
+        selectedDays:       { type: String },
+        sessionsPerWeek:    { type: Number },
+        feePerStudent:      { type: Number },
+        studentCount:       { type: Number },
+        itemTotal:          { type: Number },
+        students: [
+          {
+            firstName:     { type: String },
+            lastName:      { type: String },
+            dob:           { type: String },
+            gender:        { type: String },
+            schoolName:    { type: String },
+            medicalNotes:  { type: String },
+          },
+        ],
+      },
+    ],
+
     status: {
       type: String,
       enum: ['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'],

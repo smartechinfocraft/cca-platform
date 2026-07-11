@@ -154,11 +154,14 @@ export default function CartPage() {
     const effectiveSessionsPerWeek = Math.max(item.sessionsPerWeek || 1, splitScheduleItems(item.selectedDays).length || 1);
     return {
       programId: item.programId,
+      programTitle: item.programTitle,
       batchId: item.batchId,
+      batchName: item.batchName,
       studentCount: item.students.length || 1,
       sessionsPerWeek: effectiveSessionsPerWeek,
       selectedDays: item.selectedDays,
       selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth },
+      selectedMonthLabel: item.selectedMonth,
       fee: item.fee,
       students: item.students,
     };

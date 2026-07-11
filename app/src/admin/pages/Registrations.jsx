@@ -10,6 +10,14 @@ import toast from 'react-hot-toast';
 
 const STATUSES = ['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'];
 
+const money = (value) => `$${(Number(value) || 0).toFixed(2)}`;
+
+const splitScheduleItems = (value) =>
+  String(value || '')
+    .split(/\s*(?:\n|;|\s+\|\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
 export default function Registrations() {
   const { isSuperAdmin } = useAdminAuth();
   const [rows, setRows]       = useState([]);
@@ -125,7 +133,19 @@ export default function Registrations() {
   );
 
   const columns = [
-    { key: 'registrationNumber', label: 'Reg #' },
+    {
+      key: 'registrationNumber',
+      label: 'Reg #',
+      render: (v, row) => (
+        <button
+          type="button"
+          onClick={() => openEdit(row)}
+          style={{ background: 'transparent', border: 0, color: '#F5D97A', cursor: 'pointer', fontWeight: 700, padding: 0 }}
+        >
+          {v}
+        </button>
+      ),
+    },
     { key: 'parentId',    label: 'Parent',  render: (v) => v ? `${v.firstName} ${v.lastName}` : '—' },
     { key: 'parentEmail', label: 'Email',   render: (_, row) => row.parentId?.email || '—' },
     { key: 'programId',   label: 'Program', render: (v) => v?.title || '—' },
@@ -224,6 +244,64 @@ export default function Registrations() {
             </div>
 
             {/* ── Inline check confirm banner inside modal ── */}
+            {Array.isArray(selected.orderItems) && selected.orderItems.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#F5D97A', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Order Details
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '360px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {selected.orderItems.map((item, index) => {
+                    const students = item.students || [];
+                    const schedule = splitScheduleItems(item.selectedDays);
+                    const itemTotal = item.itemTotal || ((Number(item.feePerStudent) || 0) * (Number(item.studentCount) || students.length || 1));
+                    return (
+                      <div key={`${item.programTitle || 'program'}-${index}`} style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '14px', background: 'rgba(255,255,255,0.035)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Program</div>
+                            <div style={{ color: '#fff', fontSize: '15px', fontWeight: 800, marginTop: '3px' }}>{item.programTitle || selected.programId?.title || '—'}</div>
+                          </div>
+                          <div style={{ textAlign: 'right', color: '#F5D97A', fontWeight: 800, fontSize: '15px', whiteSpace: 'nowrap' }}>{money(itemTotal)}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                          <div style={{ background: 'rgba(15,23,42,0.45)', borderRadius: '8px', padding: '8px 10px' }}>
+                            <div style={{ color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase' }}>Batch</div>
+                            <div style={{ color: '#fff', fontSize: '12px', fontWeight: 700 }}>{item.batchName || '—'}</div>
+                          </div>
+                          <div style={{ background: 'rgba(15,23,42,0.45)', borderRadius: '8px', padding: '8px 10px' }}>
+                            <div style={{ color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase' }}>Month</div>
+                            <div style={{ color: '#fff', fontSize: '12px', fontWeight: 700 }}>{item.selectedMonthLabel || item.selectedMonth?.label || '—'}</div>
+                          </div>
+                          <div style={{ background: 'rgba(15,23,42,0.45)', borderRadius: '8px', padding: '8px 10px', minWidth: '220px' }}>
+                            <div style={{ color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase' }}>Schedule</div>
+                            <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+                              {schedule.length ? schedule.map(day => <li key={day}>{day}</li>) : <li style={{ listStyle: 'none', marginLeft: '-16px' }}>—</li>}
+                            </ul>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px' }}>
+                          <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+                            Students ({item.studentCount || students.length})
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {students.map((student, studentIndex) => (
+                              <div key={`${student.firstName || ''}-${student.lastName || ''}-${studentIndex}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', background: 'rgba(245,217,122,0.12)', borderRadius: '8px', padding: '8px 10px', color: '#fff', fontSize: '12px' }}>
+                                <div>
+                                  <strong>{`${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student'}</strong>
+                                  <span style={{ color: '#94a3b8', marginLeft: '8px' }}>{student.dob ? `DOB: ${student.dob}` : ''}{student.gender ? ` · ${student.gender}` : ''}</span>
+                                </div>
+                                <strong>{money(item.feePerStudent)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {selected.paymentMethod === 'CHECK' && selected.status !== 'CONFIRMED' && (
               <div style={{
                 background: 'rgba(34,197,94,0.08)',

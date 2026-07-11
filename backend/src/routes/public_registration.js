@@ -22,6 +22,70 @@ function fmtMonthDateRange(startDate, endDate, weeks) {
   return weeks ? `${range} ( ${weeks} week )` : range;
 }
 
+function normalizeOrderMonth(month, fallbackLabel) {
+  if (!month && !fallbackLabel) return undefined;
+  if (typeof month === 'string') return { label: month };
+  return {
+    label: month?.label || fallbackLabel || '',
+    startDate: month?.startDate,
+    endDate: month?.endDate,
+    weeks: month?.weeks != null ? String(month.weeks) : undefined,
+    price: month?.price != null ? Number(month.price) : undefined,
+  };
+}
+
+function normalizeOrderStudent(student) {
+  return {
+    firstName: String(student?.firstName || '').trim(),
+    lastName: String(student?.lastName || '').trim(),
+    dob: student?.dob ? String(student.dob) : '',
+    gender: student?.gender || '',
+    schoolName: student?.schoolName || '',
+    medicalNotes: student?.medicalNotes || '',
+  };
+}
+
+function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced }) {
+  if (Array.isArray(cartItems) && cartItems.length > 0) {
+    return cartItems.map((item, index) => {
+      const itemStudents = Array.isArray(item.students) && item.students.length ? item.students : [];
+      const studentCount = Number(item.studentCount) || itemStudents.length || 1;
+      const feePerStudent = round2(Number(item.fee) || Number(priced?.lineItems?.[index]?.unitPrice) || 0);
+      return {
+        programId: item.programId ? String(item.programId) : '',
+        programTitle: item.programTitle || item.programName || priced?.lineItems?.[index]?.programTitle || 'CCA Program',
+        batchId: item.batchId ? String(item.batchId) : '',
+        batchName: item.batchName || item.batchTitle || '',
+        selectedMonth: normalizeOrderMonth(item.selectedMonth, item.selectedMonthLabel),
+        selectedMonthLabel: item.selectedMonthLabel || item.selectedMonth?.label || (typeof item.selectedMonth === 'string' ? item.selectedMonth : ''),
+        selectedDays: item.selectedDays || '',
+        sessionsPerWeek: Number(item.sessionsPerWeek) || undefined,
+        feePerStudent,
+        studentCount,
+        itemTotal: round2(feePerStudent * studentCount),
+        students: itemStudents.map(normalizeOrderStudent),
+      };
+    });
+  }
+
+  const studentCount = students.length || 1;
+  const feePerStudent = round2(Number(priced?.unitPrice) || (studentCount ? Number(priced?.subtotal || 0) / studentCount : 0));
+  return [{
+    programId: selectedProgram?._id ? String(selectedProgram._id) : '',
+    programTitle: selectedProgram?.title || 'CCA Program',
+    batchId: selectedBatch?._id ? String(selectedBatch._id) : '',
+    batchName: selectedBatch?.title || selectedBatch?.name || '',
+    selectedMonth: normalizeOrderMonth(selectedMonth),
+    selectedMonthLabel: selectedMonth?.label || '',
+    selectedDays: selectedDays || selectedBatch?.days || selectedBatch?.timing || '',
+    sessionsPerWeek: Number(selectedBatch?.sessionsPerWeek ?? sessionsPerWeek) || undefined,
+    feePerStudent,
+    studentCount,
+    itemTotal: round2(feePerStudent * studentCount),
+    students: students.map(normalizeOrderStudent),
+  }];
+}
+
 const {
   logPaymentSuccess,
   logDuplicatePayment,
@@ -949,6 +1013,16 @@ router.post('/register', async (req, res) => {
       monthDateRange,
     ].filter(Boolean).join(' — ');
     const batchIds = [...new Set(studentBatchIds.filter(Boolean).map(String))];
+    const orderItems = buildRegistrationOrderItems({
+      cartItems,
+      selectedProgram,
+      selectedBatch,
+      selectedMonth: monthOpt,
+      selectedDays: selectedBatch?.days || selectedBatch?.timing,
+      sessionsPerWeek,
+      students: studentInputs,
+      priced,
+    });
 
     const reg = new Registration({
       parentId: resolvedParentId,
@@ -976,6 +1050,7 @@ router.post('/register', async (req, res) => {
       subtotal: priced.subtotal,
       discountAmount: priced.discount,
       totalAmount: priced.total,
+      orderItems,
       couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
       paymentMethod: pmMethod,
       paymentStatus: pmStatus,
@@ -1028,6 +1103,7 @@ router.post('/register', async (req, res) => {
       paymentMethod,
       totalAmount: priced.total,
       transactionId,
+      orderItems,
     }).catch(err => console.error('Email send failed:', err));
 
     return res.status(201).json({
@@ -1043,6 +1119,7 @@ router.post('/register', async (req, res) => {
       subtotal: priced.subtotal,
       discount: priced.discount,
       totalAmount: priced.total,
+      orderItems,
       couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
     });
   } catch (err) {
