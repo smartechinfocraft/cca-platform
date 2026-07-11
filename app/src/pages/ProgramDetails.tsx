@@ -78,9 +78,9 @@ function buildDaySlotOptions(batch: BatchRaw): string[] {
   else if (batch.dayOfWeek && batch.dayOfWeek !== "MULTI") days = [DAY_FULL[batch.dayOfWeek] ?? batch.dayOfWeek];
   else if (batch.days) days = [batch.days];
   if (days.length === 0) return [];
-  return days.map((day) => {
+  return days.map((day, index) => {
     if (slots.length > 0) {
-      const s = slots[0];
+      const s = slots[index] ?? slots[0];
       return `${day} - ${fmt12(s.startTime)} - ${fmt12(s.endTime)}${locationSuffix}`;
     }
     return `${day}${locationSuffix}`;
