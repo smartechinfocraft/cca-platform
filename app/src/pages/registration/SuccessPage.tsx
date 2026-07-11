@@ -43,7 +43,16 @@ const splitScheduleItems = (value?: string) =>
 
 function SuccessPage() {
   const location = useLocation();
-  const response = location.state as SuccessData | null;
+  const stateResponse = location.state as SuccessData | null;
+  const storedResponse = (() => {
+    try {
+      const raw = sessionStorage.getItem("cca:lastRegistration");
+      return raw ? (JSON.parse(raw) as SuccessData) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const response = stateResponse ?? storedResponse;
 
   const registrationNumber =
     response?.registrationNumber ?? `CCA-${Date.now().toString(36).toUpperCase()}`;

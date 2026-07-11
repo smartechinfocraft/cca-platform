@@ -53,9 +53,17 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
       const feePerStudent = round2(Number(item.fee) || Number(priced?.lineItems?.[index]?.unitPrice) || 0);
       return {
         programId: item.programId ? String(item.programId) : '',
-        programTitle: item.programTitle || item.programName || priced?.lineItems?.[index]?.programTitle || 'CCA Program',
+        programTitle: item.programTitle
+          || item.programName
+          || priced?.lineItems?.[index]?.program?.title
+          || selectedProgram?.title
+          || 'CCA Program',
         batchId: item.batchId ? String(item.batchId) : '',
-        batchName: item.batchName || item.batchTitle || '',
+        batchName: item.batchName
+          || item.batchTitle
+          || priced?.lineItems?.[index]?.batch?.title
+          || priced?.lineItems?.[index]?.batch?.name
+          || '',
         selectedMonth: normalizeOrderMonth(item.selectedMonth, item.selectedMonthLabel),
         selectedMonthLabel: item.selectedMonthLabel || item.selectedMonth?.label || (typeof item.selectedMonth === 'string' ? item.selectedMonth : ''),
         selectedDays: item.selectedDays || '',

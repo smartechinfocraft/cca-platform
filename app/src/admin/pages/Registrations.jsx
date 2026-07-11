@@ -148,7 +148,19 @@ export default function Registrations() {
     },
     { key: 'parentId',    label: 'Parent',  render: (v) => v ? `${v.firstName} ${v.lastName}` : '—' },
     { key: 'parentEmail', label: 'Email',   render: (_, row) => row.parentId?.email || '—' },
-    { key: 'programId',   label: 'Program', render: (v) => v?.title || '—' },
+    {
+      key: 'programId',
+      label: 'Program',
+      render: (v, row) => (
+        <button
+          type="button"
+          onClick={() => openEdit(row)}
+          style={{ background: 'transparent', border: 0, color: '#fff', cursor: 'pointer', padding: 0, textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'rgba(245,217,122,0.65)', textUnderlineOffset: '3px' }}
+        >
+          {v?.title || '—'}
+        </button>
+      ),
+    },
     { key: 'totalAmount', label: 'Amount',  render: (v) => `$${(v || 0).toLocaleString()}` },
     { key: 'status',      label: 'Status',  render: (v) => <Badge label={v} /> },
     { key: 'paymentMethod', label: 'Payment' },
@@ -209,7 +221,7 @@ export default function Registrations() {
     {
       key: '_id', label: 'Actions',
       render: (_, row) => (
-        <Btn small onClick={() => openEdit(row)}>Edit</Btn>
+        <Btn small onClick={() => openEdit(row)}>View Details</Btn>
       ),
     },
   ];

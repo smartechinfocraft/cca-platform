@@ -337,6 +337,7 @@ export default function CartPage() {
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
       clearCart();
+      sessionStorage.setItem("cca:lastRegistration", JSON.stringify(response.data));
       navigate("/success", { state: response.data });
     } catch (err: any) {
       setPayError(err?.response?.data?.message || (err instanceof Error ? err.message : "Registration failed. Please try again."));

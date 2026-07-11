@@ -185,6 +185,7 @@ function PaymentPage() {
         },
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
+      sessionStorage.setItem("cca:lastRegistration", JSON.stringify(response.data));
       navigate("/success", { state: response.data });
       // Registration succeeded — empty the cart so a refreshed/returning
       // visit to /cart doesn't show items that were just purchased.
