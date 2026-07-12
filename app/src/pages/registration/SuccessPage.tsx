@@ -336,7 +336,7 @@ function SuccessPage() {
               </div>
 
               {/* Registration details grid */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* <div className="grid gap-4 sm:grid-cols-2">
                 {[
                   { label: "Program", value: programName },
                   { label: "Student", value: studentName },
@@ -348,7 +348,7 @@ function SuccessPage() {
                     <p className="mt-2 text-base font-bold text-[#0F172A]">{value}</p>
                   </div>
                 ))}
-              </div>
+              </div> */}
 
               {orderItems.length > 0 && (
                 <div className="space-y-4">
