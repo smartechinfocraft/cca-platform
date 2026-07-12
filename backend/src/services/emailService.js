@@ -8,7 +8,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_ADDRESS = process.env.EMAIL_FROM || 'noreply@calcricket.org';
 const REGISTRATION_ADMIN_TO = (process.env.REGISTRATION_ADMIN_TO || process.env.REGISTRATION_ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'calcricket_academy@yahoo.com')
   .split(',')
-  .map(email => email.trim())
+  .map(email => email.trim()) 
   .filter(Boolean);
 const REGISTRATION_ADMIN_CC = (process.env.REGISTRATION_ADMIN_CC || 'buchhemant@yahoo.com,kinjalbuch@yahoo.com')
   .split(',')
@@ -19,7 +19,7 @@ const REGISTRATION_ADMIN_BCC = (process.env.REGISTRATION_ADMIN_BCC || 'maulik.mi
   .map(email => email.trim())
   .filter(Boolean);
 
-function escapeHtml(value) {
+function escapeHtml(value) {  
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
