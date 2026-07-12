@@ -7,7 +7,7 @@ import ProgramFilter from "../components/ProgramFilter";
 import type { Filters } from "../components/ProgramFilter";
 import { getPrograms } from "../services/programService";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 25;
 
 function Programs() {
   const [searchParams] = useSearchParams();
