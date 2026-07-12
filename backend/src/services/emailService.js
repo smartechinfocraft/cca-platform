@@ -6,7 +6,15 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_ADDRESS = process.env.EMAIL_FROM || 'noreply@calcricket.org';
-const ADMIN_REGISTRATION_EMAILS = (process.env.REGISTRATION_ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
+const REGISTRATION_ADMIN_TO = (process.env.REGISTRATION_ADMIN_TO || process.env.REGISTRATION_ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'calcricket_academy@yahoo.com')
+  .split(',')
+  .map(email => email.trim())
+  .filter(Boolean);
+const REGISTRATION_ADMIN_CC = (process.env.REGISTRATION_ADMIN_CC || 'buchhemant@yahoo.com,kinjalbuch@yahoo.com')
+  .split(',')
+  .map(email => email.trim())
+  .filter(Boolean);
+const REGISTRATION_ADMIN_BCC = (process.env.REGISTRATION_ADMIN_BCC || 'maulik.mistry@gmail.com')
   .split(',')
   .map(email => email.trim())
   .filter(Boolean);
@@ -99,8 +107,9 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
 
   await resend.emails.send({
     from: `California Cricket Academy <${FROM_ADDRESS}>`,
-    to,
-    ...(ADMIN_REGISTRATION_EMAILS.length ? { bcc: ADMIN_REGISTRATION_EMAILS } : {}),
+    to: [to, ...REGISTRATION_ADMIN_TO],
+    ...(REGISTRATION_ADMIN_CC.length ? { cc: REGISTRATION_ADMIN_CC } : {}),
+    ...(REGISTRATION_ADMIN_BCC.length ? { bcc: REGISTRATION_ADMIN_BCC } : {}),
     subject,
     html,
   });

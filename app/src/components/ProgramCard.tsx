@@ -9,6 +9,7 @@ import {
   HiOutlineSparkles,
   HiOutlineLightningBolt,
   HiOutlineX,
+  HiOutlineClock,
 } from "react-icons/hi";
 import { HiOutlineArrowRight, HiOutlinePlusCircle, HiOutlineTrash } from "react-icons/hi2";
 import { useAuth } from "../context/AuthContext";
@@ -33,7 +34,30 @@ type ProgramCardProps = {
     city?: { title?: string } | null;
     ageGroups?: string[];
     skillLevels?: string[];
+    scheduleDays?: ProgramScheduleDay[];
+    weeklyBatches?: WeeklyBatchRaw[];
+    batches?: ProgramBatchSummary[];
   };
+};
+
+type ProgramScheduleDay = {
+  day?: string;
+  startTime?: string;
+  endTime?: string;
+  groundAddress?: string;
+};
+
+type ProgramBatchSummary = {
+  _id?: string;
+  name?: string;
+  title?: string;
+  days?: string;
+  dayOfWeek?: string;
+  multiDays?: string[];
+  timing?: string;
+  timeSlots?: TimeSlot[];
+  location?: { title?: string; city?: string; address?: string };
+  groundLocationNote?: string;
 };
 
 function formatProgramDate(date?: string): string {
@@ -59,7 +83,35 @@ function formatProgramDateRange(startDate?: string, endDate?: string): string {
 function ProgramCard({ program }: ProgramCardProps) {
   const navigate = useNavigate();
   const [quickOpen, setQuickOpen] = useState(false);
+  const [programDetails, setProgramDetails] = useState<any | null>(null);
   const price = program.discountedPrice ?? program.basePrice;
+  const programWithDetails = programDetails ?? program;
+  const availableDays = buildProgramAvailableDayOptions(programWithDetails);
+  const availableBatchCount = Array.isArray(programWithDetails.batches) && programWithDetails.batches.length > 0
+    ? programWithDetails.batches.length
+    : Array.isArray(programWithDetails.scheduleDays) && programWithDetails.scheduleDays.length > 0
+      ? 1
+      : Array.isArray(programWithDetails.weeklyBatches)
+        ? programWithDetails.weeklyBatches.length
+        : 0;
+
+  useEffect(() => {
+    const hasScheduleSource =
+      (Array.isArray(program.scheduleDays) && program.scheduleDays.length > 0) ||
+      (Array.isArray(program.batches) && program.batches.length > 0) ||
+      (Array.isArray(program.weeklyBatches) && program.weeklyBatches.length > 0);
+    if (hasScheduleSource || programDetails) return;
+
+    let cancelled = false;
+    getProgramById(program._id)
+      .then((data) => {
+        if (!cancelled) setProgramDetails(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [program._id, program.scheduleDays, program.batches, program.weeklyBatches, programDetails]);
 
   const backgroundVariants = [
     {
@@ -184,28 +236,40 @@ function ProgramCard({ program }: ProgramCardProps) {
             (program.category && typeof program.category === "object" && program.category.title && program.category.title.trim() !== "")
           ) && (
             <div className="mt-2">
-              <span className="inline-flex items-center no-wrap rounded-full bg-[#A33B2B]/10 text-[#A33B2B] text-sm font-semibold uppercase no-wrap tracking-[0.1em] px-3 py-2">
+              <span className="inline-flex items-center  w-auto rounded-full bg-[#A33B2B]/10 text-[#A33B2B] text-sm font-semibold uppercase no-wrap tracking-[0.1em] px-3 py-2">
                 {typeof program.category === "string" ? program.category : program.category?.title}
               </span>
             </div>
           )}
           </div>
 
-          <div className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-slate-900">
+        
+<div className="mt-4 flex  flex-wrap  items-center gap-3">
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-900">
             <HiOutlineCalendar className="h-5 w-5 text-[#A33B2B]" />
             <span className="text-slate-600">Program Starts:</span>
             <span>{formatProgramDateRange(program.startDate)}</span>
           </div>
 
+           <div className="inline-flex items-center gap-2 text-sm  text-slate-900 font-medium">
+              <HiOutlineLocationMarker className="h-5 w-5 text-[#A33B2B]" />
+              {program.location?.title ?? "Location details"} 
+            </div>
+
+            </div>
+
           <p className="mt-4 text-sm leading-6 text-slate-600">
             {program.shortDescription}
           </p>
 
-          <div className="mt-5 space-y-3 text-sm text-slate-700 flex flex-col gap-3">
-            <div className="inline-flex items-center gap-2 text-slate-900 font-medium">
-              <HiOutlineLocationMarker className="h-5 w-5 text-[#A33B2B]" />
-              {program.location?.title ?? "Location details"} 
+          <div className="mt-3 flex flex-wrap gap-2">
+
             </div>
+
+
+             
+          <div className="mt-3 space-y-3 text-sm text-slate-700 flex items-start  flex-wrap gap-3">
+           
 
             <div className="inline-flex items-center gap-2 text-slate-900 font-medium">
               <div className="inline-flex items-center gap-2 text-slate-900 font-medium">
@@ -233,6 +297,31 @@ function ProgramCard({ program }: ProgramCardProps) {
                   </span>
                 ))}
               </div>
+            </div>
+
+
+
+
+          </div>
+
+           <div className="mt-1 space-y-2 flex flex-col">
+            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-700">
+             <HiOutlineClock className="h-5 w-5 text-[#A33B2B]" />  <span>Available Batches:</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            
+              {availableDays.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-sm font-medium text-[#0F172A]">
+                  {availableDays.map((day) => (
+                    <li key={day} className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A33B2B]" />
+                      <span>{day}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">Schedule details loading...</p>
+              )}
             </div>
           </div>
         </div>
@@ -336,13 +425,38 @@ function buildDaySlotOptions(batch: QuickBatch): string[] {
   else if (batch.dayOfWeek && batch.dayOfWeek !== "MULTI") days = [DAY_FULL[batch.dayOfWeek] ?? batch.dayOfWeek];
   else if (batch.days) days = [batch.days];
   if (days.length === 0) return [];
-  return days.map((day) => {
+  return days.map((day, index) => {
     if (slots.length > 0) {
-      const s = slots[0];
+      const s = slots[index] ?? slots[0];
       return `${day} - ${fmt12(s.startTime)} - ${fmt12(s.endTime)}${locationSuffix}`;
     }
     return `${day}${locationSuffix}`;
   });
+}
+
+function buildProgramAvailableDayOptions(program: ProgramCardProps["program"] & { batches?: QuickBatch[] }): string[] {
+  const fromBatches = Array.isArray(program.batches)
+    ? program.batches.flatMap((batch) => buildDaySlotOptions(batch as QuickBatch))
+    : [];
+
+  const fromScheduleDays = Array.isArray(program.scheduleDays)
+    ? program.scheduleDays.map((schedule) => {
+        const day = schedule.day ? (DAY_FULL[schedule.day] ?? schedule.day) : "";
+        const time = schedule.startTime && schedule.endTime
+          ? `${fmt12(schedule.startTime)} - ${fmt12(schedule.endTime)}`
+          : "";
+        return [day, time, schedule.groundAddress].filter(Boolean).join(" - ");
+      }).filter(Boolean)
+    : [];
+
+  const fromWeeklyBatches = Array.isArray(program.weeklyBatches)
+    ? program.weeklyBatches.map((batch: any) => {
+        const time = batch.startTime && batch.endTime ? `${fmt12(batch.startTime)} - ${fmt12(batch.endTime)}` : "";
+        return [batch.label, time, batch.groundAddress].filter(Boolean).join(" - ");
+      }).filter(Boolean)
+    : [];
+
+  return Array.from(new Set([...fromBatches, ...fromScheduleDays, ...fromWeeklyBatches]));
 }
 
 function freqLabel(n: number): string {
