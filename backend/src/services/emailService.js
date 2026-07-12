@@ -107,12 +107,21 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
 
   await resend.emails.send({
     from: `California Cricket Academy <${FROM_ADDRESS}>`,
-    to: [to, ...REGISTRATION_ADMIN_TO],
-    ...(REGISTRATION_ADMIN_CC.length ? { cc: REGISTRATION_ADMIN_CC } : {}),
-    ...(REGISTRATION_ADMIN_BCC.length ? { bcc: REGISTRATION_ADMIN_BCC } : {}),
+    to,
     subject,
     html,
   });
+
+  if (REGISTRATION_ADMIN_TO.length) {
+    await resend.emails.send({
+      from: `California Cricket Academy <${FROM_ADDRESS}>`,
+      to: REGISTRATION_ADMIN_TO,
+      ...(REGISTRATION_ADMIN_CC.length ? { cc: REGISTRATION_ADMIN_CC } : {}),
+      ...(REGISTRATION_ADMIN_BCC.length ? { bcc: REGISTRATION_ADMIN_BCC } : {}),
+      subject: `Admin Copy - ${subject}`,
+      html,
+    });
+  }
 }
 
 // ============================================================
