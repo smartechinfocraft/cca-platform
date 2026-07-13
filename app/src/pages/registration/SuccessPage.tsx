@@ -352,7 +352,7 @@ function SuccessPage() {
 
               {orderItems.length > 0 && (
                 <div className="space-y-4">
-                  <p className="text-xs uppercase tracking-widest font-semibold text-slate-500">Order Details</p>
+                  <p className="text-xs uppercase tracking-widest font-semibold text-slate-500">Registration Details</p>
                   {orderItems.map((item, index) => {
                     const students = item.students ?? [];
                     const schedule = splitScheduleItems(item.selectedDays);

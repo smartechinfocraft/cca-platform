@@ -27,7 +27,14 @@ exports.getAll = async (req, res) => {
 
     const [data, total] = await Promise.all([
       getReg().find(filter)
-        .populate('programId', 'title sku')
+        .populate({
+          path: 'programId',
+          select: 'title sku category location ageGroups skillLevels batchType cities',
+          populate: [
+            { path: 'category', select: 'title slug' },
+            { path: 'location', select: 'title city address' },
+          ],
+        })
         .populate('parentId', 'firstName lastName email phone')
         // Populate students from the Student collection (handles both ref & embedded _id cases)
         .populate('students', 'firstName lastName studentCode dob gender photoUrl')
@@ -58,7 +65,14 @@ exports.getAll = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const reg = await getReg().findById(req.params.id)
-      .populate('programId', 'title sku basePrice')
+      .populate({
+        path: 'programId',
+        select: 'title sku basePrice category location ageGroups skillLevels batchType cities',
+        populate: [
+          { path: 'category', select: 'title slug' },
+          { path: 'location', select: 'title city address' },
+        ],
+      })
       .populate('students', 'firstName lastName studentCode dob gender photoUrl')
       .populate({
         path: 'batches',
