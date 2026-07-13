@@ -11,6 +11,95 @@ import {
 } from '../components/common/UI';
 import toast from 'react-hot-toast';
 
+const idOf = (value) => typeof value === 'string' ? value : value?._id || '';
+
+const uniqueOptions = (options) => {
+  const seen = new Set();
+  return options
+    .filter(option => option.value && option.label)
+    .filter(option => {
+      if (seen.has(option.value)) return false;
+      seen.add(option.value);
+      return true;
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+};
+
+const hasAny = (selected, values) => !selected.length || values.some(value => selected.includes(value));
+
+const MultiSelectFilter = ({ id, label, options, selected, onChange, open, onOpen, onClose, width = '190px' }) => {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleOutsideClick = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) onClose();
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [open, onClose]);
+
+  const toggle = (value) => {
+    onChange(selected.includes(value)
+      ? selected.filter(item => item !== value)
+      : [...selected, value]);
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`${id}-menu`}
+        onClick={() => (open ? onClose() : onOpen(id))}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          cursor: 'pointer',
+          background: '#0f3d22',
+          border: '1px solid rgba(212,175,55,0.2)',
+          borderRadius: '8px',
+          padding: '10px 14px',
+          color: '#fff',
+          fontSize: '14px',
+          userSelect: 'none',
+        }}
+      >
+        {selected.length ? `${label}: ${selected.length}` : `All ${label}`}
+      </button>
+      {open && (
+        <div id={`${id}-menu`} style={{
+          position: 'absolute',
+          zIndex: 20,
+          top: '44px',
+          left: 0,
+          width: '260px',
+          maxHeight: '260px',
+          overflowY: 'auto',
+          background: '#0f3d22',
+          border: '1px solid rgba(212,175,55,0.25)',
+          borderRadius: '8px',
+          boxShadow: '0 18px 40px rgba(0,0,0,0.35)',
+          padding: '8px',
+        }}>
+          {options.length === 0 ? (
+            <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '12px', padding: '8px' }}>No options</div>
+          ) : options.map(option => (
+            <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff', fontSize: '13px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px' }}>
+              <input
+                type="checkbox"
+                checked={selected.includes(option.value)}
+                onChange={() => toggle(option.value)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Excel template column definitions (must match backend expectations) ───────
 // v2: rowType-based — one program = multiple rows (one per schedule day, one per
 // month option). Shared program fields repeat on every row. A BLANK ROW ends
@@ -325,6 +414,10 @@ export default function Programs() {
   const [rows,         setRows]         = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [search,       setSearch]       = useState('');
+  const [filters,      setFilters]      = useState({ categories: [], locations: [], ageGroups: [], levels: [] });
+  const [openFilter,   setOpenFilter]   = useState('');
+  const [selectedIds,  setSelectedIds]  = useState([]);
+  const [bulkSaving,   setBulkSaving]   = useState(false);
   const [uploading,    setUploading]    = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const fileInputRef                   = useRef();
@@ -343,6 +436,23 @@ export default function Programs() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const filterOptions = {
+    categories: uniqueOptions(rows.map(row => ({ value: idOf(row.category), label: row.category?.title || '' }))),
+    locations: uniqueOptions(rows.map(row => ({ value: idOf(row.location), label: row.location?.city || row.location?.title || '' }))),
+    ageGroups: uniqueOptions(rows.flatMap(row => (row.ageGroups || []).map(age => ({ value: age, label: age })))),
+    levels: uniqueOptions(rows.flatMap(row => (row.skillLevels || []).map(level => ({ value: level, label: level })))),
+  };
+
+  const setFilterValue = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setFilters({ categories: [], locations: [], ageGroups: [], levels: [] });
+    setOpenFilter('');
+  };
 
   const handleDeactivate = async (row) => {
     if (!window.confirm(`Deactivate "${row.title}"?`)) return;
@@ -403,13 +513,87 @@ export default function Programs() {
     }
   };
 
-  const filtered = rows.filter(r =>
-    !search ||
-    r.title?.toLowerCase().includes(search.toLowerCase()) ||
-    r.sku?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = rows.filter(r => {
+    const q = search.trim().toLowerCase();
+    const searchable = [
+      r.title,
+      r.sku,
+      r.category?.title,
+      r.location?.city,
+      r.location?.title,
+      ...(r.ageGroups || []),
+      ...(r.skillLevels || []),
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    if (q && !searchable.includes(q)) return false;
+    if (!hasAny(filters.categories, [idOf(r.category)])) return false;
+    if (!hasAny(filters.locations, [idOf(r.location)])) return false;
+    if (!hasAny(filters.ageGroups, r.ageGroups || [])) return false;
+    if (!hasAny(filters.levels, r.skillLevels || [])) return false;
+    return true;
+  });
+
+  const filteredIds = filtered.map(row => row._id);
+  const selectedFilteredIds = filteredIds.filter(id => selectedIds.includes(id));
+  const allFilteredSelected = filteredIds.length > 0 && selectedFilteredIds.length === filteredIds.length;
+
+  const toggleSelection = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const toggleSelectFiltered = () => {
+    setSelectedIds(prev => {
+      if (allFilteredSelected) return prev.filter(id => !filteredIds.includes(id));
+      return [...new Set([...prev, ...filteredIds])];
+    });
+  };
+
+  const handleBulkStatus = async (isActive) => {
+    if (!selectedIds.length) {
+      toast.error('Select at least one program');
+      return;
+    }
+    const action = isActive ? 'activate' : 'deactivate';
+    if (!window.confirm(`${action[0].toUpperCase() + action.slice(1)} ${selectedIds.length} selected program${selectedIds.length === 1 ? '' : 's'}?`)) return;
+
+    setBulkSaving(true);
+    try {
+      if (isActive) {
+        await Promise.all(selectedIds.map(id => programsAPI.update(id, { isActive: true })));
+      } else {
+        await Promise.all(selectedIds.map(id => programsAPI.remove(id)));
+      }
+      toast.success(`${selectedIds.length} program${selectedIds.length === 1 ? '' : 's'} ${isActive ? 'activated' : 'deactivated'}`);
+      setSelectedIds([]);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.message || `Bulk ${action} failed`);
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   const columns = [
+    {
+      key: 'select',
+      label: (
+        <input
+          type="checkbox"
+          checked={allFilteredSelected}
+          disabled={!filteredIds.length}
+          onChange={toggleSelectFiltered}
+          aria-label="Select all filtered programs"
+        />
+      ),
+      render: (_, row) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(row._id)}
+          onChange={() => toggleSelection(row._id)}
+          aria-label={`Select ${row.title}`}
+        />
+      ),
+    },
     {
       key: 'coverImageUrl', label: 'Cover',
       render: v => v
@@ -457,6 +641,63 @@ export default function Programs() {
           placeholder="Search by title or SKU..."
           style={{ flex: 1, minWidth: '220px' }}
         />
+        <MultiSelectFilter
+          id="program-category-filter"
+          label="Categories"
+          selected={filters.categories}
+          onChange={value => setFilterValue('categories', value)}
+          open={openFilter === 'program-category-filter'}
+          onOpen={setOpenFilter}
+          onClose={() => setOpenFilter('')}
+          options={filterOptions.categories}
+          width="190px"
+        />
+        <MultiSelectFilter
+          id="program-location-filter"
+          label="Locations"
+          selected={filters.locations}
+          onChange={value => setFilterValue('locations', value)}
+          open={openFilter === 'program-location-filter'}
+          onOpen={setOpenFilter}
+          onClose={() => setOpenFilter('')}
+          options={filterOptions.locations}
+          width="190px"
+        />
+        <MultiSelectFilter
+          id="program-age-filter"
+          label="Age Groups"
+          selected={filters.ageGroups}
+          onChange={value => setFilterValue('ageGroups', value)}
+          open={openFilter === 'program-age-filter'}
+          onOpen={setOpenFilter}
+          onClose={() => setOpenFilter('')}
+          options={filterOptions.ageGroups}
+          width="180px"
+        />
+        <MultiSelectFilter
+          id="program-level-filter"
+          label="Levels"
+          selected={filters.levels}
+          onChange={value => setFilterValue('levels', value)}
+          open={openFilter === 'program-level-filter'}
+          onOpen={setOpenFilter}
+          onClose={() => setOpenFilter('')}
+          options={filterOptions.levels}
+          width="190px"
+        />
+        <Btn variant="ghost" onClick={clearFilters}>Clear Filters</Btn>
+
+        {selectedIds.length > 0 && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '6px 10px', border: '1px solid rgba(212,175,55,0.25)', borderRadius: '8px', background: 'rgba(212,175,55,0.08)' }}>
+            <span style={{ color: '#F5D97A', fontSize: '12px', fontWeight: 700 }}>{selectedIds.length} selected</span>
+            <Btn small variant="success" onClick={() => handleBulkStatus(true)} disabled={bulkSaving}>
+              Activate
+            </Btn>
+            <Btn small variant="danger" onClick={() => handleBulkStatus(false)} disabled={bulkSaving}>
+              Deactivate
+            </Btn>
+          </div>
+        )}
 
         {/* Download Template */}
         <Btn
