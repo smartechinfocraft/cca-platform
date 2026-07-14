@@ -135,6 +135,7 @@ export default function ProgramSelection() {
 
   const [searchParams] = useSearchParams();
   const isNewChild = searchParams.get("newChild") === "true";
+  const isEditingProgram = searchParams.get("editProgram") === "true";
 
   const [program, setProgram] = useState<Program | null>(null);
   const [batches, setBatches] = useState<BatchRaw[]>([]);
@@ -221,8 +222,19 @@ export default function ProgramSelection() {
     setSelectedFreq(savedFrequency);
     setDaySlots(savedDays.length > 0 ? savedDays : Array(savedFrequency).fill(null));
     updateStudent(currentStudentIndex, { selectedBatch });
-    setBatchConfirmed(true);
-  }, [batchConfirmed, batches, currentStudentIndex, selectedBatch, selectedBatchId, updateStudent]);
+    setBatchConfirmed(!isEditingProgram);
+  }, [batchConfirmed, batches, currentStudentIndex, isEditingProgram, selectedBatch, selectedBatchId, updateStudent]);
+
+  useEffect(() => {
+    if (!isEditingProgram || !selectedBatch || !Array.isArray((selectedBatch as any).selectedWeeklyBatches)) return;
+    const ids = (selectedBatch as any).selectedWeeklyBatches
+      .map((batch: any) => batch.batchId || batch._id)
+      .filter(Boolean);
+    if (ids.length) {
+      setSelectedWeeklyBatchIds(ids);
+      setBatchConfirmed(false);
+    }
+  }, [isEditingProgram, selectedBatch]);
 
   const activeBatch = batches.find((b) => b._id === selectedBatchId) ?? null;
   const pricePerSession = activeBatch ? getPricePerSession(activeBatch) : 0;

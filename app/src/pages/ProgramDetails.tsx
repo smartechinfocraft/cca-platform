@@ -326,7 +326,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 selectedIds={selectedWeeklyBatchIds}
                 onChange={setSelectedWeeklyBatchIds}
               />
-              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+              <div className="flex items-center flex-col  sm:flex-row justify-between pt-2 border-t border-slate-200">
                 <div className="flex flex-col items-start">
                   <p className="text-xs text-slate-400 uppercase tracking-wide">Total</p>
                   <p className="text-xl font-bold text-[#0F172A]">${weeklyTotalPrice || "—"}</p>
@@ -492,9 +492,9 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                       </div>
 
                       {/* Price + Confirm button */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                        <div className="flex flex-col items-start">
-                          <p className="text-xs text-slate-400 uppercase tracking-wide">Total</p>
+                      <div className="flex items-start gap-2  flex-col  sm:flex-row justify-between pt-2 border-t border-slate-200">
+                      <div className="flex flex-col items-start">
+                          <p className="text-xs text-slate-700 uppercase tracking-wide">Total</p>
                           <p className="text-xl font-bold text-[#0F172A]">${totalPrice || "—"}</p>
                         </div>
                         <button type="button" disabled={!canConfirm} onClick={handleConfirm}
@@ -759,6 +759,10 @@ function ProgramDetails() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [id]);
+
+  useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
       setLoading(true); setError("");
@@ -907,7 +911,7 @@ function ProgramDetails() {
 
         {/* ── Available Batches ── */}
         {displayBatches.length > 0 && (
-          <section className="max-w-7xl mx-auto px-6 py-12">
+          <section className="max-w-7xl mx-auto px-6 py-12 hidden">
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.3 }}
               className="rounded-[24px] bg-[#fff7ed] p-8 shadow-lg">
               <h2 className="text-3xl sm:text-4xl font-bold">Available Batches</h2>

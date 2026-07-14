@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { useNavigate } from "react-router-dom";
@@ -55,7 +55,7 @@ function ReviewOrder() {
     setCouponDiscount,
   } = useRegistration();
   const { user } = useAuth();
-  const { upsertItem } = useCart();
+  const { upsertItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
   const cartSyncedRef = useRef(false);
 
   const [editingBilling, setEditingBilling] = useState(false);
@@ -138,6 +138,40 @@ function ReviewOrder() {
   const subtotal = studentFees.reduce((sum, fee) => sum + fee, 0);
   const discount = couponDiscount;
   const grandTotal = Math.max(0, subtotal - discount);
+  const reviewCartItems = useMemo(() => {
+    if (!selectedProgram || !selectedBatch) return [];
+    const selectedDays = selectedBatch.days ?? selectedBatch.timing ?? "";
+    const selectedMonthOption = (selectedBatch as any).selectedMonth;
+    const selectedWeeklyBatches = (selectedBatch as any).selectedWeeklyBatches;
+    const weeklyBatchIds = Array.isArray(selectedWeeklyBatches)
+      ? selectedWeeklyBatches.map((batch: any) => batch._id).filter(Boolean)
+      : [];
+    const cartStudents = students
+      .filter((student) => student.firstName.trim() && student.lastName.trim())
+      .map((student) => ({
+        firstName: student.firstName,
+        lastName: student.lastName,
+        dob: student.dob,
+        gender: student.gender,
+        schoolName: student.schoolName,
+        medicalNotes: student.medicalNotes,
+      }));
+
+    return [{
+      programId: selectedProgram._id,
+      programTitle: selectedProgram.title,
+      batchId: selectedBatch._id ?? selectedBatch.name ?? selectedProgram._id,
+      batchName: selectedBatch.name,
+      studentCount: cartStudents.length || students.length || 1,
+      sessionsPerWeek: Math.max(selectedBatch.sessionsPerWeek ?? 1, splitSelectedDays(selectedDays).length || 1),
+      selectedDays,
+      selectedMonth: selectedMonthOption ?? { label: selectedBatch.name },
+      selectedMonthLabel: selectedMonthOption?.label ?? "",
+      fee: perStudentFee,
+      weeklyBatchIds,
+      students: cartStudents,
+    }];
+  }, [perStudentFee, selectedBatch, selectedProgram, students]);
 
   const billingValid =
     parentDetails.parentName.trim() &&
@@ -154,6 +188,62 @@ function ReviewOrder() {
     navigate("/cart");
   };
 
+  const handleEditProgram = () => {
+    if (!selectedProgram?._id) return;
+    navigate(`/register-program/${selectedProgram._id}?editProgram=true`);
+  };
+
+  const clearAppliedCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCartCoupon(null);
+    setCartCouponDiscount(0);
+  };
+
+  const validateCoupon = async (code: string) => {
+    if (!code || reviewCartItems.length === 0) return null;
+    const res = await api.post("/public/validate-coupon", {
+      couponCode: code,
+      checkoutMode: "cart",
+      cartItems: reviewCartItems,
+    });
+
+    if (!res.data.success) {
+      throw new Error(res.data.message || "Invalid coupon.");
+    }
+
+    const couponType = res.data.coupon.type;
+    const couponValue = res.data.coupon.value;
+    const displayDiscount = Number(res.data.discount || 0);
+    return {
+      contextCoupon: {
+        code: res.data.coupon.code,
+        type: couponType,
+        value: couponValue,
+        description: res.data.coupon.description,
+        discount: displayDiscount,
+        usedCount: res.data.coupon.usedCount,
+        maxUses: res.data.coupon.maxUses,
+      },
+      cartCoupon: {
+        code: res.data.coupon.code,
+        type: couponType,
+        value: couponValue,
+        description: res.data.coupon.description,
+        discount: displayDiscount,
+      },
+      discount: displayDiscount,
+    };
+  };
+
+  const applyValidatedCoupon = (validated: NonNullable<Awaited<ReturnType<typeof validateCoupon>>>) => {
+    setAppliedCoupon(validated.contextCoupon);
+    setCouponDiscount(validated.discount);
+    setCartCoupon(validated.cartCoupon);
+    setCartCouponDiscount(validated.discount);
+    setCouponInput(validated.contextCoupon.code);
+  };
+
   // ── Apply coupon ──────────────────────────────────────────
   const handleApplyCoupon = async () => {
     const code = couponInput.trim().toUpperCase();
@@ -161,54 +251,12 @@ function ReviewOrder() {
     setCouponError(null);
     setCouponLoading(true);
     try {
-      // When students have different batches, don't pass a single batchId — the
-      // backend would price only one batch fee × studentCount, which would be wrong.
-      // Instead omit batchId so it falls back to program-level pricing for the
-      // minimum-amount check. The discount % is applied to our already-correct
-      // frontend subtotal.
-      const res = await api.post("/public/validate-coupon", {
-        couponCode: code,
-        programId: selectedProgram?._id,
-        batchId: selectedBatch?._id,
-        studentCount: students.length || 1,
-        sessionsPerWeek: selectedBatch?.sessionsPerWeek,
-        weeklyBatchIds: (selectedBatch as any)?.selectedWeeklyBatches?.map((w: any) => w._id),
-      });
-      if (res.data.success) {
-        // Don't trust res.data.discount blindly — the backend computes it
-        // against its OWN independently-derived subtotal (from Program/Batch
-        // lookup), which can differ from what's actually shown on screen
-        // (studentFees sum below), e.g. when it falls back to program-level
-        // pricing for multi-batch carts. That mismatch makes a % coupon look
-        // like a flat/fixed discount. Instead, recompute the discount here
-        // using only the coupon's type/value against our real displayed
-        // subtotal. The backend still independently re-validates and
-        // recomputes the authoritative total at actual payment time, so this
-        // is purely a display fix.
-        const couponType = res.data.coupon.type;
-        const couponValue = res.data.coupon.value;
-        const displayDiscount =
-          couponType === "PERCENTAGE"
-            ? Math.round(subtotal * (couponValue / 100) * 100) / 100
-            : Math.min(couponValue, subtotal);
-
-        setAppliedCoupon({
-          code: res.data.coupon.code,
-          type: couponType,
-          value: couponValue,
-          description: res.data.coupon.description,
-          discount: displayDiscount,
-          usedCount: res.data.coupon.usedCount,
-          maxUses: res.data.coupon.maxUses,
-        });
-        setCouponDiscount(displayDiscount);
-        setCouponInput(res.data.coupon.code);
-      } else {
-        setCouponError(res.data.message || "Invalid coupon.");
-      }
+      const validated = await validateCoupon(code);
+      if (validated) applyValidatedCoupon(validated);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? (err as Error)?.message
         ?? "Could not validate coupon. Please try again.";
       setCouponError(msg);
     } finally {
@@ -217,11 +265,39 @@ function ReviewOrder() {
   };
 
   const handleRemoveCoupon = () => {
-    setAppliedCoupon(null);
-    setCouponDiscount(0);
+    clearAppliedCoupon();
     setCouponInput("");
     setCouponError(null);
   };
+
+  useEffect(() => {
+    if (!appliedCoupon?.code || reviewCartItems.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const validated = await validateCoupon(appliedCoupon.code);
+        if (!cancelled && validated) {
+          applyValidatedCoupon(validated);
+          setCouponError(null);
+        }
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const msg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          ?? (err as Error)?.message
+          ?? "Coupon no longer applies to this order.";
+        clearAppliedCoupon();
+        setCouponError(msg);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Revalidate only when the order payload or applied code changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedCoupon?.code, JSON.stringify(reviewCartItems)]);
 
   const parentAddress = [parentDetails.address, parentDetails.city, parentDetails.state, parentDetails.zip]
     .filter(Boolean)
@@ -277,9 +353,19 @@ function ReviewOrder() {
                       {selectedProgram?.title ?? "—"}
                     </h2>
                   </div>
-                  <span className="rounded-full bg-[var(--gold)]/10 px-3 py-1 text-xs font-semibold text-[var(--gold)]">
-                    Program
-                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="rounded-full bg-[var(--gold)]/10 px-3 py-1 text-xs font-semibold text-[var(--gold)]">
+                      Program
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleEditProgram}
+                      disabled={!selectedProgram?._id}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-[var(--gold)] hover:text-[var(--gold)] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <HiOutlinePencilSquare className="h-3.5 w-3.5" /> Edit
+                    </button>
+                  </div>
                 </div>
                 {selectedProgram?.shortDescription && (
                   <p className="text-sm text-slate-500">{selectedProgram.shortDescription}</p>
