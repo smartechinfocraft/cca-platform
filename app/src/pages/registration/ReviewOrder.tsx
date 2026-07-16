@@ -49,6 +49,12 @@ function ReviewOrder() {
     updateParent,
     setTotalAmount,
     setCheckoutMode,
+    createAccount,
+    accountPassword,
+    accountPasswordConfirm,
+    setCreateAccount,
+    setAccountPassword,
+    setAccountPasswordConfirm,
     appliedCoupon,
     setAppliedCoupon,
     couponDiscount,
@@ -59,6 +65,7 @@ function ReviewOrder() {
   const cartSyncedRef = useRef(false);
 
   const [editingBilling, setEditingBilling] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
 
   // Coupon state — local to this page
   const [couponInput, setCouponInput] = useState(appliedCoupon?.code ?? "");
@@ -181,9 +188,20 @@ function ReviewOrder() {
     parentDetails.city.trim() &&
     parentDetails.state.trim() &&
     parentDetails.zip.trim();
+  const accountPasswordValid =
+    user ||
+    !createAccount ||
+    (accountPassword.length >= 6 && accountPassword === accountPasswordConfirm);
 
   const handleProceedToPayment = () => {
     if (!billingValid) { setEditingBilling(true); return; }
+    if (!user && createAccount && !accountPasswordValid) {
+      setAccountError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
+      setEditingBilling(true);
+      return;
+    }
+    setAccountError(null);
+    setCheckoutMode(user || createAccount ? "account" : "guest");
     setTotalAmount(grandTotal);
     navigate("/cart");
   };
@@ -540,6 +558,73 @@ function ReviewOrder() {
                     {!billingValid && (
                       <p className="text-xs text-amber-600">Name, email, phone, and full billing address are required before you can proceed to payment.</p>
                     )}
+                  </div>
+                )}
+
+                {!user && (
+                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <label className="flex items-start gap-3 text-sm font-semibold text-[#0F172A]">
+                        <input
+                          type="checkbox"
+                          checked={createAccount}
+                          onChange={(e) => {
+                            setCreateAccount(e.target.checked);
+                            setCheckoutMode(e.target.checked ? "account" : "guest");
+                            setAccountError(null);
+                          }}
+                          className="mt-1 h-4 w-4"
+                          style={{ accentColor: "var(--gold)" }}
+                        />
+                        <span>
+                          Create a parent portal account
+                          <span className="block text-xs font-normal text-slate-500">
+                            Add a password now to track registrations, students, attendance, and messages later.
+                          </span>
+                        </span>
+                      </label>
+                      {!createAccount && (
+                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                          Continuing as guest
+                        </span>
+                      )}
+                    </div>
+
+                    {createAccount ? (
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700">Password</label>
+                          <input
+                            type="password"
+                            value={accountPassword}
+                            onChange={(e) => {
+                              setAccountPassword(e.target.value);
+                              setAccountError(null);
+                            }}
+                            placeholder="At least 6 characters"
+                            className={inputCls}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700">Confirm Password</label>
+                          <input
+                            type="password"
+                            value={accountPasswordConfirm}
+                            onChange={(e) => {
+                              setAccountPasswordConfirm(e.target.value);
+                              setAccountError(null);
+                            }}
+                            placeholder="Repeat password"
+                            className={inputCls}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs text-slate-500">
+                        You can still complete payment without an account. Guest registrations are not linked to a parent portal login.
+                      </p>
+                    )}
+                    {accountError && <p className="mt-3 text-xs font-semibold text-red-500">{accountError}</p>}
                   </div>
                 )}
               </div>

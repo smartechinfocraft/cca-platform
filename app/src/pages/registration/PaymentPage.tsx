@@ -42,7 +42,7 @@ function PaymentPage() {
     appliedCoupon,
     couponDiscount,
   } = useRegistration();
-  const { user, token } = useAuth();
+  const { user, token, acceptSession } = useAuth();
   const { clearCart } = useCart();
 
   const [loading, setLoading]           = useState(false);
@@ -53,6 +53,10 @@ function PaymentPage() {
   const [waiverSignature, setWaiverSignature] = useState("");
   const [waiverDrawnSignature, setWaiverDrawnSignature] = useState("");
   const [waiverError, setWaiverError] = useState<string | null>(null);
+  const [createAccount, setCreateAccount] = useState(false);
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountPasswordConfirm, setAccountPasswordConfirm] = useState("");
+  const [accountError, setAccountError] = useState<string | null>(null);
   const paypalRef    = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
 
@@ -65,6 +69,10 @@ function PaymentPage() {
   const estimatedTotal = totalAmount || Math.max(0, studentFees.reduce((sum: number, f: number) => sum + f, 0) - couponDiscount);
   const grandTotal     = estimatedTotal;
   const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
+  const accountPasswordValid =
+    Boolean(user) ||
+    !createAccount ||
+    (accountPassword.length >= 6 && accountPassword === accountPasswordConfirm);
   // Load PayPal SDK
   useEffect(() => {
     if (!PAYPAL_CLIENT_ID || window.paypal) return;
@@ -77,7 +85,7 @@ function PaymentPage() {
 
   // Render PayPal buttons when tab selected
   useEffect(() => {
-    if (paymentMethod !== "PayPal" || !waiverValid || paypalLoaded.current) return;
+    if (paymentMethod !== "PayPal" || !waiverValid || !accountPasswordValid || paypalLoaded.current) return;
     if (!paypalRef.current) return;
 
     const tryRender = () => {
@@ -133,7 +141,7 @@ function PaymentPage() {
     };
 
     tryRender();
-  }, [paymentMethod, grandTotal, waiverValid]);
+  }, [paymentMethod, grandTotal, waiverValid, accountPasswordValid]);
 
   // Reset paypal when switching away and back
   useEffect(() => {
@@ -147,6 +155,11 @@ function PaymentPage() {
     }
     setError(null);
     setWaiverError(null);
+    setAccountError(null);
+    if (!accountPasswordValid) {
+      setAccountError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
+      return;
+    }
     setLoading(true);
     try {
       // Always send the actual billing address the person confirmed on the
@@ -175,6 +188,7 @@ function PaymentPage() {
           transactionId,
           checkNumber:     method === "Check" ? checkNumber : undefined,
           checkoutMode,
+          accountPassword: !user && createAccount ? accountPassword : undefined,
           couponCode:      appliedCoupon?.code ?? undefined,   // ← pass coupon to backend
           waiverConsent: {
             accepted: waiverAccepted,
@@ -185,6 +199,9 @@ function PaymentPage() {
         },
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
+      if (response.data.token && response.data.parent) {
+        acceptSession(response.data.token, response.data.parent);
+      }
       sessionStorage.setItem("cca:lastRegistration", JSON.stringify(response.data));
       navigate("/success", { state: response.data });
       // Registration succeeded — empty the cart so a refreshed/returning
@@ -235,6 +252,60 @@ function PaymentPage() {
       <section className="max-w-7xl mx-auto px-6 pb-16">
         <div className="grid gap-8 xl:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-6">
+            {!user && (
+              <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
+                <label className="flex items-start gap-3 text-sm font-semibold text-[#0F172A]">
+                  <input
+                    type="checkbox"
+                    checked={createAccount}
+                    onChange={(e) => {
+                      setCreateAccount(e.target.checked);
+                      setAccountError(null);
+                    }}
+                    className="mt-1 h-4 w-4"
+                    style={{ accentColor: "var(--gold)" }}
+                  />
+                  <span>
+                    Create a parent portal account
+                    <span className="block text-xs font-normal text-slate-500">
+                      Add a password to track this registration from your dashboard.
+                    </span>
+                  </span>
+                </label>
+                {createAccount && (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700">Password</label>
+                      <input
+                        type="password"
+                        value={accountPassword}
+                        onChange={(e) => {
+                          setAccountPassword(e.target.value);
+                          setAccountError(null);
+                        }}
+                        placeholder="At least 6 characters"
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700">Confirm Password</label>
+                      <input
+                        type="password"
+                        value={accountPasswordConfirm}
+                        onChange={(e) => {
+                          setAccountPasswordConfirm(e.target.value);
+                          setAccountError(null);
+                        }}
+                        placeholder="Repeat password"
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15"
+                      />
+                    </div>
+                  </div>
+                )}
+                {accountError && <p className="mt-3 text-xs font-semibold text-red-500">{accountError}</p>}
+              </div>
+            )}
+
             <WaiverConsent
               accepted={waiverAccepted}
               signature={waiverSignature}
@@ -269,6 +340,10 @@ function PaymentPage() {
                         setWaiverError("Please complete the waiver consent, typed e-signature, and drawn digital signature before choosing payment.");
                         return;
                       }
+                      if (!accountPasswordValid) {
+                        setAccountError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
+                        return;
+                      }
                       setPaymentMethod(method);
                     }}
                     className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[#A33B2B] bg-[#A33B2B]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[#A33B2B]"}`}>
@@ -288,7 +363,7 @@ function PaymentPage() {
             {paymentMethod === "PayPal" && (
               <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
                 <p className="text-sm uppercase tracking-widest text-slate-500 mb-3">PayPal — Click to Pay</p>
-                {waiverValid ? (
+                {waiverValid && accountPasswordValid ? (
                   <div ref={paypalRef} className="min-h-[120px] flex items-center justify-center">
                     <p className="text-slate-400 text-sm">Loading PayPal...</p>
                   </div>
@@ -306,7 +381,7 @@ function PaymentPage() {
             {/* Stripe Card Payment */}
             {paymentMethod === "Stripe" && (
               <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
-                {waiverValid ? (
+                {waiverValid && accountPasswordValid ? (
                   <StripePaymentBox
                     programId={selectedProgram?._id}
                     batchId={selectedBatch?._id}
@@ -345,7 +420,7 @@ function PaymentPage() {
                 <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
                   <strong>Instructions:</strong> Mail your check within 5 business days. Your spot is held for 7 days.
                 </div>
-                <button type="button" onClick={submitCheck} disabled={loading || !checkPayableTo.trim() || !waiverValid}
+                <button type="button" onClick={submitCheck} disabled={loading || !checkPayableTo.trim() || !waiverValid || !accountPasswordValid}
                   className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-[#A33B2B] px-8 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 transition w-full">
                   {loading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processing...</> : `Submit — $${grandTotal.toFixed(2)}`}
                 </button>

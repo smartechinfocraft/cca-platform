@@ -17,6 +17,7 @@ const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 const routes    = require('./routes/index');
 const { handleStripeWebhook } = require('./controllers/paymentWebhookController');
+const { UPLOAD_BASE } = require('./middleware/upload');
 
 require('./models/User');
 require('./models/Program');
@@ -28,6 +29,8 @@ require('./models/MessageThread');
 
 const app  = express();
 const PORT = process.env.PORT || 5001;
+
+app.set('trust proxy', 1);
 
 // ─── Security ────────────────────────────────────────────────
 app.use(helmet({
@@ -127,7 +130,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ─── Static uploads ──────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(UPLOAD_BASE));
 
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));

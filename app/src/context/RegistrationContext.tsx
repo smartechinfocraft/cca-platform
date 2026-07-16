@@ -59,6 +59,9 @@ export interface RegistrationContextValue {
 
   // Account vs Guest
   checkoutMode: CheckoutMode;
+  createAccount: boolean;
+  accountPassword: string;
+  accountPasswordConfirm: string;
 
   // Coupon
   appliedCoupon: AppliedCoupon | null;
@@ -84,6 +87,9 @@ export interface RegistrationContextValue {
   setTotalAmount: (amount: number) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setCheckoutMode: (mode: CheckoutMode) => void;
+  setCreateAccount: (createAccount: boolean) => void;
+  setAccountPassword: (password: string) => void;
+  setAccountPasswordConfirm: (password: string) => void;
   setAppliedCoupon: (coupon: AppliedCoupon | null) => void;
   setCouponDiscount: (discount: number) => void;
   resetRegistration: () => void;
@@ -121,6 +127,9 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [totalAmount, setTotalAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("");
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>("");
+  const [createAccount, setCreateAccount] = useState(false);
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountPasswordConfirm, setAccountPasswordConfirm] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [savedStudentOptions, setSavedStudentOptions] = useState<StudentWithSummary[] | null>(null);
@@ -297,6 +306,9 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setTotalAmount(0);
     setPaymentMethod("");
     setCheckoutMode("");
+    setCreateAccount(false);
+    setAccountPassword("");
+    setAccountPasswordConfirm("");
     setAppliedCoupon(null);
     setCouponDiscount(0);
     setSavedStudentOptions(null);
@@ -319,6 +331,9 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
         totalAmount,
         paymentMethod,
         checkoutMode,
+        createAccount,
+        accountPassword,
+        accountPasswordConfirm,
         appliedCoupon,
         couponDiscount,
         savedStudentOptions,
@@ -335,6 +350,9 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
         setTotalAmount,
         setPaymentMethod,
         setCheckoutMode,
+        setCreateAccount,
+        setAccountPassword,
+        setAccountPasswordConfirm,
         setAppliedCoupon,
         setCouponDiscount,
         resetRegistration,

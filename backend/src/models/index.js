@@ -340,6 +340,7 @@ const registrationSchema = new mongoose.Schema(
         feePerStudent:      { type: Number },
         studentCount:       { type: Number },
         itemTotal:          { type: Number },
+        registrationMode:    { type: String, enum: ['GUEST', 'REGISTERED'] },
         students: [
           {
             firstName:     { type: String },
@@ -364,6 +365,7 @@ const registrationSchema = new mongoose.Schema(
     totalAmount:    { type: Number, default: 0 },
 
     couponCode:   { type: String },
+    registrationMode: { type: String, enum: ['GUEST', 'REGISTERED'], default: 'REGISTERED', index: true },
     customerNote: { type: String },
     adminNote:    { type: String },
 

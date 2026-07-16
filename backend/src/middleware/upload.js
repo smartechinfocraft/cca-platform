@@ -8,7 +8,9 @@ const path   = require('path');
 const fs     = require('fs');
 
 // ── Ensure upload folders exist ────────────────────────────
-const UPLOAD_BASE = path.join(__dirname, '../../uploads');
+const UPLOAD_BASE = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(__dirname, '../../uploads');
 const folders = ['programs', 'coaches', 'sponsors', 'media', 'gallery', 'students'];
 folders.forEach(f => {
   const dir = path.join(UPLOAD_BASE, f);

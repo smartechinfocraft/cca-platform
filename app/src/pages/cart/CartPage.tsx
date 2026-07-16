@@ -1,7 +1,7 @@
 // ============================================================
-//  CartPage — view cart items, fill parent details, pay — all in one page.
-//  Checkout no longer navigates to /review-order or /payment: the parent
-//  details form and PayPal/Check payment are embedded right here.
+//  CartPage — payment-focused checkout after /review-order.
+//  Parent details and coupon application live on /review-order; this page
+//  shows a quick registration summary, waiver consent, and payment options.
 // ============================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,14 +9,13 @@ import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
-import { getParentProfile } from "../../services/parentDashboardService";
+import { useRegistration } from "../../context/RegistrationContext";
 import api from "../../api/axios";
 import WaiverConsent from "../../components/registration/WaiverConsent";
 import { WAIVER_AGREEMENT_VERSION } from "../../constants/waiverAgreement";
 import StripePaymentBox from "../../components/payments/StripePaymentBox";
 import {
-  HiOutlineTrash, HiOutlineTag, HiOutlineXCircle,
-  HiOutlineArrowRight, HiOutlineShoppingCart, HiOutlineTicket,
+  HiOutlineArrowRight, HiOutlineShoppingCart,
 } from "react-icons/hi2";
 import { HiOutlineArrowLeft } from "react-icons/hi";
 
@@ -29,114 +28,27 @@ function splitScheduleItems(selectedDays?: string): string[] {
     .filter(Boolean);
 }
 
-// ── Inline login modal (same pattern as ProgramDetails) ──────────────────────
-function LoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const { login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(""); setLoading(true);
-    try {
-      await login(email, password);
-      onSuccess();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Invalid email or password.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ background: "rgba(0,0,0,0.6)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-[24px] bg-white p-7 shadow-2xl"
-        style={{ border: "1px solid var(--pitch-deep)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#A33B2B" }}>Sign in to checkout</p>
-            <h2 className="text-lg font-bold text-[#0F172A] mt-0.5">One more step</h2>
-            <p className="text-xs text-slate-500 mt-1">Your cart is saved — sign in and we'll take you straight to payment.</p>
-          </div>
-          <button type="button" onClick={onClose} className="ml-3 shrink-0 rounded-full h-7 w-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition text-lg">✕</button>
-        </div>
-        {error && <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-xs text-red-600">{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-[#0F172A] mb-1">Email</label>
-            <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="parent@email.com"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] transition" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-[#0F172A] mb-1">Password</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] transition" />
-          </div>
-          <button type="submit" disabled={loading}
-            className="w-full rounded-full py-3 text-sm font-bold transition disabled:opacity-50 mt-1"
-            style={{ background: "#A33B2B", color: "white" }}>
-            {loading ? "Signing in..." : "Sign In & Continue"}
-          </button>
-        </form>
-        <div className="mt-4 text-center">
-          <span className="text-xs text-slate-500">Don't have an account? </span>
-          <button type="button" onClick={() => navigate("/login")} className="text-xs font-semibold hover:underline" style={{ color: "#A33B2B" }}>
-            Create one
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Parent / Guardian details shape (kept local to this page) ───────────────
-interface ParentForm {
-  parentName: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-}
-
-const emptyParentForm: ParentForm = {
-  parentName: "", email: "", phone: "", address: "", city: "", state: "", zip: "",
-};
-
 type PaymentMethod = "PayPal" | "Stripe" | "Check" | "";
 
 // ── CartPage ──────────────────────────────────────────────────────────────────
 export default function CartPage() {
   const navigate = useNavigate();
-  const { isLoggedIn, user, token } = useAuth();
+  const { isLoggedIn, user, token, acceptSession } = useAuth();
   const {
     items, coupon, couponDiscount,
-    removeItem, clearCart, setCoupon, setCouponDiscount,
+    clearCart,
     subtotal, grandTotal, itemCount,
   } = useCart();
-
-  const [couponInput, setCouponInput] = useState(coupon?.code ?? "");
-  const [couponLoading, setCouponLoading] = useState(false);
-  const [couponError, setCouponError] = useState<string | null>(null);
-  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-
-  // ── Parent / Guardian details — filled right here on the cart page ──
-  const [parentDetails, setParentDetails] = useState<ParentForm>(emptyParentForm);
-  const [parentTouched, setParentTouched] = useState(false);
+  const {
+    parentDetails,
+    createAccount,
+    accountPassword,
+    accountPasswordConfirm,
+    setCreateAccount,
+    setCheckoutMode,
+    setAccountPassword,
+    setAccountPasswordConfirm,
+  } = useRegistration();
 
   // ── Payment ──
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("");
@@ -148,6 +60,7 @@ export default function CartPage() {
   const [waiverSignature, setWaiverSignature] = useState("");
   const [waiverDrawnSignature, setWaiverDrawnSignature] = useState("");
   const [waiverError, setWaiverError] = useState<string | null>(null);
+  const [accountPromptOpen, setAccountPromptOpen] = useState(false);
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
   const paymentCartItems = useMemo(() => items.map((item) => {
@@ -168,49 +81,6 @@ export default function CartPage() {
   }), [items]);
   const paymentCartKey = JSON.stringify(paymentCartItems);
 
-  // Pre-fill parent details from the signed-in account — name/email/phone
-  // immediately, then the saved billing address (if any) from their profile,
-  // so returning parents don't have to retype it. They can still edit it.
-  useEffect(() => {
-    if (user && !parentDetails.parentName) {
-      setParentDetails((prev) => ({
-        ...prev,
-        parentName: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        phone: user.phone,
-      }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  useEffect(() => {
-    if (!token) return;
-    getParentProfile(token)
-      .then((profile) => {
-        setParentDetails((prev) =>
-          prev.address.trim()
-            ? prev
-            : {
-                ...prev,
-                address: profile.address || "",
-                city: profile.city || "",
-                state: profile.state || "",
-                zip: profile.zip || "",
-              }
-        );
-      })
-      .catch(() => {});
-  }, [token]);
-
-  useEffect(() => {
-    api.get("/public/coupons").then((res) => {
-      if (res.data.success) setAvailableCoupons(res.data.data);
-    }).catch(() => {});
-  }, []);
-
-  const updateParent = (patch: Partial<ParentForm>) =>
-    setParentDetails((prev) => ({ ...prev, ...patch }));
-
   const parentValid = Boolean(
     parentDetails.parentName.trim() &&
     parentDetails.email.trim() &&
@@ -221,45 +91,9 @@ export default function CartPage() {
     parentDetails.zip.trim()
   );
   const waiverValid = waiverAccepted && Boolean(waiverSignature.trim()) && Boolean(waiverDrawnSignature);
-
-  // ── Coupon handling ──
-  const handleApplyCoupon = async () => {
-    const code = couponInput.trim().toUpperCase();
-    if (!code) return;
-    if (items.length === 0) { setCouponError("Add a program to your cart first."); return; }
-    setCouponError(null); setCouponLoading(true);
-    try {
-      const res = await api.post("/public/validate-coupon", {
-        couponCode: code,
-        checkoutMode: "cart",
-        cartItems: paymentCartItems,
-      });
-      if (res.data.success) {
-        setCoupon({
-          code: res.data.coupon.code,
-          type: res.data.coupon.type,
-          value: res.data.coupon.value,
-          description: res.data.coupon.description,
-          discount: res.data.discount,
-        });
-        setCouponDiscount(res.data.discount || 0);
-        setCouponInput(res.data.coupon.code);
-      } else {
-        setCouponError(res.data.message || "Invalid coupon.");
-      }
-    } catch (err: any) {
-      setCouponError(err?.response?.data?.message ?? "Could not validate coupon. Please try again.");
-    } finally {
-      setCouponLoading(false);
-    }
-  };
-
-  const handleRemoveCoupon = () => {
-    setCoupon(null);
-    setCouponDiscount(0);
-    setCouponInput("");
-    setCouponError(null);
-  };
+  const accountPasswordValid =
+    !createAccount ||
+    (accountPassword.length >= 6 && accountPassword === accountPasswordConfirm);
 
   // First cart item anchors the program/batch used for server-side pricing —
   // same simplification the rest of the app already uses for multi-item carts.
@@ -273,6 +107,10 @@ export default function CartPage() {
     }
     setPayError(null);
     setWaiverError(null);
+    if (createAccount && !accountPasswordValid) {
+      setPayError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
+      return;
+    }
     setPaying(true);
     try {
       const parentInfo = user
@@ -325,7 +163,8 @@ export default function CartPage() {
           paymentMethod: method,
           transactionId,
           checkNumber: method === "Check" ? checkNumber : undefined,
-          checkoutMode: user ? "account" : "guest",
+          checkoutMode: user || createAccount ? "account" : "guest",
+          accountPassword: !isLoggedIn && createAccount ? accountPassword : undefined,
           couponCode: coupon?.code ?? undefined,
           waiverConsent: {
             accepted: waiverAccepted,
@@ -336,6 +175,9 @@ export default function CartPage() {
         },
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
+      if (response.data.token && response.data.parent) {
+        acceptSession(response.data.token, response.data.parent);
+      }
       clearCart();
       sessionStorage.setItem("cca:lastRegistration", JSON.stringify(response.data));
       navigate("/success", { state: response.data });
@@ -347,7 +189,7 @@ export default function CartPage() {
   };
 
   const submitCheck = async () => {
-    if (!parentValid) { setParentTouched(true); return; }
+    if (!parentValid) { navigate("/review-order"); return; }
     if (!waiverValid) {
       setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
       return;
@@ -366,9 +208,9 @@ export default function CartPage() {
     return () => { document.body.removeChild(script); };
   }, []);
 
-  // Render PayPal buttons when the tab is selected and parent details are valid
+  // Render PayPal buttons when the tab is selected and checkout details are valid
   useEffect(() => {
-    if (paymentMethod !== "PayPal" || !parentValid || !waiverValid) return;
+    if (paymentMethod !== "PayPal" || !parentValid || !waiverValid || !accountPasswordValid) return;
     if (!paypalRef.current || !firstItem) return;
 
     const tryRender = () => {
@@ -413,32 +255,15 @@ export default function CartPage() {
     };
 
     tryRender();
-  }, [paymentMethod, parentValid, waiverValid, paymentCartKey, coupon?.code]);
+  }, [paymentMethod, parentValid, waiverValid, accountPasswordValid, paymentCartKey, coupon?.code]);
 
   // Reset PayPal render flag when switching away so it can re-render later
   useEffect(() => {
     if (paymentMethod !== "PayPal") paypalLoaded.current = false;
   }, [paymentMethod]);
 
-  const handleStartCheckout = () => {
-    if (!isLoggedIn) { setShowLoginModal(true); return; }
-    if (!parentValid) {
-      setParentTouched(true);
-      document.getElementById("parent-guardian-box")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-    if (!waiverValid) {
-      setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before choosing payment.");
-      document.getElementById("waiver-consent-box")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-    document.getElementById("payment-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const inputCls =
-    "mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15";
-
   const finalTotal = grandTotal;
+  const effectiveCheckoutMode = user || createAccount ? "account" : "guest";
 
   // ── Empty cart ──
   if (items.length === 0) {
@@ -483,22 +308,16 @@ export default function CartPage() {
             <HiOutlineArrowLeft className="h-4 w-4" /> Back
           </button>
 
-          <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--gold)" }}>
-                🛒 Your Cart
+                Checkout
               </p>
-              <h1 className="mt-1 text-3xl font-bold text-[#0F172A]">
-                {itemCount} Student Enrollment{itemCount !== 1 ? "s" : ""}
-              </h1>
+              <h1 className="mt-1 text-3xl font-bold text-[#0F172A]">Payment &amp; Waiver</h1>
             </div>
-            <button
-              type="button"
-              onClick={clearCart}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-red-500 transition self-start sm:self-center"
-            >
-              <HiOutlineTrash className="h-4 w-4" /> Clear Cart
-            </button>
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
+              {itemCount} student{itemCount !== 1 ? "s" : ""}
+            </span>
           </div>
         </section>
 
@@ -507,6 +326,220 @@ export default function CartPage() {
 
             {/* ── Left: Cart Items → Parent Details → Payment ── */}
             <div className="space-y-5">
+              <div className={`rounded-2xl border p-4 text-sm ${
+                effectiveCheckoutMode === "guest"
+                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                  : "border-green-200 bg-green-50 text-green-700"
+              }`}>
+                {effectiveCheckoutMode === "guest"
+                  ? "You are checking out as a guest. This registration will not be linked to a parent portal login."
+                  : "This registration will be tracked as a registered parent checkout."}
+              </div>
+
+              {/* ── Payment — embedded, no separate page ── */}
+              {!user && !createAccount && (
+                <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-md">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--gold)" }}>Parent Portal</p>
+                      <h2 className="mt-1 text-lg font-bold text-[#0F172A]">Create an account before payment?</h2>
+                      <p className="mt-1 text-sm text-slate-500">Add a password now to track registrations, students, attendance, and messages later.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountPromptOpen(true);
+                        setCreateAccount(true);
+                        setCheckoutMode("account");
+                        setPayError(null);
+                      }}
+                      className="rounded-full bg-[var(--gold)] px-5 py-2 text-sm font-semibold text-[var(--outfield)] shadow-sm transition hover:bg-[var(--gold-light)]"
+                    >
+                      Add Password
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!user && createAccount && (
+                <div className="rounded-[24px] border border-green-200 bg-green-50 p-5 shadow-md">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-widest font-semibold text-green-700">Parent Portal</p>
+                      <h2 className="mt-1 text-lg font-bold text-[#0F172A]">Account will be created after payment</h2>
+                      <p className="mt-1 text-sm text-green-700">Use these password fields to activate the parent login with this registration.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreateAccount(false);
+                        setCheckoutMode("guest");
+                        setAccountPassword("");
+                        setAccountPasswordConfirm("");
+                        setAccountPromptOpen(false);
+                        setPayError(null);
+                      }}
+                      className="text-left text-xs font-semibold text-green-700 underline sm:text-right"
+                    >
+                      Continue as guest
+                    </button>
+                  </div>
+                  {(accountPromptOpen || createAccount) && (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700">Password</label>
+                        <input
+                          type="password"
+                          value={accountPassword}
+                          onChange={(e) => {
+                            setAccountPassword(e.target.value);
+                            setPayError(null);
+                          }}
+                          placeholder="At least 6 characters"
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700">Confirm Password</label>
+                        <input
+                          type="password"
+                          value={accountPasswordConfirm}
+                          onChange={(e) => {
+                            setAccountPasswordConfirm(e.target.value);
+                            setPayError(null);
+                          }}
+                          placeholder="Repeat password"
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div id="waiver-consent-box">
+                  <WaiverConsent
+                    accepted={waiverAccepted}
+                    signature={waiverSignature}
+                    drawnSignature={waiverDrawnSignature}
+                    guardianName={parentDetails.parentName || (user ? `${user.firstName} ${user.lastName}` : "")}
+                    error={waiverError}
+                    onAcceptedChange={(accepted) => {
+                      setWaiverAccepted(accepted);
+                      if (accepted) setWaiverError(null);
+                    }}
+                    onSignatureChange={(signature) => {
+                      setWaiverSignature(signature);
+                      if (signature.trim()) setWaiverError(null);
+                    }}
+                    onDrawnSignatureChange={(signature) => {
+                      setWaiverDrawnSignature(signature);
+                      if (signature) setWaiverError(null);
+                    }}
+                  />
+              </div>
+
+              <div id="payment-box" className="rounded-[24px] bg-white shadow-md ring-1 ring-slate-200/60 p-6">
+                  <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--gold)" }}>Payment</p>
+                  <h2 className="mt-1 text-xl font-bold text-[#0F172A]">Choose how to pay</h2>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                    {(["PayPal", "Stripe", "Check"] as PaymentMethod[]).map((method) => (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => {
+                          if (!parentValid) { navigate("/review-order"); return; }
+                          if (!waiverValid) { setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before choosing payment."); document.getElementById("waiver-consent-box")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+                          if (!accountPasswordValid) { setPayError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match."); return; }
+                          setPaymentMethod(method);
+                        }}
+                        className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[var(--gold)] bg-[var(--gold)]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[var(--gold)]"}`}
+                      >
+                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : method === "Stripe" ? "bg-[#635BFF]" : "bg-slate-700"}`}>
+                          {method === "PayPal" ? "P" : method === "Stripe" ? "S" : "$"}
+                        </div>
+                        <div>
+                          <p className="text-base font-bold text-[#0F172A]">{method}</p>
+                          <p className="mt-1 text-xs text-slate-500">{method === "PayPal" ? "Fast online payment" : method === "Stripe" ? "Pay securely by card" : "Pay by physical check"}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {!parentValid && (
+                    <p className="mt-3 text-xs text-amber-600">Parent details are incomplete. Return to review-order to finish them before payment.</p>
+                  )}
+
+                  {/* PayPal Buttons */}
+                  {paymentMethod === "PayPal" && parentValid && waiverValid && accountPasswordValid && (
+                    <div className="mt-5 rounded-2xl border border-slate-200 p-5">
+                      <p className="text-sm uppercase tracking-widest text-slate-500 mb-3">PayPal — Click to Pay</p>
+                      <div ref={paypalRef} className="min-h-[120px] flex items-center justify-center">
+                        <p className="text-slate-400 text-sm">Loading PayPal...</p>
+                      </div>
+                      <div className="mt-4 rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-700">
+                        Click the PayPal button above. You'll be redirected to PayPal to complete payment securely.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stripe Card Payment */}
+                  {paymentMethod === "Stripe" && parentValid && waiverValid && accountPasswordValid && firstItem && (
+                    <div className="mt-5">
+                      <StripePaymentBox
+                        programId={firstItem.programId}
+                        batchId={firstItem.batchId}
+                        studentCount={itemCount || 1}
+                        sessionsPerWeek={firstItem.sessionsPerWeek}
+                        cartItems={paymentCartItems}
+                        checkoutMode="cart"
+                        couponCode={coupon?.code ?? undefined}
+                        disabled={paying}
+                        onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Check Form */}
+                  {paymentMethod === "Check" && parentValid && waiverValid && accountPasswordValid && (
+                    <div className="mt-5 rounded-2xl border border-slate-200 p-5">
+                      <h3 className="text-base font-semibold text-[#0F172A]">Check Information</h3>
+                      <div className="mt-4 space-y-4">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <label className="block text-sm font-semibold text-slate-700">Make Check Payable To <span className="text-red-500">*</span></label>
+                          <input type="text" value={checkPayableTo} onChange={(e) => setCheckPayableTo(e.target.value)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[var(--gold)]" />
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <label className="block text-sm font-semibold text-slate-700">Check Number (optional)</label>
+                          <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} placeholder="1234" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[var(--gold)]" />
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+                        <strong>Instructions:</strong> Mail your check within 5 business days. Your spot is held for 7 days.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={submitCheck}
+                        disabled={paying || !checkPayableTo.trim() || !accountPasswordValid}
+                        className="mt-5 inline-flex items-center justify-center gap-2 rounded-full px-8 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 transition w-full"
+                        style={{ background: "var(--gold)" }}
+                      >
+                        {paying ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processing...</> : `Submit — $${finalTotal.toFixed(2)}`}
+                      </button>
+                    </div>
+                  )}
+
+                  {payError && (
+                    <div className="mt-4 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">{payError}</div>
+                  )}
+                </div>
+            </div>
+
+            {/* ── Right: Summary + Coupon ── */}
+            <aside className="space-y-5 xl:sticky xl:top-24 self-start">
+
+              {/* Registration Quick Summary */}
               {items.map((item) => (
                 <div
                   key={item.cartId}
@@ -520,7 +553,7 @@ export default function CartPage() {
                       <div className="flex-1 min-w-0">
                         {/* Program title */}
                         <p className="text-xs uppercase tracking-widest font-semibold mb-1" style={{ color: "var(--gold)" }}>
-                          Program
+                          Order Summary
                         </p>
                         <h2 className="text-lg font-bold text-[#0F172A] leading-tight">{item.programTitle}</h2>
 
@@ -549,20 +582,21 @@ export default function CartPage() {
                         </div>
                       </div>
 
-                      {/* Price + Remove */}
+                      {/* Price */}
                       <div className="flex flex-col items-end gap-3 shrink-0">
                         <div className="text-right">
                           <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total</p>
                           <p className="text-2xl font-bold mt-0.5" style={{ color: "var(--leather)" }}>${item.fee}</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(item.cartId)}
-                          className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition"
-                          style={{ border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", background: "rgba(239,68,68,0.05)" }}
-                        >
-                          <HiOutlineTrash className="h-3 w-3" /> Remove
-                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-widest font-semibold text-slate-400">Parent / Guardian</p>
+                      <p className="mt-1 text-sm font-bold text-[#0F172A]">{parentDetails.parentName || "Parent details"}</p>
+                      <div className="mt-2 space-y-1 text-xs text-slate-600">
+                        {parentDetails.email && <p>{parentDetails.email}</p>}
+                        {parentDetails.phone && <p>{parentDetails.phone}</p>}
                       </div>
                     </div>
 
@@ -608,344 +642,27 @@ export default function CartPage() {
                         Item total: <span style={{ color: "var(--leather)" }}>${(item.fee * item.students.length).toFixed(2)}</span>
                       </p>
                     </div>
+                    <div className="mt-4 rounded-2xl p-4" style={{ background: "var(--pitch-soft)" }}>
+                      <p className="text-xs uppercase tracking-widest text-slate-500">Grand Total</p>
+                      <p className="mt-1 text-3xl font-bold text-[#0F172A]">${finalTotal.toFixed(2)}</p>
+                      {couponDiscount > 0 && (
+                        <p className="mt-1 text-xs font-semibold text-green-600">
+                          Includes discount {coupon?.code ? `(${coupon.code})` : ""}: -${couponDiscount.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
 
-              {/* Add more programs */}
-              <button
-                type="button"
-                onClick={() => navigate("/programs")}
-                className="w-full rounded-[20px] border-2 border-dashed py-5 text-sm font-semibold transition hover:border-[var(--gold)] hover:text-[var(--gold)]"
-                style={{ borderColor: "var(--pitch-deep)", color: "var(--ink-400)" }}
-              >
-                + Add Another Program
-              </button>
-
-              {/* ── Parent / Guardian Details — mandatory, filled right here ── */}
-              {isLoggedIn && (
-                <div id="parent-guardian-box" className="rounded-[24px] bg-white shadow-md ring-1 ring-slate-200/60 p-6">
-                  <div className="flex items-center justify-between gap-4 mb-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--gold)" }}>
-                        Parent / Guardian
-                      </p>
-                      <h2 className="mt-1 text-xl font-bold text-[#0F172A]">Your Details</h2>
-                    </div>
-                  </div>
-
-                  {user && (
-                    <div className="mb-4 rounded-2xl bg-green-50 border border-green-200 p-3 text-xs text-green-700 font-medium">
-                      ✅ Signed in as {user.firstName} {user.lastName} — details pre-filled, edit anything below if needed.
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Parent Name <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.parentName} onChange={(e) => updateParent({ parentName: e.target.value })} placeholder="Full name" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Email <span className="text-red-500">*</span></label>
-                        <input type="email" value={parentDetails.email} onChange={(e) => updateParent({ email: e.target.value })} placeholder="parent@example.com" className={inputCls} />
-                      </div>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Phone <span className="text-red-500">*</span></label>
-                        <input type="tel" value={parentDetails.phone} onChange={(e) => updateParent({ phone: e.target.value })} placeholder="(123) 456-7890" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">City <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.city} onChange={(e) => updateParent({ city: e.target.value })} placeholder="San Jose" className={inputCls} />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700">Street Address <span className="text-red-500">*</span></label>
-                      <input type="text" value={parentDetails.address} onChange={(e) => updateParent({ address: e.target.value })} placeholder="123 Maple Avenue" className={inputCls} />
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">State <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.state} onChange={(e) => updateParent({ state: e.target.value })} placeholder="CA" maxLength={2} className={inputCls} />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-xs font-semibold text-slate-700">ZIP Code <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.zip} onChange={(e) => updateParent({ zip: e.target.value })} placeholder="95123" className={inputCls} />
-                      </div>
-                    </div>
-                    {parentTouched && !parentValid && (
-                      <p className="text-xs text-amber-600">Name, email, phone, and full address (street, city, state, ZIP) are required before you can pay.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── Payment — embedded, no separate page ── */}
-              {isLoggedIn && (
-                <div id="waiver-consent-box">
-                  <WaiverConsent
-                    accepted={waiverAccepted}
-                    signature={waiverSignature}
-                    drawnSignature={waiverDrawnSignature}
-                    guardianName={parentDetails.parentName || (user ? `${user.firstName} ${user.lastName}` : "")}
-                    error={waiverError}
-                    onAcceptedChange={(accepted) => {
-                      setWaiverAccepted(accepted);
-                      if (accepted) setWaiverError(null);
-                    }}
-                    onSignatureChange={(signature) => {
-                      setWaiverSignature(signature);
-                      if (signature.trim()) setWaiverError(null);
-                    }}
-                    onDrawnSignatureChange={(signature) => {
-                      setWaiverDrawnSignature(signature);
-                      if (signature) setWaiverError(null);
-                    }}
-                  />
-                </div>
-              )}
-
-              {isLoggedIn && (
-                <div id="payment-box" className="rounded-[24px] bg-white shadow-md ring-1 ring-slate-200/60 p-6">
-                  <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--gold)" }}>Payment</p>
-                  <h2 className="mt-1 text-xl font-bold text-[#0F172A]">Choose how to pay</h2>
-
-                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                    {(["PayPal", "Stripe", "Check"] as PaymentMethod[]).map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => {
-                          if (!parentValid) { setParentTouched(true); document.getElementById("parent-guardian-box")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
-                          if (!waiverValid) { setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before choosing payment."); document.getElementById("waiver-consent-box")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
-                          setPaymentMethod(method);
-                        }}
-                        className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[var(--gold)] bg-[var(--gold)]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[var(--gold)]"}`}
-                      >
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${method === "PayPal" ? "bg-blue-600" : method === "Stripe" ? "bg-[#635BFF]" : "bg-slate-700"}`}>
-                          {method === "PayPal" ? "P" : method === "Stripe" ? "S" : "$"}
-                        </div>
-                        <div>
-                          <p className="text-base font-bold text-[#0F172A]">{method}</p>
-                          <p className="mt-1 text-xs text-slate-500">{method === "PayPal" ? "Fast online payment" : method === "Stripe" ? "Pay securely by card" : "Pay by physical check"}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {!parentValid && (
-                    <p className="mt-3 text-xs text-amber-600">Fill in your parent/guardian details above to continue.</p>
-                  )}
-
-                  {/* PayPal Buttons */}
-                  {paymentMethod === "PayPal" && parentValid && waiverValid && (
-                    <div className="mt-5 rounded-2xl border border-slate-200 p-5">
-                      <p className="text-sm uppercase tracking-widest text-slate-500 mb-3">PayPal — Click to Pay</p>
-                      <div ref={paypalRef} className="min-h-[120px] flex items-center justify-center">
-                        <p className="text-slate-400 text-sm">Loading PayPal...</p>
-                      </div>
-                      <div className="mt-4 rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-700">
-                        Click the PayPal button above. You'll be redirected to PayPal to complete payment securely.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Stripe Card Payment */}
-                  {paymentMethod === "Stripe" && parentValid && waiverValid && firstItem && (
-                    <div className="mt-5">
-                      <StripePaymentBox
-                        programId={firstItem.programId}
-                        batchId={firstItem.batchId}
-                        studentCount={itemCount || 1}
-                        sessionsPerWeek={firstItem.sessionsPerWeek}
-                        cartItems={paymentCartItems}
-                        checkoutMode="cart"
-                        couponCode={coupon?.code ?? undefined}
-                        disabled={paying}
-                        onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
-                      />
-                    </div>
-                  )}
-
-                  {/* Check Form */}
-                  {paymentMethod === "Check" && parentValid && waiverValid && (
-                    <div className="mt-5 rounded-2xl border border-slate-200 p-5">
-                      <h3 className="text-base font-semibold text-[#0F172A]">Check Information</h3>
-                      <div className="mt-4 space-y-4">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                          <label className="block text-sm font-semibold text-slate-700">Make Check Payable To <span className="text-red-500">*</span></label>
-                          <input type="text" value={checkPayableTo} onChange={(e) => setCheckPayableTo(e.target.value)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[var(--gold)]" />
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                          <label className="block text-sm font-semibold text-slate-700">Check Number (optional)</label>
-                          <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} placeholder="1234" className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[var(--gold)]" />
-                        </div>
-                      </div>
-                      <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-                        <strong>Instructions:</strong> Mail your check within 5 business days. Your spot is held for 7 days.
-                      </div>
-                      <button
-                        type="button"
-                        onClick={submitCheck}
-                        disabled={paying || !checkPayableTo.trim()}
-                        className="mt-5 inline-flex items-center justify-center gap-2 rounded-full px-8 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 transition w-full"
-                        style={{ background: "var(--gold)" }}
-                      >
-                        {paying ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processing...</> : `Submit — $${finalTotal.toFixed(2)}`}
-                      </button>
-                    </div>
-                  )}
-
-                  {payError && (
-                    <div className="mt-4 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">{payError}</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* ── Right: Summary + Coupon ── */}
-            <aside className="space-y-5 xl:sticky xl:top-24 self-start">
-
-              {/* Coupon Box */}
-              <div className="rounded-[24px] bg-white p-6 shadow-md ring-1 ring-slate-200/60">
-                <div className="flex items-center gap-2 mb-4">
-                  <HiOutlineTicket className="h-5 w-5" style={{ color: "var(--gold)" }} />
-                  <p className="text-sm font-bold text-[#0F172A]">Have a coupon?</p>
-                </div>
-
-                {coupon ? (
-                  <div className="rounded-2xl bg-green-50 border border-green-200 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-bold text-green-700">{coupon.code}</p>
-                        {coupon.description && <p className="mt-0.5 text-xs text-green-600">{coupon.description}</p>}
-                        <p className="mt-1 text-sm font-semibold text-green-700">You save ${couponDiscount.toFixed(2)}!</p>
-                      </div>
-                      <button type="button" onClick={handleRemoveCoupon} className="text-green-400 hover:text-red-500 transition">
-                        <HiOutlineXCircle className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={couponInput}
-                        onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }}
-                        onKeyDown={(e) => e.key === "Enter" && handleApplyCoupon()}
-                        placeholder="Enter code"
-                        maxLength={30}
-                        className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] uppercase tracking-wider transition"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleApplyCoupon}
-                        disabled={couponLoading || !couponInput.trim()}
-                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40 transition"
-                        style={{ background: "var(--gold)" }}
-                      >
-                        {couponLoading ? "..." : "Apply"}
-                      </button>
-                    </div>
-                    {couponError && <p className="text-xs text-red-500 font-medium">{couponError}</p>}
-                    <p className="text-xs text-slate-400">One coupon per order.</p>
-
-                    {availableCoupons.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Available Coupons</p>
-                        {availableCoupons.map((c: any) => (
-                          <button
-                            key={c.code}
-                            type="button"
-                            onClick={() => { setCouponInput(c.code); setCouponError(null); }}
-                            className="w-full text-left rounded-xl border border-dashed px-3 py-2.5 text-sm transition hover:bg-[var(--gold)]/5"
-                            style={{ borderColor: "var(--gold)" }}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold tracking-wider" style={{ color: "var(--gold)" }}>{c.code}</span>
-                              <span className="text-xs font-semibold text-slate-700">
-                                {c.type === "PERCENTAGE" ? `${c.value}% off` : `$${c.value} off`}
-                              </span>
-                            </div>
-                            {c.description && <p className="mt-0.5 text-xs text-slate-500">{c.description}</p>}
-                            {c.minAmount > 0 && <p className="mt-0.5 text-xs font-medium text-amber-600">Min. order: ${c.minAmount}</p>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Order Summary */}
-              <div className="rounded-[24px] bg-white p-6 shadow-md ring-1 ring-slate-200/60">
-                <p className="text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--gold)" }}>
-                  Order Summary
-                </p>
-
-                <div className="space-y-3">
-                  {items.map((item) => (
-                    <div key={item.cartId} className="flex justify-between text-sm">
-                      <span className="text-slate-600 truncate max-w-[65%]">
-                        {item.programTitle} × {item.students.length}
-                      </span>
-                      <span className="font-semibold text-[#0F172A]">${(item.fee * item.students.length).toFixed(2)}</span>
-                    </div>
-                  ))}
-
-                  <div className="flex justify-between text-sm pt-2" style={{ borderTop: "1px solid var(--pitch-deep)" }}>
-                    <span className="text-slate-600">Subtotal</span>
-                    <span className="font-semibold text-[#0F172A]">${subtotal.toFixed(2)}</span>
-                  </div>
-
-                  {couponDiscount > 0 && (
-                    <div className="flex justify-between text-sm font-semibold text-green-600">
-                      <span>Discount ({coupon?.code})</span>
-                      <span>− ${couponDiscount.toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  <div className="rounded-2xl p-4 mt-2" style={{ background: "var(--pitch-soft)" }}>
-                    <p className="text-xs uppercase tracking-widest text-slate-500">Grand Total</p>
-                    <p className="mt-1 text-3xl font-bold text-[#0F172A]">${finalTotal.toFixed(2)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Start checkout — scrolls to / unlocks parent details + payment below */}
-              {/* {!isLoggedIn || !paymentMethod ? (
-                <button
-                  type="button"
-                  onClick={handleStartCheckout}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-full py-4 text-base font-bold transition shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-                  style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-light))", color: "var(--outfield)" }}
-                >
-                  Proceed to Checkout <HiOutlineArrowRight className="h-5 w-5" />
-                </button>
-              ) : null} */}
-
-              {!isLoggedIn && (
-                <p className="text-xs text-slate-400 text-center">You'll sign in before completing purchase.</p>
-              )}
-
               <p className="text-xs text-slate-400 text-center">
-                Secure checkout · Your cart is saved if you leave
+                Secure checkout. Your cart is saved if you leave.
               </p>
             </aside>
           </div>
         </section>
       </main>
       <Footer />
-
-      {showLoginModal && (
-        <LoginModal
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={() => setShowLoginModal(false)}
-        />
-      )}
     </>
   );
 }

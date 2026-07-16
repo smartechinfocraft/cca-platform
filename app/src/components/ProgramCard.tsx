@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   HiOutlineCalendar,
@@ -12,7 +12,6 @@ import {
   HiOutlineClock,
 } from "react-icons/hi";
 import { HiOutlineArrowRight, HiOutlinePlusCircle, HiOutlineTrash } from "react-icons/hi2";
-import { useAuth } from "../context/AuthContext";
 import { useRegistration } from "../context/RegistrationContext";
 import { getProgramById } from "../services/programService";
 import GenderSelect from "./registration/GenderSelect";
@@ -485,7 +484,6 @@ function QuickRegisterDrawer({
   program: ProgramCardProps["program"];
 }) {
   const navigate = useNavigate();
-  const { isLoggedIn, login, register } = useAuth();
   const {
     setSelectedProgram,
     setSelectedBatch,
@@ -500,11 +498,6 @@ function QuickRegisterDrawer({
     dismissSavedStudentOptions,
   } = useRegistration();
   const [step, setStep] = useState<"batch" | "student">("batch");
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const [registerForm, setRegisterForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "" });
   const [fullProgram, setFullProgram] = useState<any | null>(null);
   const [batches, setBatches] = useState<QuickBatch[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
@@ -521,7 +514,7 @@ function QuickRegisterDrawer({
   const isWeeklyProgram = fullProgram?.batchType === "WEEKLY";
 
   useEffect(() => {
-    if (!open || !isLoggedIn || fullProgram) return;
+    if (!open || fullProgram) return;
     setLoadingBatches(true);
     setBatchError("");
     getProgramById(program._id)
@@ -554,7 +547,7 @@ function QuickRegisterDrawer({
         setBatches([]);
       })
       .finally(() => setLoadingBatches(false));
-  }, [open, isLoggedIn, fullProgram, program]);
+  }, [open, fullProgram, program]);
 
   useEffect(() => {
     setDaySlots(Array(selectedFreq).fill(null));
@@ -639,20 +632,6 @@ function QuickRegisterDrawer({
     return batchContext;
   };
 
-  const handleAuthSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setAuthError("");
-    setAuthLoading(true);
-    try {
-      if (authMode === "login") await login(loginForm.email, loginForm.password);
-      else await register(registerForm);
-    } catch (err: any) {
-      setAuthError(err?.response?.data?.message || "Unable to continue. Please check your details.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleContinueToStudent = () => {
     if (!saveBatchSelection()) return;
     setStep("student");
@@ -691,11 +670,9 @@ function QuickRegisterDrawer({
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#A33B2B]">Quick Register</p>
             <h2 className="mt-1 text-2xl font-bold text-[#0F172A]">{program.title}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {!isLoggedIn
-                ? "Sign in or create an account to continue."
-                : step === "student"
-                  ? "Add student details before review."
-                  : "Choose a month, batch, and training days."}
+              {step === "student"
+                ? "Add student details before review."
+                : "Choose a month, batch, and training days."}
             </p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50">
@@ -704,61 +681,7 @@ function QuickRegisterDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          {!isLoggedIn ? (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
-                {(["login", "register"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => { setAuthMode(mode); setAuthError(""); }}
-                    className={`rounded-xl px-4 py-2 text-sm font-semibold capitalize transition ${authMode === mode ? "bg-white text-[#A33B2B] shadow-sm" : "text-slate-500"}`}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-
-              {authError && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{authError}</div>}
-
-              <form onSubmit={handleAuthSubmit} className="space-y-4">
-                {authMode === "register" && (
-                  <>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <input required value={registerForm.firstName} onChange={(e) => setRegisterForm((prev) => ({ ...prev, firstName: e.target.value }))} placeholder="First name" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]" />
-                      <input required value={registerForm.lastName} onChange={(e) => setRegisterForm((prev) => ({ ...prev, lastName: e.target.value }))} placeholder="Last name" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]" />
-                    </div>
-                    <input required value={registerForm.phone} onChange={(e) => setRegisterForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Phone" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]" />
-                  </>
-                )}
-                <input
-                  required
-                  type="email"
-                  value={authMode === "login" ? loginForm.email : registerForm.email}
-                  onChange={(e) => {
-                    if (authMode === "login") setLoginForm((prev) => ({ ...prev, email: e.target.value }));
-                    else setRegisterForm((prev) => ({ ...prev, email: e.target.value }));
-                  }}
-                  placeholder="Email"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]"
-                />
-                <input
-                  required
-                  type="password"
-                  value={authMode === "login" ? loginForm.password : registerForm.password}
-                  onChange={(e) => {
-                    if (authMode === "login") setLoginForm((prev) => ({ ...prev, password: e.target.value }));
-                    else setRegisterForm((prev) => ({ ...prev, password: e.target.value }));
-                  }}
-                  placeholder="Password"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#A33B2B]"
-                />
-                <button type="submit" disabled={authLoading} className="w-full rounded-2xl bg-[#A33B2B] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#ea7a2e] disabled:opacity-50">
-                  {authLoading ? "Please wait..." : authMode === "login" ? "Sign In & Continue" : "Create Account & Continue"}
-                </button>
-              </form>
-            </div>
-          ) : step === "student" && student ? (
+          {step === "student" && student ? (
             <div className="space-y-5">
               <div className="rounded-2xl border border-[#A33B2B]/20 bg-[#FFF7ED] px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
@@ -1005,28 +928,26 @@ function QuickRegisterDrawer({
           )}
         </div>
 
-        {isLoggedIn && (
-          <div className="border-t border-slate-200 bg-white px-5 py-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected Total</span>
-              <span className="text-2xl font-bold text-[#0F172A]">{totalPrice > 0 ? `$${totalPrice}` : "$--"}</span>
-            </div>
-            {step === "student" ? (
-              <div className="space-y-2">
-                <button type="button" disabled={!isStudentValid} onClick={handleAddStudent} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#A33B2B] bg-white px-4 py-3 text-sm font-bold text-[#A33B2B] transition hover:bg-[#A33B2B]/5 disabled:cursor-not-allowed disabled:opacity-40">
-                  <HiOutlinePlusCircle className="h-4 w-4" /> Add Another Student
-                </button>
-                <button type="button" disabled={!isStudentValid} onClick={handleProceedToReview} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#A33B2B] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#ea7a2e] disabled:cursor-not-allowed disabled:opacity-40">
-                  Continue to Review <HiOutlineArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <button type="button" disabled={!canContinue} onClick={handleContinueToStudent} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#A33B2B] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#ea7a2e] disabled:cursor-not-allowed disabled:opacity-40">
-                Continue to Student Details <HiOutlineArrowRight className="h-4 w-4" />
-              </button>
-            )}
+        <div className="border-t border-slate-200 bg-white px-5 py-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected Total</span>
+            <span className="text-2xl font-bold text-[#0F172A]">{totalPrice > 0 ? `$${totalPrice}` : "$--"}</span>
           </div>
-        )}
+          {step === "student" ? (
+            <div className="space-y-2">
+              <button type="button" disabled={!isStudentValid} onClick={handleAddStudent} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#A33B2B] bg-white px-4 py-3 text-sm font-bold text-[#A33B2B] transition hover:bg-[#A33B2B]/5 disabled:cursor-not-allowed disabled:opacity-40">
+                <HiOutlinePlusCircle className="h-4 w-4" /> Add Another Student
+              </button>
+              <button type="button" disabled={!isStudentValid} onClick={handleProceedToReview} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#A33B2B] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#ea7a2e] disabled:cursor-not-allowed disabled:opacity-40">
+                Continue to Review <HiOutlineArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <button type="button" disabled={!canContinue} onClick={handleContinueToStudent} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#A33B2B] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#ea7a2e] disabled:cursor-not-allowed disabled:opacity-40">
+              Continue to Student Details <HiOutlineArrowRight className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </aside>
     </div>
   );

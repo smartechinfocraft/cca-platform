@@ -20,6 +20,7 @@ function Sponsors() {
   }, []);
 
   const display = sponsors.length > 0 ? sponsors : FALLBACK_SPONSORS;
+  const logoUrlFor = (s: any) => resolveUploadUrl(s.coverImagePath || s.coverImageUrl);
 
   return (
     <section id="sponsors" className="py-20 bg-white border-t border-slate-100">
@@ -36,7 +37,9 @@ function Sponsors() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-5">
           {loading
             ? [1,2,3,4].map(i => <div key={i} className="sponsor-logo animate-pulse bg-slate-100" />)
-            : display.map((s) => (
+            : display.map((s) => {
+                const logoUrl = logoUrlFor(s);
+                return (
                 <a
                   key={s._id}
                   href={s.websiteUrl ?? "#"}
@@ -44,8 +47,8 @@ function Sponsors() {
                   rel="noreferrer"
                   className="sponsor-logox  hover:scale-105 transition-transform"
                 >
-                  {s.coverImageUrl ? (
-                    <img src={resolveUploadUrl(s.coverImageUrl)} alt={s.name} className="max-h-full object-contain" />
+                  {logoUrl ? (
+                    <img src={logoUrl} alt={s.name} className="max-h-full object-contain" />
                   ) : (
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">🏏</div>
@@ -53,7 +56,8 @@ function Sponsors() {
                     </div>
                   )}
                 </a>
-              ))
+                );
+              })
           }
         </div>
 

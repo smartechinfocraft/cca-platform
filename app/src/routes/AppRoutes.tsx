@@ -131,11 +131,11 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/cart" element={<CartPage />} />
 
-      {/* ───────────── Registration flow — parent login required ───────────── */}
-      <Route path="/register-program/:id" element={<ProtectedRoute><ProgramSelection /></ProtectedRoute>} />
-      <Route path="/student-details" element={<ProtectedRoute><StudentDetails /></ProtectedRoute>} />
-      <Route path="/review-order" element={<ProtectedRoute><ReviewOrder /></ProtectedRoute>} />
-      <Route path="/payment" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
+      {/* ───────────── Registration flow — guest or parent account ───────────── */}
+      <Route path="/register-program/:id" element={<ProgramSelection />} />
+      <Route path="/student-details" element={<StudentDetails />} />
+      <Route path="/review-order" element={<ReviewOrder />} />
+      <Route path="/payment" element={<PaymentPage />} />
       <Route path="/success" element={<SuccessPage />} />
 
       {/* ───────────── Parent dashboard ───────────── */}

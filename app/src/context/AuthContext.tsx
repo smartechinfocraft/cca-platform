@@ -20,6 +20,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  acceptSession: (token: string, parent: ParentUser) => void;
   logout: () => void;
   updateUser: (patch: Partial<ParentUser>) => void;
   isLoggedIn: boolean;
@@ -88,6 +89,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const acceptSession = (newToken: string, parent: ParentUser) => {
+    setAccessToken(newToken);
+    setToken(newToken);
+    setUser(parent);
+  };
+
   const logout = () => {
     // Fire-and-forget: revokes the refresh token + clears the cookie
     // server-side. UI state is cleared immediately regardless.
@@ -105,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser, isLoggedIn: !!user }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, acceptSession, logout, updateUser, isLoggedIn: !!user }}>
       {children}
     </AuthContext.Provider>
   );

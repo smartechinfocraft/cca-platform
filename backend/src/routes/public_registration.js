@@ -10,6 +10,13 @@ const { createOrder, captureOrder, getCaptureDetails } = require('../services/pa
 const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits } = require('../services/stripeService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
+const {
+  splitParentName,
+  normalizeEmail,
+  validateOptionalAccountPassword,
+  isPortalAccount,
+  deriveRegistrationMode,
+} = require('../utils/parentAccount');
 
 // Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
 function fmtMonthDateRange(startDate, endDate, weeks) {
@@ -45,7 +52,7 @@ function normalizeOrderStudent(student) {
   };
 }
 
-function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced }) {
+function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced, registrationMode }) {
   if (Array.isArray(cartItems) && cartItems.length > 0) {
     return cartItems.map((item, index) => {
       const itemStudents = Array.isArray(item.students) && item.students.length ? item.students : [];
@@ -71,6 +78,7 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
         feePerStudent,
         studentCount,
         itemTotal: round2(feePerStudent * studentCount),
+        registrationMode,
         students: itemStudents.map(normalizeOrderStudent),
       };
     });
@@ -90,6 +98,7 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
     feePerStudent,
     studentCount,
     itemTotal: round2(feePerStudent * studentCount),
+    registrationMode,
     students: students.map(normalizeOrderStudent),
   }];
 }
@@ -201,22 +210,36 @@ router.post('/auth/register', async (req, res) => {
   try {
     const Parent = require('../models/Parent');
     const { firstName, lastName, email, phone, password, address, city, state, zip } = req.body;
+    const emailNormalized = normalizeEmail(email);
 
     if (!firstName || !lastName || !email || !phone || !password)
       return res.status(400).json({ success: false, message: 'All required fields must be filled.' });
 
-    const exists = await Parent.findOne({ email: email.toLowerCase() });
-    if (exists)
+    const { password: normalizedPassword, error: passwordError } = validateOptionalAccountPassword(password);
+    if (passwordError) return res.status(400).json({ success: false, message: passwordError });
+
+    const exists = await Parent.findOne({ email: emailNormalized }).select('+password');
+    if (exists && isPortalAccount(exists))
       return res.status(400).json({ success: false, message: 'An account with this email already exists.' });
 
-    const parent = new Parent({ firstName, lastName, email, phone, password, address, city, state, zip });
+    const parent = exists || new Parent();
+    parent.firstName = firstName;
+    parent.lastName = lastName;
+    parent.email = emailNormalized;
+    parent.phone = phone;
+    parent.password = normalizedPassword;
+    parent.accountStatus = 'ACTIVE';
+    if (address !== undefined) parent.address = address;
+    if (city !== undefined) parent.city = city;
+    if (state !== undefined) parent.state = state;
+    if (zip !== undefined) parent.zip = zip;
     await parent.save();
 
     const accessToken = await issueParentTokens(res, parent);
 
     res.status(201).json({
       success: true,
-      message: 'Account created successfully!',
+      message: exists ? 'Account activated successfully!' : 'Account created successfully!',
       token: accessToken,
       parent: toSafeParent(parent),
     });
@@ -231,11 +254,12 @@ router.post('/auth/login', async (req, res) => {
   try {
     const Parent = require('../models/Parent');
     const { email, password } = req.body;
+    const emailNormalized = normalizeEmail(email);
     if (!email || !password)
       return res.status(400).json({ success: false, message: 'Email and password required.' });
 
-    const parent = await Parent.findOne({ email: email.toLowerCase() }).select('+password');
-    if (!parent || !(await parent.comparePassword(password)))
+    const parent = await Parent.findOne({ email: emailNormalized }).select('+password');
+    if (!parent || !isPortalAccount(parent) || !(await parent.comparePassword(password)))
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
     const accessToken = await issueParentTokens(res, parent);
@@ -676,6 +700,12 @@ router.post('/register', async (req, res) => {
       sessionsPerWeek,
       couponCode,   // NEW — optional coupon applied at checkout
     } = req.body;
+    const accountPassword = req.body.accountPassword;
+    const { password: checkoutAccountPassword, error: checkoutAccountPasswordError } =
+      validateOptionalAccountPassword(accountPassword);
+    if (checkoutAccountPasswordError) {
+      return res.status(400).json({ success: false, message: checkoutAccountPasswordError });
+    }
 
     const waiverConsent = req.body.waiverConsent;
     const waiverSignature = typeof waiverConsent?.signature === 'string'
@@ -871,6 +901,9 @@ router.post('/register', async (req, res) => {
     // Resolve or create parent ref
     const Parent = require('../models/Parent');
     let resolvedParentId;
+    let checkoutSessionParent = null;
+    let checkoutAccessToken = null;
+    let accountCreated = false;
     if (authenticatedParentId) {
       resolvedParentId = authenticatedParentId;
       // Logged-in parent — keep their profile address in sync with whatever
@@ -885,32 +918,51 @@ router.post('/register', async (req, res) => {
         });
       }
     } else {
-      let parent = await Parent.findOne({ email: parentInfo.email.toLowerCase() });
+      const emailNormalized = normalizeEmail(parentInfo.email);
+      let parent = await Parent.findOne({ email: emailNormalized }).select('+password');
+      const existingPortalAccount = isPortalAccount(parent);
+      const nameParts = splitParentName(parentInfo.parentName);
       if (!parent) {
-        const crypto = require('crypto');
         parent = new Parent({
-          firstName: parentInfo.parentName?.split(' ')[0] || 'Guest',
-          lastName: parentInfo.parentName?.split(' ').slice(1).join(' ') || 'User',
-          email: parentInfo.email,
+          firstName: nameParts.firstName,
+          lastName: nameParts.lastName,
+          email: emailNormalized,
           phone: parentInfo.phone || '000-000-0000',
-          password: crypto.randomBytes(16).toString('hex'),
           address: parentInfo.address,
           city: parentInfo.city,
           state: parentInfo.state,
           zip: parentInfo.zip,
+          accountStatus: checkoutAccountPassword ? 'ACTIVE' : 'GUEST',
         });
-        await parent.save();
       } else if (parentInfo?.address || parentInfo?.city || parentInfo?.state || parentInfo?.zip) {
         // Existing guest-checkout parent found by email — keep their saved
         // address current too, same as the logged-in path above.
+        parent.firstName = nameParts.firstName;
+        parent.lastName = nameParts.lastName;
+        if (parentInfo.phone) parent.phone = parentInfo.phone;
         if (parentInfo.address) parent.address = parentInfo.address;
         if (parentInfo.city) parent.city = parentInfo.city;
         if (parentInfo.state) parent.state = parentInfo.state;
         if (parentInfo.zip) parent.zip = parentInfo.zip;
-        await parent.save();
       }
+      if (checkoutAccountPassword && !existingPortalAccount) {
+        parent.password = checkoutAccountPassword;
+        parent.accountStatus = 'ACTIVE';
+        accountCreated = true;
+      } else if (!parent.accountStatus) {
+        parent.accountStatus = 'GUEST';
+      }
+      await parent.save();
       resolvedParentId = parent._id;
+      if (checkoutAccountPassword && !existingPortalAccount) {
+        checkoutAccessToken = await issueParentTokens(res, parent);
+        checkoutSessionParent = parent;
+      }
     }
+    const registrationMode = deriveRegistrationMode({
+      authenticatedParentId,
+      accountPassword: checkoutAccountPassword,
+    });
 
     const studentIds = [];
     for (const s of studentInputs) {
@@ -1015,6 +1067,20 @@ router.post('/register', async (req, res) => {
     // racing on the last remaining use of a maxUses coupon can't both
     // succeed — this closes the duplicate-usage race window.
     let couponHonored = !!priced.coupon;
+    if (priced.coupon?.perUserLimit != null) {
+      const priorUses = await Registration.countDocuments({
+        parentId: resolvedParentId,
+        couponCode: priced.coupon.code,
+        paymentStatus: { $ne: 'FAILED' },
+      });
+      if (priorUses >= priced.coupon.perUserLimit) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already used this coupon the maximum number of times.',
+        });
+      }
+    }
+
     if (priced.coupon && (pmStatus === 'SUCCESS' || paymentMethod === 'Check')) {
       const Coupon = mongoose.model('Coupon');
       const incremented = await Coupon.findOneAndUpdate(
@@ -1053,6 +1119,7 @@ router.post('/register', async (req, res) => {
       sessionsPerWeek,
       students: studentInputs,
       priced,
+      registrationMode,
     });
 
     const reg = new Registration({
@@ -1082,6 +1149,7 @@ router.post('/register', async (req, res) => {
       discountAmount: priced.discount,
       totalAmount: priced.total,
       orderItems,
+      registrationMode,
       couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
       paymentMethod: pmMethod,
       paymentStatus: pmStatus,
@@ -1151,7 +1219,11 @@ router.post('/register', async (req, res) => {
       discount: priced.discount,
       totalAmount: priced.total,
       orderItems,
+      registrationMode,
       couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
+      accountCreated,
+      token: checkoutAccessToken || undefined,
+      parent: checkoutSessionParent ? toSafeParent(checkoutSessionParent) : undefined,
     });
   } catch (err) {
     sendPaymentError(res, err, 'We could not complete this registration. Please try again.', 'register');

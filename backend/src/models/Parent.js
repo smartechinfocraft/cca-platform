@@ -9,7 +9,13 @@ const parentSchema = new mongoose.Schema({
   lastName:   { type: String, required: true, trim: true },
   email:      { type: String, required: true, unique: true, lowercase: true, trim: true },
   phone:      { type: String, required: true },
-  password:   { type: String, required: true, select: false },
+  password:   { type: String, select: false },
+  accountStatus: {
+    type: String,
+    enum: ['GUEST', 'ACTIVE'],
+    default: 'ACTIVE',
+    index: true,
+  },
   address:    { type: String },
   city:       { type: String },
   state:      { type: String },
@@ -24,12 +30,13 @@ const parentSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 parentSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
 parentSchema.methods.comparePassword = function(candidate) {
+  if (!this.password) return Promise.resolve(false);
   return bcrypt.compare(candidate, this.password);
 };
 

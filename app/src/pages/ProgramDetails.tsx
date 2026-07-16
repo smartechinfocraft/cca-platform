@@ -11,7 +11,6 @@ import { getProgramById, getBatches } from "../services/programService";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useRegistration } from "../context/RegistrationContext";
-import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import GenderSelect from "../components/registration/GenderSelect";
 import SavedStudentPicker from "../components/registration/SavedStudentPicker";
@@ -110,7 +109,6 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
   weeklyBatches?: WeeklyBatchRaw[];
 }) {
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
   const { addItem } = useCart();
   const [cartSuccess, setCartSuccess] = useState(false);
   const {
@@ -136,14 +134,6 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
   const [batchConfirmed, setBatchConfirmed] = useState(false);
   const studentFormRef = useRef<HTMLDivElement>(null);
   const [dobError, setDobError] = useState("");
-
-  // Login modal — shown inline instead of navigating away
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loginLoading, setLoginLoading] = useState(false);
-  const { login: doLogin } = useAuth();
 
   const activeBatch = batches.find((b) => b._id === selectedBatchId) ?? null;
 
@@ -232,10 +222,6 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
   const handleContinue = () => {
     if (!isStudentValid) return;
     setSelectedProgram({ _id: programId, title: programTitle } as any); // FIX
-    if (!isLoggedIn) {
-      setShowLoginModal(true);
-      return;
-    }
     navigate("/review-order");
   };
 
@@ -270,23 +256,6 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     });
     setCartSuccess(true);
     setTimeout(() => setCartSuccess(false), 3000);
-  };
-
-  // ── FIX: setSelectedProgram called after login so context is populated before navigation ──
-  const handleModalLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError("");
-    setLoginLoading(true);
-    try {
-      await doLogin(loginEmail, loginPassword);
-      setSelectedProgram({ _id: programId, title: programTitle } as any); // FIX
-      setShowLoginModal(false);
-      navigate("/review-order");
-    } catch (err: any) {
-      setLoginError(err?.response?.data?.message || "Invalid email or password.");
-    } finally {
-      setLoginLoading(false);
-    }
   };
 
   // ── UI ────────────────────────────────────────────────────────────────────
@@ -666,85 +635,9 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               </button>
             )}
           </div>
-
-          {!isLoggedIn && (
-            <p className="text-xs text-slate-400 text-center">Sign in or create an account before completing purchase.</p>
-          )}
         </div>
       )}
 
-      {/* ── Inline Login Modal ── */}
-      {showLoginModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-          onClick={() => setShowLoginModal(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-[24px] bg-white p-7 shadow-2xl"
-            style={{ border: "1px solid var(--pitch-deep)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#A33B2B" }}>One more step</p>
-                <h2 className="text-lg font-bold text-[#0F172A] mt-0.5">Sign in to continue</h2>
-                <p className="text-xs text-slate-500 mt-1">Your registration details are saved — just sign in and we'll take you straight to review.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLoginModal(false)}
-                className="ml-3 shrink-0 rounded-full h-7 w-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition text-lg"
-              >✕</button>
-            </div>
-
-            {loginError && (
-              <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-xs text-red-600">{loginError}</div>
-            )}
-
-            <form onSubmit={handleModalLogin} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#0F172A] mb-1">Email</label>
-                <input
-                  type="email" required autoFocus
-                  value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="parent@email.com"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/20 transition"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#0F172A] mb-1">Password</label>
-                <input
-                  type="password" required
-                  value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#A33B2B] focus:ring-2 focus:ring-[#A33B2B]/20 transition"
-                />
-              </div>
-              <button
-                type="submit" disabled={loginLoading}
-                className="w-full rounded-full py-3 text-sm font-bold transition disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98] mt-1"
-                style={{ background: "#A33B2B", color: "white" }}
-              >
-                {loginLoading ? "Signing in..." : "Sign In & Continue to Review"}
-              </button>
-            </form>
-
-            <div className="mt-4 text-center">
-              <span className="text-xs text-slate-500">Don't have an account? </span>
-              <button
-                type="button"
-                onClick={() => { setShowLoginModal(false); navigate("/login", { state: { from: `/programs/${programId}` } }); }}
-                className="text-xs font-semibold hover:underline"
-                style={{ color: "#A33B2B" }}
-              >
-                Create one
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
