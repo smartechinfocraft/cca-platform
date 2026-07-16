@@ -59,10 +59,19 @@ import CoachProfile from "../coach/pages/Profile";
 
 // ── Parent: requires a logged-in parent, else -> /login ─────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, loading } = useAuth();
   const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#0d1b0e]">
+        <div className="text-[#F5D97A] text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />;
   }
   return <>{children}</>;
 }
@@ -80,7 +89,7 @@ function AdminProtectedRoute({ children, superOnly = false }: { children: React.
     );
   }
   if (!user) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />;
   }
   if (superOnly && !isSuperAdmin) {
     return <Navigate to="/admin/dashboard" replace />;
@@ -101,7 +110,7 @@ function CoachProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!coach) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />;
   }
   return <>{children}</>;
 }
