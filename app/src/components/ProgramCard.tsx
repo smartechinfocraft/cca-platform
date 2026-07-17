@@ -18,6 +18,7 @@ import GenderSelect from "./registration/GenderSelect";
 import WeeklyBatchSelector from "./registration/WeeklyBatchSelector";
 import SavedStudentPicker from "./registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, fmt12, type WeeklyBatchRaw } from "../utils/weeklyBatch";
+import { getVisibleMonthOptions } from "../utils/monthOptions";
 
 type ProgramCardProps = {
   program: {
@@ -366,7 +367,7 @@ function ProgramCard({ program }: ProgramCardProps) {
 }
 
 interface TimeSlot { startTime: string; endTime: string; }
-interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; }
+interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; isEnabled?: boolean; showInStartMonthOnly?: boolean; }
 interface QuickBatch {
   _id: string;
   name: string;
@@ -568,7 +569,7 @@ function QuickRegisterDrawer({
     if (!selectedMonth) return 0;
     const direct = Number(selectedMonth.price);
     if (direct > 0) return direct;
-    const match = activeBatch?.monthOptions?.find((m) => m.label === selectedMonth.label);
+    const match = getVisibleMonthOptions(activeBatch?.monthOptions).find((m) => m.label === selectedMonth.label);
     const fromBatch = Number(match?.price);
     return fromBatch > 0 ? fromBatch : 0;
   })();
@@ -817,7 +818,7 @@ function QuickRegisterDrawer({
 
               {batches.map((batch) => {
                 const isSelected = selectedBatchId === batch._id;
-                const monthOptions = batch.monthOptions ?? [];
+                const monthOptions = getVisibleMonthOptions(batch.monthOptions);
                 const freqOptions = Array.from({ length: batch.sessionsPerWeek ?? 3 }, (_, i) => i + 1);
                 return (
                   <div key={batch._id} className={`rounded-2xl border p-4 transition ${isSelected ? "border-[#A33B2B] bg-[#FFF7ED] ring-2 ring-[#A33B2B]/15" : "border-slate-200 bg-slate-50"}`}>

@@ -28,6 +28,7 @@ import { getMyStudents, getParentProfile } from "../../services/parentDashboardS
 import type { StudentWithSummary } from "../../types/parentDashboard";
 import SavedStudentPicker from "../registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
+import { getVisibleMonthOptions } from "../../utils/monthOptions";
 import {
   fetchChatPrograms,
   fetchChatProgramDetail,
@@ -398,7 +399,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
     setSelectedMonth(null);
     setFrequency(1);
     setDaySlots([null]);
-    if (b.monthOptions && b.monthOptions.length > 0) {
+    if (getVisibleMonthOptions(b.monthOptions).length > 0) {
       goTo("month");
     } else {
       proceedAfterMonth(b, null);
@@ -816,7 +817,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
         {step === "month" && selectedBatch && (
           <>
             <Bubble>Which month would you like to start?</Bubble>
-            {(selectedBatch.monthOptions || []).map((m, i) => {
+            {getVisibleMonthOptions(selectedBatch.monthOptions).map((m, i) => {
               const dateRange = fmtMonthDateRange(m.startDate, m.endDate, m.weeks);
               const priceStr = m.price ? `$${m.price}` : "";
               const sub = [dateRange, priceStr].filter(Boolean).join(" · ") || undefined;

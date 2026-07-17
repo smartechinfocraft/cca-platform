@@ -47,6 +47,8 @@ const batchSchema = new mongoose.Schema(
       endDate:   { type: String },
       weeks:     { type: Number },
       price:     { type: Number },
+      isEnabled: { type: Boolean, default: true },
+      showInStartMonthOnly: { type: Boolean, default: false },
     }],
 
     // Which specific days are selected when dayOfWeek = 'MULTI'

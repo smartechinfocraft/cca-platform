@@ -13,7 +13,15 @@ import toast from 'react-hot-toast';
 
 const ALL_DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 const emptySlot = () => ({ startTime: '09:00', endTime: '10:30' });
-const emptyMonthOption = () => ({ label: '', startDate: '', endDate: '', weeks: '' });
+const isTruthyFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
+const normalizeMonthOption = (option = {}) => ({
+  ...option,
+  isEnabled: !isDisabledFlag(option.isEnabled),
+  showInStartMonthOnly: isTruthyFlag(option.showInStartMonthOnly),
+});
+const emptyMonthOption = () => normalizeMonthOption({ label: '', startDate: '', endDate: '', weeks: '' });
+const serializeMonthOptions = (monthOptions = []) => monthOptions.map(normalizeMonthOption);
 
 const EMPTY = {
   programId: '', locationId: '', coachId: '',
@@ -99,7 +107,7 @@ export default function Batches() {
       pricePerSession:    row.pricePerSession || '',
       price:              row.price || '',
       sessionsPerWeek:    row.sessionsPerWeek || '',
-      monthOptions:       row.monthOptions || [],
+      monthOptions:       (row.monthOptions || []).map(normalizeMonthOption),
       isActive:           row.isActive !== false,
     });
     setModalOpen(true);
@@ -166,7 +174,7 @@ export default function Batches() {
         dayOfWeek:        form.multiDays.length === 1 ? form.multiDays[0] : 'MULTI',
         timeSlots:        form.timeSlots,
         multiDays:        form.multiDays,
-        monthOptions:     form.monthOptions,
+        monthOptions:     serializeMonthOptions(form.monthOptions),
       };
       if (editing) {
         await batchesAPI.update(editing._id, payload);
@@ -441,8 +449,20 @@ export default function Batches() {
               <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.4)', marginBottom:'10px' }}>
                 e.g. "May to June (5 Weeks)", "July to August (5 Weeks)", "May to August (10 Weeks)"
               </div>
-              {form.monthOptions.map((opt, idx) => (
-                <div key={idx} style={monthRowStyle}>
+              {form.monthOptions.map((opt, idx) => {
+                const isEnabled = !isDisabledFlag(opt.isEnabled);
+                return (
+                <div key={idx} style={{ ...monthRowStyle, opacity: isEnabled ? 1 : 0.72 }}>
+                  <div style={{ gridColumn:'1 / -1', display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap' }}>
+                    <label style={{ display:'inline-flex', alignItems:'center', gap:'6px', color:'#e2e8f0', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                      <input type="checkbox" checked={isEnabled} onChange={e => updateMonthOption(idx, 'isEnabled', e.target.checked)} />
+                      Enabled for registration
+                    </label>
+                    <label style={{ display:'inline-flex', alignItems:'center', gap:'6px', color:'#cbd5e1', fontSize:'12px', cursor:'pointer' }}>
+                      <input type="checkbox" checked={isTruthyFlag(opt.showInStartMonthOnly)} onChange={e => updateMonthOption(idx, 'showInStartMonthOnly', e.target.checked)} />
+                      Only show during its start month
+                    </label>
+                  </div>
                   <div>
                     <label style={{ fontSize:'11px', color:'rgba(255,255,255,0.4)', display:'block', marginBottom:'3px' }}>Label (shown to user)</label>
                     <Input value={opt.label} onChange={e => updateMonthOption(idx, 'label', e.target.value)}
@@ -466,7 +486,8 @@ export default function Batches() {
                     ✕
                   </button>
                 </div>
-              ))}
+                );
+              })}
               <button type="button" onClick={addMonthOption}
                 style={{ background:'rgba(212,175,55,0.1)', border:'1px dashed rgba(212,175,55,0.4)',
                   color:'#F5D97A', borderRadius:'8px', padding:'7px 16px', cursor:'pointer',

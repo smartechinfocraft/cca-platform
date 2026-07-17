@@ -7,6 +7,19 @@ const { pickAllowedFields } = require('../utils/allowlist');
 
 const getBatch = () => mongoose.model('Batch');
 
+const isTruthyFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
+
+const normalizeMonthOptions = (monthOptions) => (
+  Array.isArray(monthOptions)
+    ? monthOptions.map((m) => ({
+        ...m,
+        isEnabled: !isDisabledFlag(m.isEnabled),
+        showInStartMonthOnly: isTruthyFlag(m.showInStartMonthOnly),
+      }))
+    : []
+);
+
 // ── Payload Allowlisting ─────────────────────────────────────
 // Only these fields may ever be written to a Batch document from
 // a request body. Notably excluded: currentCapacity (auto-derived
@@ -56,6 +69,7 @@ exports.getOne = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const payload = pickAllowedFields(req.body, BATCH_ALLOWED_FIELDS);
+    if (Array.isArray(payload.monthOptions)) payload.monthOptions = normalizeMonthOptions(payload.monthOptions);
     const batch = await getBatch().create({ ...payload, createdBy: req.user._id });
     res.status(201).json({ success: true, data: batch });
   } catch (err) {
@@ -66,6 +80,7 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const payload = pickAllowedFields(req.body, BATCH_ALLOWED_FIELDS);
+    if (Array.isArray(payload.monthOptions)) payload.monthOptions = normalizeMonthOptions(payload.monthOptions);
     const batch = await getBatch().findByIdAndUpdate(req.params.id, payload, {
       new: true, runValidators: true,
     });

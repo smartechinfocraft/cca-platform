@@ -19,6 +19,19 @@ const toSKU = (category, title) => {
   return `CCA-${parts}`.substring(0, 60);
 };
 
+const isTruthyFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
+
+const normalizeMonthOptions = (monthOptions) => (
+  Array.isArray(monthOptions)
+    ? monthOptions.map((m) => ({
+        ...m,
+        isEnabled: !isDisabledFlag(m.isEnabled),
+        showInStartMonthOnly: isTruthyFlag(m.showInStartMonthOnly),
+      }))
+    : []
+);
+
 // ── Payload Allowlisting ─────────────────────────────────────
 // Only these fields may ever be written to a Program document from
 // a request body. Notably excluded: coverImagePath/coverImageUrl
@@ -93,6 +106,7 @@ exports.create = async (req, res) => {
     if (typeof body.weekOptions  === 'string') body.weekOptions  = JSON.parse(body.weekOptions  || '[]');
     if (typeof body.weeklyBatches === 'string') body.weeklyBatches = JSON.parse(body.weeklyBatches || '[]');
     if (typeof body.scheduleDays === 'string') body.scheduleDays = JSON.parse(body.scheduleDays || '[]');
+    if (Array.isArray(body.monthOptions)) body.monthOptions = normalizeMonthOptions(body.monthOptions);
 
     // Auto-calculate sessionsPerWeek from scheduleDays
     if (Array.isArray(body.scheduleDays)) {
@@ -146,6 +160,7 @@ exports.update = async (req, res) => {
     if (typeof body.weekOptions  === 'string') body.weekOptions  = JSON.parse(body.weekOptions  || '[]');
     if (typeof body.weeklyBatches === 'string') body.weeklyBatches = JSON.parse(body.weeklyBatches || '[]');
     if (typeof body.scheduleDays === 'string') body.scheduleDays = JSON.parse(body.scheduleDays || '[]');
+    if (Array.isArray(body.monthOptions)) body.monthOptions = normalizeMonthOptions(body.monthOptions);
 
     // Auto-calculate sessionsPerWeek from scheduleDays
     if (Array.isArray(body.scheduleDays)) {
@@ -298,6 +313,8 @@ exports.bulkCreate = async (req, res) => {
               endDate:   m.endDate   || '',
               weeks:     m.weeks     || null,
               price:     m.price     || null,
+              isEnabled: !isDisabledFlag(m.isEnabled),
+              showInStartMonthOnly: isTruthyFlag(m.showInStartMonthOnly),
             }))
           : [];
 

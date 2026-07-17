@@ -18,10 +18,11 @@ import SavedStudentPicker from "../components/registration/SavedStudentPicker";
 // uses, so "View Details" behaves identically for Weekly programs.
 import WeeklyBatchSelector from "../components/registration/WeeklyBatchSelector";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../utils/weeklyBatch";
+import { getVisibleMonthOptions } from "../utils/monthOptions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface TimeSlot { startTime: string; endTime: string; }
-interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; }
+interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; isEnabled?: boolean; showInStartMonthOnly?: boolean; }
 interface BatchRaw {
   _id: string; name: string; title?: string; days: string;
   dayOfWeek?: string; multiDays?: string[]; timing: string;
@@ -141,14 +142,14 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
     if (!selectedMonth) return 0;
     const direct = Number(selectedMonth.price);
     if (direct > 0) return direct;
-    const match = activeBatch?.monthOptions?.find((m: any) => m.label === selectedMonth.label);
+    const match = getVisibleMonthOptions(activeBatch?.monthOptions).find((m: any) => m.label === selectedMonth.label);
     const fromBatch = Number((match as any)?.price);
     return fromBatch > 0 ? fromBatch : 0;
   })();
   const totalPriceNonWeekly = baseMonthPrice > 0 ? baseMonthPrice * selectedFreq : 0;
   const totalPrice = isWeeklyProgram ? weeklyTotalPrice : totalPriceNonWeekly;
 
-  const monthOpts: MonthOption[] = activeBatch?.monthOptions ?? [];
+  const monthOpts: MonthOption[] = getVisibleMonthOptions(activeBatch?.monthOptions);
   const maxFreq = activeBatch?.sessionsPerWeek ?? 3;
   const freqOpts = Array.from({ length: maxFreq }, (_, i) => i + 1);
   const allDaySlotsSelected = daySlots.every((s) => s !== null);
@@ -320,7 +321,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
 
           {batches.map((batch) => {
             const isSelected = selectedBatchId === batch._id;
-            const bMonthOpts = batch.monthOptions ?? [];
+            const bMonthOpts = getVisibleMonthOptions(batch.monthOptions);
             const bMaxFreq = batch.sessionsPerWeek ?? 3;
             const bFreqOpts = Array.from({ length: bMaxFreq }, (_, i) => i + 1);
 

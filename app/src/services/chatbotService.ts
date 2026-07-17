@@ -136,6 +136,8 @@ export interface ChatMonthOption {
   endDate?: string;
   weeks?: string | number;
   price?: string | number;
+  isEnabled?: boolean;
+  showInStartMonthOnly?: boolean;
 }
 
 export interface ChatTimeSlot {

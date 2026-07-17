@@ -45,7 +45,7 @@ const EMPTY_FORM = {
   startDate:            '',
   endDate:              '',
   registrationDeadline: '',
-  monthOptions:         [],    // [{label, startDate, endDate, weeks}]
+  monthOptions:         [],    // [{label, startDate, endDate, weeks, price, isEnabled, showInStartMonthOnly}]
   weeklyBatches:        [],    // [{startDate,startTime,endDate,endTime,groundAddress,ageGroups,skillLevels,label}] — WEEKLY batch type only
   scheduleDays:         [],    // [{day, startTime, endTime, groundAddress}]
   coachId:              '',
@@ -86,7 +86,17 @@ function calcMonthOption(startDate, endDate, basePrice, daysPerWeek) {
   return { weeks: Math.round(rawWeeks), price: '', label };
 }
 
-const emptyMonthOption = () => ({ label: '', startDate: '', endDate: '', weeks: '', price: '' });
+const isTruthyFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
+
+const normalizeMonthOption = (option = {}) => ({
+  ...option,
+  isEnabled: !isDisabledFlag(option.isEnabled),
+  showInStartMonthOnly: isTruthyFlag(option.showInStartMonthOnly),
+});
+
+const emptyMonthOption = () => normalizeMonthOption({ label: '', startDate: '', endDate: '', weeks: '', price: '' });
+const serializeMonthOptions = (monthOptions = []) => monthOptions.map(normalizeMonthOption);
 
 // ── Weekly Batch helper (WEEKLY batch type only) ─────────────────────────────
 // Admin picks Start Date/Time + End Date/Time → auto-calc label like
@@ -288,7 +298,7 @@ export default function ProgramForm() {
         startDate:            row.startDate ? row.startDate.split('T')[0] : '',
         endDate:              row.endDate   ? row.endDate.split('T')[0]   : '',
         registrationDeadline: row.registrationDeadline ? row.registrationDeadline.split('T')[0] : '',
-        monthOptions:         row.monthOptions  || [],
+        monthOptions:         (row.monthOptions || []).map(normalizeMonthOption),
         weeklyBatches:        row.weeklyBatches || [],
         scheduleDays:         row.scheduleDays  || [],
         // row.coachId comes back POPULATED ({_id, firstName, lastName, ...})
@@ -602,7 +612,7 @@ export default function ProgramForm() {
       fd.append('skillLevels',         JSON.stringify(form.skillLevels));
       fd.append('cities',              JSON.stringify(form.cities));
       // Save month options exactly as admin entered them (price is always manually set).
-      fd.append('monthOptions',        JSON.stringify(form.monthOptions));
+      fd.append('monthOptions',        JSON.stringify(serializeMonthOptions(form.monthOptions)));
       // TEMP DEBUG — open browser DevTools Console before clicking Save/Update
       // and check this log to confirm the new week is actually in form.weeklyBatches.
       console.log('[DEBUG] Sending weeklyBatches:', form.weeklyBatches);
@@ -906,11 +916,13 @@ export default function ProgramForm() {
                 (form.endDate   && opt.endDate   && opt.endDate   > form.endDate);
               const weeksNum = parseInt(opt.weeks) || 0;
               const blocks   = weeksNum > 0 ? Math.ceil(weeksNum / 5) : 0;
+              const isEnabled = !isDisabledFlag(opt.isEnabled);
 
               return (
                 <div key={idx} style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${outOfRange ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                  background: isEnabled ? 'rgba(255,255,255,0.03)' : 'rgba(148,163,184,0.08)',
+                  border: `1px solid ${outOfRange ? 'rgba(239,68,68,0.5)' : isEnabled ? 'rgba(255,255,255,0.08)' : 'rgba(148,163,184,0.25)'}`,
+                  opacity: isEnabled ? 1 : 0.72,
                   borderRadius: '10px', padding: '12px', marginBottom: '10px',
                 }}>
                   {outOfRange && (
@@ -918,6 +930,36 @@ export default function ProgramForm() {
                       ⚠️ Dates are outside program range ({form.startDate} → {form.endDate})
                     </div>
                   )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#e2e8f0', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isEnabled}
+                        onChange={e => updateMonthOption(idx, 'isEnabled', e.target.checked)}
+                      />
+                      Enabled for registration
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '12px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isTruthyFlag(opt.showInStartMonthOnly)}
+                        onChange={e => updateMonthOption(idx, 'showInStartMonthOnly', e.target.checked)}
+                      />
+                      Only show during its start month
+                    </label>
+                    <span style={{
+                      marginLeft: 'auto',
+                      color: isEnabled ? '#86efac' : '#fca5a5',
+                      background: isEnabled ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                      border: `1px solid ${isEnabled ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                      borderRadius: '999px',
+                      padding: '3px 8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                    }}>
+                      {isEnabled ? 'Visible when rules match' : 'Hidden from frontend'}
+                    </span>
+                  </div>
                   {/* Row 1: Start Date + End Date */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                     <div>

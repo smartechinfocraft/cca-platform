@@ -85,14 +85,22 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     typeof selectedMonth === 'string'
       ? selectedMonth
       : (selectedMonth?.label || selectedMonth?.name || '');
-  const matchedMonthOption = selectedMonthLabel && Array.isArray(batch?.monthOptions)
-    ? batch.monthOptions.find((m) => String(m.label || '').trim() === String(selectedMonthLabel).trim())
+  const monthOptions = Array.isArray(batch?.monthOptions) && batch.monthOptions.length > 0
+    ? batch.monthOptions
+    : (Array.isArray(program.monthOptions) ? program.monthOptions : []);
+  const matchedMonthOption = selectedMonthLabel && monthOptions.length > 0
+    ? monthOptions.find((m) => String(m.label || '').trim() === String(selectedMonthLabel).trim())
     : null;
+  if (matchedMonthOption && !isMonthOptionAvailable(matchedMonthOption)) {
+    const err = new Error('Selected month option is not currently available for registration.');
+    err.status = 400;
+    throw err;
+  }
   const expectedUnit = Number(expectedUnitPrice);
   const selectedDayCount = countSelectedDays(selectedDays);
   const requestedFrequency = Math.max(Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1, selectedDayCount);
-  const matchedMonthByPrice = !matchedMonthOption && expectedUnit > 0 && Array.isArray(batch?.monthOptions)
-    ? batch.monthOptions.find((m) => {
+  const matchedMonthByPrice = !matchedMonthOption && expectedUnit > 0 && monthOptions.length > 0
+    ? monthOptions.filter(isMonthOptionAvailable).find((m) => {
         const price = Number(m.price);
         return price > 0 && Math.abs(Math.round(expectedUnit / price) * price - expectedUnit) <= 0.01;
       })
@@ -229,6 +237,28 @@ function countSelectedDays(selectedDays) {
   return Math.max(1, count);
 }
 
+function isSameCalendarMonth(dateValue, now = new Date()) {
+  if (!dateValue) return false;
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.getFullYear() === now.getFullYear() && parsed.getMonth() === now.getMonth();
+}
+
+function isMonthOptionAvailable(option, now = new Date()) {
+  if (!option) return false;
+  if (isDisabledFlag(option.isEnabled)) return false;
+  if (isTruthyFlag(option.showInStartMonthOnly)) return isSameCalendarMonth(option.startDate, now);
+  return true;
+}
+
+function isTruthyFlag(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function isDisabledFlag(value) {
+  return value === false || value === 'false' || value === 0 || value === '0';
+}
+
 async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
   const Coupon = mongoose.model('Coupon');
   const safeSubtotal = round2(subtotal);
@@ -346,4 +376,11 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
   };
 }
 
-module.exports = { computeRegistrationTotal, computeCartTotal, applyCouponToSubtotal, round2 };
+module.exports = {
+  computeRegistrationTotal,
+  computeCartTotal,
+  applyCouponToSubtotal,
+  round2,
+  isSameCalendarMonth,
+  isMonthOptionAvailable,
+};
