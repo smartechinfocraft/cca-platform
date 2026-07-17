@@ -8,14 +8,37 @@ const path   = require('path');
 const fs     = require('fs');
 
 // ── Ensure upload folders exist ────────────────────────────
-const UPLOAD_BASE = process.env.UPLOAD_DIR
-  ? path.resolve(process.env.UPLOAD_DIR)
-  : path.join(__dirname, '../../uploads');
+const DEFAULT_UPLOAD_BASE = path.join(__dirname, '../../uploads');
 const folders = ['programs', 'coaches', 'sponsors', 'media', 'gallery', 'students'];
-folders.forEach(f => {
-  const dir = path.join(UPLOAD_BASE, f);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-});
+
+const ensureUploadFolders = (baseDir) => {
+  fs.mkdirSync(baseDir, { recursive: true });
+  folders.forEach(f => {
+    const dir = path.join(baseDir, f);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  });
+};
+
+const resolveUploadBase = () => {
+  const configured = process.env.UPLOAD_DIR
+    ? path.resolve(process.env.UPLOAD_DIR)
+    : DEFAULT_UPLOAD_BASE;
+
+  try {
+    ensureUploadFolders(configured);
+    return configured;
+  } catch (err) {
+    if (!process.env.UPLOAD_DIR) throw err;
+    console.warn(
+      `[upload] UPLOAD_DIR "${configured}" is not writable (${err.code || err.message}). ` +
+      `Falling back to "${DEFAULT_UPLOAD_BASE}".`
+    );
+    ensureUploadFolders(DEFAULT_UPLOAD_BASE);
+    return DEFAULT_UPLOAD_BASE;
+  }
+};
+
+const UPLOAD_BASE = resolveUploadBase();
 
 // ── Storage engine ─────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -119,8 +142,8 @@ const withUpload = (multerMiddleware) => (req, res, next) => {
 // Call this after upload to get the URL to store in DB
 const fileUrl = (req, filePath) => {
   if (!filePath) return null;
-  // Normalize to forward slashes, strip absolute prefix
-  const relative = filePath.replace(/\\/g, '/').split('uploads/').pop();
+  const absolutePath = path.resolve(filePath);
+  const relative = path.relative(UPLOAD_BASE, absolutePath).replace(/\\/g, '/');
   const host = `${req.protocol}://${req.get('host')}`;
   return `${host}/uploads/${relative}`;
 };
