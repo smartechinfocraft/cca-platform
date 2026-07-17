@@ -237,22 +237,10 @@ function countSelectedDays(selectedDays) {
   return Math.max(1, count);
 }
 
-function isSameCalendarMonth(dateValue, now = new Date()) {
-  if (!dateValue) return false;
-  const parsed = new Date(dateValue);
-  if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.getFullYear() === now.getFullYear() && parsed.getMonth() === now.getMonth();
-}
-
-function isMonthOptionAvailable(option, now = new Date()) {
+function isMonthOptionAvailable(option) {
   if (!option) return false;
   if (isDisabledFlag(option.isEnabled)) return false;
-  if (isTruthyFlag(option.showInStartMonthOnly)) return isSameCalendarMonth(option.startDate, now);
   return true;
-}
-
-function isTruthyFlag(value) {
-  return value === true || value === 'true' || value === 1 || value === '1';
 }
 
 function isDisabledFlag(value) {
@@ -381,6 +369,5 @@ module.exports = {
   computeCartTotal,
   applyCouponToSubtotal,
   round2,
-  isSameCalendarMonth,
   isMonthOptionAvailable,
 };

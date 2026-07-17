@@ -7,7 +7,6 @@ const { pickAllowedFields } = require('../utils/allowlist');
 
 const getBatch = () => mongoose.model('Batch');
 
-const isTruthyFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
 
 const normalizeMonthOptions = (monthOptions) => (
@@ -15,7 +14,6 @@ const normalizeMonthOptions = (monthOptions) => (
     ? monthOptions.map((m) => ({
         ...m,
         isEnabled: !isDisabledFlag(m.isEnabled),
-        showInStartMonthOnly: isTruthyFlag(m.showInStartMonthOnly),
       }))
     : []
 );

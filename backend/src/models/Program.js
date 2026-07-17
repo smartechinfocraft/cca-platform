@@ -77,7 +77,6 @@ const programSchema = new mongoose.Schema(
         weeks:     { type: Number },
         price:     { type: Number },   // manually set by admin — no auto-calc
         isEnabled: { type: Boolean, default: true },
-        showInStartMonthOnly: { type: Boolean, default: false },
       },
     ],
 

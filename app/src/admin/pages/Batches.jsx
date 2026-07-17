@@ -13,12 +13,10 @@ import toast from 'react-hot-toast';
 
 const ALL_DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 const emptySlot = () => ({ startTime: '09:00', endTime: '10:30' });
-const isTruthyFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
 const normalizeMonthOption = (option = {}) => ({
   ...option,
   isEnabled: !isDisabledFlag(option.isEnabled),
-  showInStartMonthOnly: isTruthyFlag(option.showInStartMonthOnly),
 });
 const emptyMonthOption = () => normalizeMonthOption({ label: '', startDate: '', endDate: '', weeks: '' });
 const serializeMonthOptions = (monthOptions = []) => monthOptions.map(normalizeMonthOption);
@@ -457,10 +455,6 @@ export default function Batches() {
                     <label style={{ display:'inline-flex', alignItems:'center', gap:'6px', color:'#e2e8f0', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                       <input type="checkbox" checked={isEnabled} onChange={e => updateMonthOption(idx, 'isEnabled', e.target.checked)} />
                       Enabled for registration
-                    </label>
-                    <label style={{ display:'inline-flex', alignItems:'center', gap:'6px', color:'#cbd5e1', fontSize:'12px', cursor:'pointer' }}>
-                      <input type="checkbox" checked={isTruthyFlag(opt.showInStartMonthOnly)} onChange={e => updateMonthOption(idx, 'showInStartMonthOnly', e.target.checked)} />
-                      Only show during its start month
                     </label>
                   </div>
                   <div>

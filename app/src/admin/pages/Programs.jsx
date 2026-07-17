@@ -371,7 +371,6 @@ async function parseAndUpload(file, onProgress) {
         weeks:     parseInt(get('monthWeeks')) || null,
         price:     !isNaN(rowPrice) ? rowPrice : null,
         isEnabled: true,
-        showInStartMonthOnly: false,
       });
     } else {
       // Default to DAY if rowType is blank/unrecognized but classDay is present

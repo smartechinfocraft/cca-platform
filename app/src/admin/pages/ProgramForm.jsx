@@ -45,7 +45,7 @@ const EMPTY_FORM = {
   startDate:            '',
   endDate:              '',
   registrationDeadline: '',
-  monthOptions:         [],    // [{label, startDate, endDate, weeks, price, isEnabled, showInStartMonthOnly}]
+  monthOptions:         [],    // [{label, startDate, endDate, weeks, price, isEnabled}]
   weeklyBatches:        [],    // [{startDate,startTime,endDate,endTime,groundAddress,ageGroups,skillLevels,label}] — WEEKLY batch type only
   scheduleDays:         [],    // [{day, startTime, endTime, groundAddress}]
   coachId:              '',
@@ -86,13 +86,11 @@ function calcMonthOption(startDate, endDate, basePrice, daysPerWeek) {
   return { weeks: Math.round(rawWeeks), price: '', label };
 }
 
-const isTruthyFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
 
 const normalizeMonthOption = (option = {}) => ({
   ...option,
   isEnabled: !isDisabledFlag(option.isEnabled),
-  showInStartMonthOnly: isTruthyFlag(option.showInStartMonthOnly),
 });
 
 const emptyMonthOption = () => normalizeMonthOption({ label: '', startDate: '', endDate: '', weeks: '', price: '' });
@@ -938,14 +936,6 @@ export default function ProgramForm() {
                         onChange={e => updateMonthOption(idx, 'isEnabled', e.target.checked)}
                       />
                       Enabled for registration
-                    </label>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '12px', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={isTruthyFlag(opt.showInStartMonthOnly)}
-                        onChange={e => updateMonthOption(idx, 'showInStartMonthOnly', e.target.checked)}
-                      />
-                      Only show during its start month
                     </label>
                     <span style={{
                       marginLeft: 'auto',

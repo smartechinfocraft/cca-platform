@@ -23,7 +23,7 @@ function getDobError(value: string): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface TimeSlot { startTime: string; endTime: string; }
-interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; isEnabled?: boolean; showInStartMonthOnly?: boolean; }
+interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; isEnabled?: boolean; }
 interface BatchRaw {
   _id: string;
   name: string;

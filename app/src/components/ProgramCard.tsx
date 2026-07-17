@@ -367,7 +367,7 @@ function ProgramCard({ program }: ProgramCardProps) {
 }
 
 interface TimeSlot { startTime: string; endTime: string; }
-interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; isEnabled?: boolean; showInStartMonthOnly?: boolean; }
+interface MonthOption { label: string; startDate: string; endDate: string; weeks: string | number; price?: string | number; isEnabled?: boolean; }
 interface QuickBatch {
   _id: string;
   name: string;
