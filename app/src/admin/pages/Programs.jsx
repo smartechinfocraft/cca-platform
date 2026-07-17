@@ -26,6 +26,29 @@ const uniqueOptions = (options) => {
 };
 
 const hasAny = (selected, values) => !selected.length || values.some(value => selected.includes(value));
+const PROGRAM_FILTER_STORAGE_KEY = 'admin.programs.filters.v1';
+const DEFAULT_PROGRAM_FILTERS = { categories: [], locations: [], ageGroups: [], levels: [], status: [] };
+
+const normalizeSavedFilters = (value = {}) => ({
+  categories: Array.isArray(value.categories) ? value.categories : [],
+  locations: Array.isArray(value.locations) ? value.locations : [],
+  ageGroups: Array.isArray(value.ageGroups) ? value.ageGroups : [],
+  levels: Array.isArray(value.levels) ? value.levels : [],
+  status: Array.isArray(value.status) ? value.status : [],
+});
+
+const loadSavedProgramFilters = () => {
+  if (typeof window === 'undefined') return { search: '', filters: DEFAULT_PROGRAM_FILTERS };
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(PROGRAM_FILTER_STORAGE_KEY) || '{}');
+    return {
+      search: typeof saved.search === 'string' ? saved.search : '',
+      filters: normalizeSavedFilters(saved.filters),
+    };
+  } catch {
+    return { search: '', filters: DEFAULT_PROGRAM_FILTERS };
+  }
+};
 
 const MultiSelectFilter = ({ id, label, options, selected, onChange, open, onOpen, onClose, width = '190px' }) => {
   const ref = useRef(null);
@@ -412,10 +435,11 @@ async function parseAndUpload(file, onProgress) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Programs() {
+  const savedFilters = loadSavedProgramFilters();
   const [rows,         setRows]         = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState('');
-  const [filters,      setFilters]      = useState({ categories: [], locations: [], ageGroups: [], levels: [] });
+  const [search,       setSearch]       = useState(savedFilters.search);
+  const [filters,      setFilters]      = useState(savedFilters.filters);
   const [openFilter,   setOpenFilter]   = useState('');
   const [selectedIds,  setSelectedIds]  = useState([]);
   const [bulkSaving,   setBulkSaving]   = useState(false);
@@ -438,11 +462,19 @@ export default function Programs() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    window.localStorage.setItem(PROGRAM_FILTER_STORAGE_KEY, JSON.stringify({ search, filters }));
+  }, [search, filters]);
+
   const filterOptions = {
     categories: uniqueOptions(rows.map(row => ({ value: idOf(row.category), label: row.category?.title || '' }))),
     locations: uniqueOptions(rows.map(row => ({ value: idOf(row.location), label: row.location?.city || row.location?.title || '' }))),
     ageGroups: uniqueOptions(rows.flatMap(row => (row.ageGroups || []).map(age => ({ value: age, label: age })))),
     levels: uniqueOptions(rows.flatMap(row => (row.skillLevels || []).map(level => ({ value: level, label: level })))),
+    status: [
+      { value: 'active', label: 'Active' },
+      { value: 'inactive', label: 'Inactive' },
+    ],
   };
 
   const setFilterValue = (key, value) => {
@@ -451,7 +483,7 @@ export default function Programs() {
 
   const clearFilters = () => {
     setSearch('');
-    setFilters({ categories: [], locations: [], ageGroups: [], levels: [] });
+    setFilters(DEFAULT_PROGRAM_FILTERS);
     setOpenFilter('');
   };
 
@@ -531,6 +563,7 @@ export default function Programs() {
     if (!hasAny(filters.locations, [idOf(r.location)])) return false;
     if (!hasAny(filters.ageGroups, r.ageGroups || [])) return false;
     if (!hasAny(filters.levels, r.skillLevels || [])) return false;
+    if (!hasAny(filters.status, [r.isActive ? 'active' : 'inactive'])) return false;
     return true;
   });
 
@@ -685,6 +718,17 @@ export default function Programs() {
           onClose={() => setOpenFilter('')}
           options={filterOptions.levels}
           width="190px"
+        />
+        <MultiSelectFilter
+          id="program-status-filter"
+          label="Status"
+          selected={filters.status}
+          onChange={value => setFilterValue('status', value)}
+          open={openFilter === 'program-status-filter'}
+          onOpen={setOpenFilter}
+          onClose={() => setOpenFilter('')}
+          options={filterOptions.status}
+          width="150px"
         />
         <Btn variant="ghost" onClick={clearFilters}>Clear Filters</Btn>
 
