@@ -541,6 +541,15 @@ function QuickRegisterDrawer({
           : [];
         setFullProgram(data ?? program);
         setBatches(batchItems);
+        const availableMonths = batchItems.flatMap((batch) =>
+          getVisibleMonthOptions(batch.monthOptions).map((month) => ({ batch, month }))
+        );
+        if (availableMonths.length === 1) {
+          setSelectedBatchId(availableMonths[0].batch._id);
+          setSelectedMonth(availableMonths[0].month);
+          setSelectedFreq(1);
+          setDaySlots([null]);
+        }
         setWeeklyBatches(Array.isArray(data?.weeklyBatches) ? data.weeklyBatches : []);
       })
       .catch(() => {

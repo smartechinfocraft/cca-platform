@@ -120,8 +120,12 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
   } = useRegistration();
 
   // Batch / month / day state
-  const [selectedBatchId, setSelectedBatchId] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(null);
+  const onlyAvailableMonth = batches.flatMap((batch) =>
+    getVisibleMonthOptions(batch.monthOptions).map((month) => ({ batch, month }))
+  );
+  const initialMonthChoice = onlyAvailableMonth.length === 1 ? onlyAvailableMonth[0] : null;
+  const [selectedBatchId, setSelectedBatchId] = useState(() => initialMonthChoice?.batch._id ?? "");
+  const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(() => initialMonthChoice?.month ?? null);
   const [selectedFreq, setSelectedFreq] = useState(1);
   const [daySlots, setDaySlots] = useState<(string | null)[]>([null]);
 
