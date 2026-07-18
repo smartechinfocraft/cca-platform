@@ -152,9 +152,8 @@ function Footer() {
         <div className="mt-14 pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-white/40">© {year} California Cricket Academy. All rights reserved.</p>
           <div className="flex items-center gap-6 text-xs text-white/40">
-            <span>hello@calcricket.org</span>
-            <span>·</span>
-            <span>(408) 555-0100</span>
+            <span>info@calcricket.org</span>
+          
           </div>
         </div>
       </div>

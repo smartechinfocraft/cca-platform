@@ -219,10 +219,10 @@ async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber,
     </table>
     <p style="margin:0;color:#6B6753;font-size:12px;line-height:1.6;">
       If anything here looks wrong or you weren't expecting this change, please contact us right away
-      at cca@calcricket.org or (408) 777-9983.
+      at info@calcricket.org.
     </p>
   </td></tr>
-  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#8A8470;font-size:11px;margin:0;">California Cricket Academy | cca@calcricket.org</p></td></tr>
+  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#8A8470;font-size:11px;margin:0;">California Cricket Academy | info@calcricket.org</p></td></tr>
 </table>
 </body></html>`;
 

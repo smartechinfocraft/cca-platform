@@ -33,8 +33,8 @@ function CTA() {
               </button>
               <p className="text-center text-slate-400 text-xs mt-1">
                 Questions? Email us at{" "}
-                <a href="mailto:hello@calcricket.org" className="text-[var(--gold)] hover:underline font-semibold">
-                  hello@calcricket.org
+                <a href="mailto:info@calcricket.org" className="text-[var(--gold)] hover:underline font-semibold">
+                  info@calcricket.org
                 </a>
               </p>
             </div>

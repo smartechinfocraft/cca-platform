@@ -95,7 +95,7 @@ function SuccessPage() {
     doc.setFontSize(9.5);
     doc.setTextColor(INK_LIGHT);
     doc.text("Youth Training Programs", marginX + 50, 62);
-    doc.text("10307 Bret Ave, Cupertino, CA 95014  ·  (408) 777-9983  ·  cca@calcricket.org", marginX + 50, 76);
+    doc.text("10307 Bret Ave, Cupertino, CA 95014   ·  info@calcricket.org", marginX + 50, 76);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
@@ -298,7 +298,7 @@ function SuccessPage() {
     doc.setFontSize(9);
     doc.setTextColor(INK);
     doc.text("Thank you for training with California Cricket Academy.", marginX, pageHeight - 54);
-    doc.text("Questions about this receipt? Contact cca@calcricket.org or (408) 777-9983.", marginX, pageHeight - 40);
+    doc.text("Questions about this receipt? Contact info@calcricket.org.", marginX, pageHeight - 40);
     doc.setFontSize(8);
     doc.text(
       "California Cricket Academy is a federally recognized 501(c)(3) nonprofit organization.",
