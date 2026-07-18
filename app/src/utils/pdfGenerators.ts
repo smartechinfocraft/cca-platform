@@ -62,7 +62,7 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
   doc.setFontSize(9.5);
   doc.setTextColor(INK_LIGHT);
   doc.text(ACADEMY.tagline, marginX + 50, 62);
-  doc.text(`${ACADEMY.address}  ·  ${ACADEMY.phone}  ·  ${ACADEMY.email}`, marginX + 50, 76);
+  doc.text(`${ACADEMY.address}  ·  ${ACADEMY.email}`, marginX + 50, 76);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
@@ -286,7 +286,7 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
   doc.setFontSize(9);
   doc.setTextColor(INK);
   doc.text("Thank you for training with California Cricket Academy.", marginX, pageHeight - 54);
-  doc.text(`Questions about this invoice? Contact ${ACADEMY.email} or ${ACADEMY.phone}.`, marginX, pageHeight - 40);
+  doc.text(`Questions about this invoice? Contact ${ACADEMY.email}.`, marginX, pageHeight - 40);
   doc.setFontSize(8);
   doc.text("California Cricket Academy is a federally recognized 501(c)(3) nonprofit organization.", marginX, pageHeight - 24);
 
@@ -485,7 +485,7 @@ export function buildCustomReportPdf(
   doc.setFontSize(8.5);
   doc.setTextColor(INK_LIGHT);
   doc.text(ACADEMY.tagline, marginX + 42, 48);
-  doc.text(`${ACADEMY.address}  ·  ${ACADEMY.phone}  ·  ${ACADEMY.email}`, marginX + 42, 60);
+  doc.text(`${ACADEMY.address}  ·  ${ACADEMY.email}`, marginX + 42, 60);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
