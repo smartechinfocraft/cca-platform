@@ -116,13 +116,11 @@ function ReviewOrder() {
   useEffect(() => {
     if (user) {
       setCheckoutMode("account");
-      if (!parentDetails.parentName) {
-        updateParent({
-          parentName: `${user.firstName} ${user.lastName}`,
-          email: user.email,
-          phone: user.phone,
-        });
-      }
+      updateParent({
+        parentName: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        phone: user.phone,
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -194,10 +192,12 @@ function ReviewOrder() {
     (accountPassword.length >= 6 && accountPassword === accountPasswordConfirm);
 
   const handleProceedToPayment = () => {
-    if (!billingValid) { setEditingBilling(true); return; }
+    if (!billingValid) {
+      if (user) setEditingBilling(true);
+      return;
+    }
     if (!user && createAccount && !accountPasswordValid) {
       setAccountError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
-      setEditingBilling(true);
       return;
     }
     setAccountError(null);
@@ -488,22 +488,24 @@ function ReviewOrder() {
                       {parentDetails.parentName || "Add your details"}
                     </h2>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditingBilling((v) => !v)}
-                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-[var(--gold)] hover:text-[var(--gold)] transition"
-                  >
-                    {editingBilling ? <><HiOutlineCheck className="h-3.5 w-3.5" /> Done</> : <><HiOutlinePencilSquare className="h-3.5 w-3.5" /> Edit</>}
-                  </button>
+                  {user && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingBilling((value) => !value)}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-[var(--gold)] hover:text-[var(--gold)] transition"
+                    >
+                      {editingBilling ? <><HiOutlineCheck className="h-3.5 w-3.5" /> Done</> : <><HiOutlinePencilSquare className="h-3.5 w-3.5" /> Edit</>}
+                    </button>
+                  )}
                 </div>
 
                 {user && (
                   <div className="mb-4 rounded-2xl bg-green-50 border border-green-200 p-3 text-xs text-green-700 font-medium">
-                    ✅ Signed in as {user.firstName} {user.lastName} — details pre-filled, edit anything below if needed.
+                    Signed in as {user.firstName} {user.lastName}. Your account details are shown below.
                   </div>
                 )}
 
-                {!editingBilling ? (
+                {user && !editingBilling ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {[
                       { label: "Email", value: parentDetails.email },
