@@ -250,6 +250,22 @@ router.post('/auth/register', async (req, res) => {
 });
 
 // ── POST /api/public/auth/login ──────────────────────────────
+// Check whether an email already belongs to an active parent portal account.
+// Guest parent records can still be activated by choosing a password.
+router.post('/auth/check-parent-email', async (req, res) => {
+  try {
+    const Parent = require('../models/Parent');
+    const emailNormalized = normalizeEmail(req.body?.email);
+    if (!emailNormalized) {
+      return res.status(400).json({ success: false, message: 'Email is required.' });
+    }
+    const parent = await Parent.findOne({ email: emailNormalized }).select('+password');
+    return res.json({ success: true, registered: isPortalAccount(parent) });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.post('/auth/login', async (req, res) => {
   try {
     const Parent = require('../models/Parent');
@@ -921,6 +937,12 @@ router.post('/register', async (req, res) => {
       const emailNormalized = normalizeEmail(parentInfo.email);
       let parent = await Parent.findOne({ email: emailNormalized }).select('+password');
       const existingPortalAccount = isPortalAccount(parent);
+      if (checkoutAccountPassword && existingPortalAccount) {
+        return res.status(409).json({
+          success: false,
+          message: 'A parent portal account with this email already exists. Please sign in before continuing.',
+        });
+      }
       const nameParts = splitParentName(parentInfo.parentName);
       if (!parent) {
         parent = new Parent({

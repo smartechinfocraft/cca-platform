@@ -361,7 +361,7 @@ export default function CartPage() {
                 </div>
               )}
 
-              {!user && createAccount && (
+              {!user && createAccount && accountPromptOpen && (
                 <div className="rounded-[24px] border border-green-200 bg-green-50 p-5 shadow-md">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -384,7 +384,7 @@ export default function CartPage() {
                       Continue as guest
                     </button>
                   </div>
-                  {(accountPromptOpen || createAccount) && (
+                  {accountPromptOpen && (
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">Password</label>

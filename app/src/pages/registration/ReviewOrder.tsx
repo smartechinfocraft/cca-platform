@@ -66,6 +66,8 @@ function ReviewOrder() {
 
   const [editingBilling, setEditingBilling] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [existingParentAccount, setExistingParentAccount] = useState(false);
+  const [checkingParentEmail, setCheckingParentEmail] = useState(false);
 
   // Coupon state — local to this page
   const [couponInput, setCouponInput] = useState(appliedCoupon?.code ?? "");
@@ -191,7 +193,7 @@ function ReviewOrder() {
     !createAccount ||
     (accountPassword.length >= 6 && accountPassword === accountPasswordConfirm);
 
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
     if (!billingValid) {
       if (user) setEditingBilling(true);
       return;
@@ -200,6 +202,23 @@ function ReviewOrder() {
       setAccountError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
       return;
     }
+    if (!user && createAccount) {
+      setCheckingParentEmail(true);
+      try {
+        const response = await api.post("/public/auth/check-parent-email", { email: parentDetails.email });
+        if (response.data?.registered) {
+          setExistingParentAccount(true);
+          setAccountError("A parent portal account with this email already exists. Please sign in to continue.");
+          return;
+        }
+      } catch (error: any) {
+        setAccountError(error?.response?.data?.message || "Unable to verify this email. Please try again.");
+        return;
+      } finally {
+        setCheckingParentEmail(false);
+      }
+    }
+    setExistingParentAccount(false);
     setAccountError(null);
     setCheckoutMode(user || createAccount ? "account" : "guest");
     setTotalAmount(grandTotal);
@@ -530,7 +549,7 @@ function ReviewOrder() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">Email <span className="text-red-500">*</span></label>
-                        <input type="email" value={parentDetails.email} onChange={e => updateParent({ email: e.target.value })} placeholder="parent@example.com" className={inputCls} />
+                        <input type="email" value={parentDetails.email} onChange={e => { updateParent({ email: e.target.value }); setExistingParentAccount(false); setAccountError(null); }} placeholder="parent@example.com" className={inputCls} />
                       </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -627,6 +646,15 @@ function ReviewOrder() {
                       </p>
                     )}
                     {accountError && <p className="mt-3 text-xs font-semibold text-red-500">{accountError}</p>}
+                    {existingParentAccount && (
+                      <button
+                        type="button"
+                        onClick={() => navigate("/login", { state: { from: "/review-order", mode: "parent-login", prefill: { email: parentDetails.email } } })}
+                        className="mt-3 rounded-full bg-[#0F172A] px-5 py-2 text-xs font-semibold text-white"
+                      >
+                        Sign in to your parent account
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -790,9 +818,10 @@ function ReviewOrder() {
                 <button
                   type="button"
                   onClick={handleProceedToPayment}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[var(--gold)] px-6 py-3 text-sm font-semibold text-[var(--outfield)] shadow-md hover:bg-[var(--gold-light)] transition"
+                  disabled={checkingParentEmail}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[var(--gold)] px-6 py-3 text-sm font-semibold text-[var(--outfield)] shadow-md hover:bg-[var(--gold-light)] transition disabled:cursor-wait disabled:opacity-60"
                 >
-                  Proceed to Payment <HiOutlineArrowRight className="h-4 w-4" />
+                  {checkingParentEmail ? "Checking email..." : "Proceed to Payment"} <HiOutlineArrowRight className="h-4 w-4" />
                 </button>
               </div>
 

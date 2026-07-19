@@ -33,7 +33,7 @@ function LoginPage() {
   const [staffSubmitting, setStaffSubmitting] = useState(false);
 
   // Parent login state
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginEmail, setLoginEmail] = useState(navState?.prefill?.email || "");
   const [loginPassword, setLoginPassword] = useState("");
 
   // Parent register state
