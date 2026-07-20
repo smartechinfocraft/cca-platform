@@ -177,19 +177,41 @@ function buildBatchLabel(program, batch) {
 
 // GET /api/public/programs
 // Returns all active programs with category, location, ageGroups, skillLevels
+const PUBLIC_PROGRAM_CACHE_MS = 30 * 1000;
+const publicProgramCache = new Map();
+
 router.get('/public/programs', async (req, res) => {
   try {
     const filter = { isActive: true };
     if (req.query.category) filter.category = req.query.category;
     if (req.query.featured === 'true') filter.isFeatured = true;
 
+    // The collection is public and changes infrequently. A short cache avoids
+    // repeating the same MongoDB/populate work for Navbar, Footer and listing
+    // requests while keeping admin changes visible within 30 seconds.
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=60');
+    const cacheKey = JSON.stringify({
+      category: req.query.category || '',
+      featured: req.query.featured === 'true',
+    });
+    const cached = publicProgramCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return res.json({ success: true, data: cached.data });
+    }
+    if (cached) publicProgramCache.delete(cacheKey);
+
     const data = await mongoose.model('Program')
       .find(filter)
       .populate('category', 'title slug')
       .populate('location', 'title city address')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json({ success: true, data });
+    publicProgramCache.set(cacheKey, {
+      data,
+      expiresAt: Date.now() + PUBLIC_PROGRAM_CACHE_MS,
+    });
+    return res.json({ success: true, data });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

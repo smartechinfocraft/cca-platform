@@ -8,7 +8,7 @@ import {
   HiChevronDown,
   HiX,
 } from "react-icons/hi";
-import { getPrograms } from "../services/programService";
+import { getCategories, getPrograms } from "../services/programService";
 
 export interface Filters {
   season: string;
@@ -154,11 +154,11 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
     // Derive all filter options directly from programs data
     // This guarantees options shown always match what programs actually have
     Promise.all([
-      fetch(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5001/api"}/public/categories`).then(r => r.json()),
+      getCategories(),
       getPrograms(),
     ])
-      .then(([catRes, progs]) => {
-        const cats: Season[] = catRes.data ?? [];
+      .then(([categoryData, progs]) => {
+        const cats: Season[] = categoryData ?? [];
         setSeasons(cats);
 
         const progList: any[] = progs ?? [];

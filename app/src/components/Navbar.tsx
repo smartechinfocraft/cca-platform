@@ -10,7 +10,7 @@ function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [programsOpen, setProgramsOpen] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
-  const [activeCategoryIds, setActiveCategoryIds] = useState<Set<string>>(new Set());
+  const [activeCategoryIds, setActiveCategoryIds] = useState<Set<string> | null>(null);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const programsRef = useRef<HTMLDivElement>(null);
@@ -22,18 +22,24 @@ function Navbar() {
   // Load categories + figure out which ones have at least 1 program
   useEffect(() => {
     const load = async () => {
-      try {
-        const [cats, programs] = await Promise.all([getCategories(), getPrograms()]);
-        setCategories(cats ?? []);
+      const [categoriesResult, programsResult] = await Promise.allSettled([
+        getCategories(),
+        getPrograms(),
+      ]);
+
+      setCategories(categoriesResult.status === "fulfilled" ? categoriesResult.value ?? [] : []);
+      if (programsResult.status === "fulfilled") {
         // Build a set of category IDs that have programs
         const ids = new Set<string>(
-          (programs ?? []).map((p: any) =>
+          (programsResult.value ?? []).map((p: any) =>
             typeof p.category === "object" ? p.category?._id : p.category
           ).filter(Boolean)
         );
         setActiveCategoryIds(ids);
-      } catch {
-        setCategories([]);
+      } else {
+        // Do not incorrectly mark every category as "Coming Soon" when only
+        // the program-availability request had a transient failure.
+        setActiveCategoryIds(null);
       }
     };
     load();
@@ -73,7 +79,7 @@ function Navbar() {
   };
 
   const handleProgramCategory = (cat: any) => {
-    const hasPrograms = activeCategoryIds.has(cat._id);
+    const hasPrograms = activeCategoryIds === null || activeCategoryIds.has(cat._id);
     if (!hasPrograms) return; // Coming Soon — not clickable
     setProgramsOpen(false);
     setOpen(false);
@@ -171,7 +177,7 @@ function Navbar() {
                 </button>
 
                 {categories.map((cat, i) => {
-                  const hasPrograms = activeCategoryIds.has(cat._id);
+                  const hasPrograms = activeCategoryIds === null || activeCategoryIds.has(cat._id);
                   return (
                     <button
                       key={cat._id}
@@ -317,7 +323,7 @@ function Navbar() {
               All Programs
             </button>
             {categories.map((cat) => {
-              const hasPrograms = activeCategoryIds.has(cat._id);
+              const hasPrograms = activeCategoryIds === null || activeCategoryIds.has(cat._id);
               return (
                 <button
                   key={cat._id}
