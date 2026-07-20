@@ -7,7 +7,7 @@ function App() {
       <AppRoutes />
       {/* <ChatbotWidget /> */}
 
-      <div className="chatbot-widget fixed bottom-4 right-4 z-50">
+      <div className="chatbot-widget fixed bottom-4 left-4 z-50">
   <span className="brand-img fixed bottom-38 right-4 w-42 flex text-xs gap-2 items-center"> Powered by 
 <a href="https://elevenlabs.io/agents" target="_blank"><img  src="https://11labs-nonprd-15f22c1d.s3.eu-west-3.amazonaws.com/0b9cd3e1-9fad-4a5b-b3a0-c96b0a1f1d2b/elevenlabs-logo-black.svg" alt="CCA Chatbot" style={{ width: 'auto', height: '10px', cursor: 'pointer' }}    /></a>
 </span>
