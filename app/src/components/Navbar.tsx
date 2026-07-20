@@ -101,12 +101,12 @@ function Navbar() {
       <div className="top-0 left-0 right-0 w-full bg-black text-white text-sm py-2 px-6 z-[60] text-center font-medium">
         <p>
       📢 Hurry! Early Bird Fall 2026 discounts are available — use code <strong>EARLYBIRD</strong> &nbsp;&nbsp; | &nbsp;&nbsp; Registration for 
-          {/* <a
+        <a
             href="https://legacy.calcricket.org/product_cat/summer-2026/"
             target="_blank"
             rel="noopener noreferrer"
             className="underline text-[var(--gold)] font-semibold hover:text-gray-300 transition-colors"
-          > Summer 2026 Programs</a> &   */}
+          > Summer 2026 Programs</a> & 
            <a
             href="https://legacy.calcricket.org/product_cat/week-long/"
             target="_blank"
