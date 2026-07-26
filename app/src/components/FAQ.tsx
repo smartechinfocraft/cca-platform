@@ -34,9 +34,10 @@ function FAQ() {
           </h2>
           <p className="text-slate-500 mt-4 max-w-md mx-auto">
             Everything parents ask us most. Can't find your answer?{" "}
-            <a href="mailto:info@calcricket.org" className="text-[#A33B2B] font-semibold hover:underline">
+            <a href="mailto:calcricket_academy@yahoo.com" className="text-[#A33B2B] font-semibold hover:underline">
               Email us
             </a>
+            or send us a whatsapp message at <a href="https://wa.me/+14082033594" className="text-[#A33B2B] font-semibold hover:underline">+1 (408) 203-3594</a>.
           </p>
         </div>
 

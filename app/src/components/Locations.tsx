@@ -224,7 +224,7 @@ function Locations() {
             Click a location above to explore it on the map.
             <span className="mx-2">·</span>
             Can't find one near you?{" "}
-            <a href="mailto:info@calcricket.org" className="text-[var(--gold)] font-semibold hover:underline">
+            <a href="mailto:calcricket_academy@yahoo.com" className="text-[var(--gold)] font-semibold hover:underline">
               Contact us
             </a>
           </p>

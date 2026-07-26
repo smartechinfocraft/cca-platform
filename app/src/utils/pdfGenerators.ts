@@ -22,8 +22,8 @@ const ACADEMY = {
   name: "California Cricket Academy",
   tagline: "Youth Training Programs",
   address: "10307 Bret Ave, Cupertino, CA 95014",
-  //phone: "(408) 777-9983",
-  email: "info@calcricket.org",
+  phone: "Whatsapp - (408) 203-3594 ",
+  email: "calcricket_academy@yahoo.com",
 };
 
 const formatDate = (iso?: string) =>

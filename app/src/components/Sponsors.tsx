@@ -63,7 +63,7 @@ function Sponsors() {
 
         <p className="text-center text-sm text-slate-400 mt-10">
           Interested in sponsoring CCA?{" "}
-          <a href="mailto:info@calcricket.org" className="text-[var(--gold)] font-semibold hover:underline">
+          <a href="mailto:calcricket_academy@yahoo.com" className="text-[var(--gold)] font-semibold hover:underline">
             Get in touch
           </a>
         </p>

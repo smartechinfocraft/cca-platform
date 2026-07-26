@@ -183,7 +183,7 @@ export default function Login() {
                       type="email"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="coach@calcricket.org"
+                      placeholder="Coach Email"
                       autoFocus
                     />
                   </FormField>

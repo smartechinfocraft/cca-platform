@@ -146,7 +146,7 @@ export default function AdminUsers() {
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <FormField label="Email" required>
-              <Input type="email" value={form.email} onChange={f('email')} placeholder="admin3@calcricket.org" />
+              <Input type="email" value={form.email} onChange={f('email')} placeholder="Admin Email" />
             </FormField>
           </div>
           <div style={{ gridColumn: '1 / -1' }}>

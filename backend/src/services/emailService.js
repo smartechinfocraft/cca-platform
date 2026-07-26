@@ -5,7 +5,7 @@ const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_ADDRESS = process.env.EMAIL_FROM || 'noreply@calcricket.org';
+const FROM_ADDRESS = process.env.EMAIL_FROM || 'calcricket_academy@yahoo.com';
 const REGISTRATION_ADMIN_TO = (process.env.REGISTRATION_ADMIN_TO || process.env.REGISTRATION_ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'calcricket_academy@yahoo.com')
   .split(',')
   .map(email => email.trim()) 
@@ -101,7 +101,7 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
     <div style="margin-top:16px;background:#fff;border-radius:8px;padding:10px;display:inline-block;">${barcodeSVG}</div>
     <p style="color:#475569;margin:10px 0 0;font-size:11px;">Present at academy check-in</p>
   </td></tr>
-  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#94a3b8;font-size:11px;margin:0;">California Cricket Academy | support@calcricket.org</p></td></tr>
+  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#94a3b8;font-size:11px;margin:0;">California Cricket Academy | calcricket_academy@yahoo.com</p></td></tr>
 </table>
 </body></html>`;
 
@@ -169,7 +169,7 @@ async function sendCoachWelcomeEmail({ to, firstName, lastName, username, passwo
       is available, and avoid sharing these credentials with anyone.
     </p>
   </td></tr>
-  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#94a3b8;font-size:11px;margin:0;">California Cricket Academy | support@calcricket.org</p></td></tr>
+  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#94a3b8;font-size:11px;margin:0;">California Cricket Academy | calcricket_academy@yahoo.com</p></td></tr>
 </table>
 </body></html>`;
 
@@ -219,10 +219,10 @@ async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber,
     </table>
     <p style="margin:0;color:#6B6753;font-size:12px;line-height:1.6;">
       If anything here looks wrong or you weren't expecting this change, please contact us right away
-      at info@calcricket.org.
+      at calcricket_academy@yahoo.com.
     </p>
   </td></tr>
-  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#8A8470;font-size:11px;margin:0;">California Cricket Academy | info@calcricket.org</p></td></tr>
+  <tr><td style="text-align:center;padding:16px 0;"><p style="color:#8A8470;font-size:11px;margin:0;">California Cricket Academy | calcricket_academy@yahoo.com</p></td></tr>
 </table>
 </body></html>`;
 
@@ -269,12 +269,12 @@ async function sendForgotPasswordEmail({ to, firstName, tempPassword, role, logi
     </p>
     <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">
       If you did not request a password reset, please contact the academy immediately at 
-      <a href="mailto:support@calcricket.org" style="color:${roleColor};">support@calcricket.org</a>.
+      <a href="mailto:calcricket_academy@yahoo.com" style="color:${roleColor};">calcricket_academy@yahoo.com</a>.
       This temporary password will work until you change it after logging in.
     </p>
   </td></tr>
   <tr><td style="text-align:center;padding:16px 0;">
-    <p style="color:#94a3b8;font-size:11px;margin:0;">California Cricket Academy | support@calcricket.org</p>
+    <p style="color:#94a3b8;font-size:11px;margin:0;">California Cricket Academy | calcricket_academy@yahoo.com</p>
   </td></tr>
 </table>
 </body></html>`;

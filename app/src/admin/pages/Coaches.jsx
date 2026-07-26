@@ -198,10 +198,10 @@ export default function Coaches() {
             <Input value={form.lastName} onChange={f('lastName')} placeholder="Sharma" />
           </FormField>
           <FormField label="Email" required>
-            <Input type="email" value={form.email} onChange={f('email')} placeholder="coach@calcricket.org" />
+            <Input type="email" value={form.email} onChange={f('email')} placeholder="Coach Email" />
           </FormField>
           <FormField label="Phone">
-            <Input value={form.phone} onChange={f('phone')} placeholder="+1 408 555 0101" />
+            <Input value={form.phone} onChange={f('phone')} placeholder="Whatsapp - +1 (408) 203-3594" />
           </FormField>
           <FormField label="Speciality">
             <Input value={form.speciality} onChange={f('speciality')} placeholder="Batting, Fielding" />
