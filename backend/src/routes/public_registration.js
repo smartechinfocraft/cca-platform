@@ -8,8 +8,9 @@ const mongoose = require('mongoose');
 const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
 const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits } = require('../services/stripeService');
-const { confirmStripeRegistration } = require('../services/stripeRegistrationService');
+const { confirmStripeRegistration, sendStripeConfirmationOnce } = require('../services/stripeRegistrationService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
+const { protect, adminOrSuperAdmin } = require('../middleware/auth');
 const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
 const {
   splitParentName,
@@ -733,7 +734,7 @@ router.post('/donate/capture-order', async (req, res) => {
 });
 
 // ── POST /api/public/register ────────────────────────────────
-router.post('/register', async (req, res) => {
+async function handleRegistration(req, res) {
   try {
     const {
       selectedProgram, selectedBatch, selectedWeeklyBatches, students, cartItems,
@@ -936,6 +937,23 @@ router.post('/register', async (req, res) => {
         subtotal,
         discount,
         total: round2(subtotal - discount),
+      };
+    }
+
+    // Recovery is based on the historical amount Stripe actually received.
+    // Current program prices or expired coupons may legitimately differ from
+    // what the parent paid at the time, so an authenticated admin recovery
+    // records the verified gateway amount rather than rewriting payment history.
+    if (req.isStripeRecovery) {
+      const recoveredAmount = Number(req.recoveredStripeIntent?.amount_received || 0) / 100;
+      priced = {
+        ...priced,
+        unitPrice: recoveredAmount / Math.max(studentInputs.length, 1),
+        subtotal: recoveredAmount,
+        discount: 0,
+        total: recoveredAmount,
+        currency: 'USD',
+        coupon: null,
       };
     }
 
@@ -1220,8 +1238,11 @@ router.post('/register', async (req, res) => {
       mediaConsent: true,
       medicalConsent: true,
       paymentAuditLog: [{
-        event: pmStatus === 'SUCCESS' ? 'PAYMENT_VERIFIED' : (pmMethod === 'CHECK' ? 'CHECK_SUBMITTED' : 'PAYMENT_PENDING_REVIEW'),
-        note: pmMethod,
+        event: req.isStripeRecovery
+          ? 'ADMIN_STRIPE_RECOVERY'
+          : (pmStatus === 'SUCCESS' ? 'PAYMENT_VERIFIED' : (pmMethod === 'CHECK' ? 'CHECK_SUBMITTED' : 'PAYMENT_PENDING_REVIEW')),
+        note: req.isStripeRecovery ? `Recovered by ${req.user?.email || req.user?._id}` : pmMethod,
+        performedBy: req.isStripeRecovery ? req.user?._id : undefined,
       }],
     });
 
@@ -1242,7 +1263,16 @@ router.post('/register', async (req, res) => {
       logPaymentSuccess({ gateway: pmMethod, transactionId, registrationNumber: reg.registrationNumber, amount: priced.total });
     }
 
-    if (paymentMethod !== 'Stripe') sendRegistrationEmail({
+    let confirmationEmailSent = false;
+    let confirmationEmailError;
+    if (req.isStripeRecovery) {
+      try {
+        confirmationEmailSent = await sendStripeConfirmationOnce(reg._id);
+      } catch (emailErr) {
+        confirmationEmailError = emailErr.message;
+        console.error('Recovered Stripe registration email failed:', emailErr);
+      }
+    } else if (paymentMethod !== 'Stripe') sendRegistrationEmail({
       to: parentInfo.email,
       registrationNumber: reg.registrationNumber,
       studentName,
@@ -1275,11 +1305,65 @@ router.post('/register', async (req, res) => {
       accountCreated,
       token: checkoutAccessToken || undefined,
       parent: checkoutSessionParent ? toSafeParent(checkoutSessionParent) : undefined,
+      ...(req.isStripeRecovery ? { confirmationEmailSent, confirmationEmailError } : {}),
     });
   } catch (err) {
     sendPaymentError(res, err, 'We could not complete this registration. Please try again.', 'register');
   }
-});
+}
+
+async function prepareStripeRecovery(req, res, next) {
+  try {
+    const paymentIntentId = String(req.body?.paymentIntentId || req.body?.transactionId || '').trim();
+    if (!paymentIntentId.startsWith('pi_')) {
+      return res.status(400).json({ success: false, message: 'A valid Stripe PaymentIntent ID (pi_...) is required.' });
+    }
+
+    const Registration = mongoose.model('Registration');
+    if (await Registration.exists({ transactionId: paymentIntentId })) {
+      return res.status(409).json({ success: false, message: 'This Stripe payment already has a registration.' });
+    }
+
+    const intent = await getPaymentIntent(paymentIntentId);
+    if (intent.status !== 'succeeded') {
+      return res.status(400).json({
+        success: false,
+        message: `Stripe PaymentIntent is ${intent.status || 'not successful'} and cannot be recovered.`,
+      });
+    }
+    if (String(intent.currency || '').toUpperCase() !== 'USD') {
+      return res.status(400).json({ success: false, message: 'Only USD Stripe payments can be recovered.' });
+    }
+    const requestedProgramId = req.body?.selectedProgram?._id;
+    if (
+      intent.metadata?.programId
+      && requestedProgramId
+      && String(intent.metadata.programId) !== String(requestedProgramId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'The selected program does not match the program recorded on the Stripe payment.',
+      });
+    }
+
+    req.body.paymentMethod = 'Stripe';
+    req.body.transactionId = paymentIntentId;
+    req.isStripeRecovery = true;
+    req.recoveredStripeIntent = intent;
+    next();
+  } catch (err) {
+    sendPaymentError(res, err, 'Could not verify the Stripe payment for recovery.', 'stripe/recover-registration');
+  }
+}
+
+router.post('/register', handleRegistration);
+router.post(
+  '/admin/stripe/recover-registration',
+  protect,
+  adminOrSuperAdmin,
+  prepareStripeRecovery,
+  handleRegistration
+);
 
 // ============================================================
 //  PARENT DASHBOARD API  —  /api/public/parent/*
