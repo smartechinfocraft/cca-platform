@@ -33,12 +33,34 @@ export default function StripeRecovery() {
     String(item.program?._id || item.program || item.programId?._id || item.programId || '') === form.programId
   );
   const selectedBatch = availableBatches.find(item => item._id === form.batchId);
+  const maxBatchDays = Math.max(
+    1,
+    Number(selectedBatch?.sessionsPerWeek || 0),
+    availableBatches.length,
+    Number(selectedProgram?.sessionsPerWeek || 0),
+    Array.isArray(selectedProgram?.scheduleDays) ? selectedProgram.scheduleDays.length : 0
+  );
   const update = key => event => setForm(previous => ({ ...previous, [key]: event.target.value }));
   const updateStudent = (index, key, value) => setStudents(previous =>
     previous.map((student, position) => position === index ? { ...student, [key]: value } : student)
   );
   const addStudent = () => setStudents(previous => [...previous, { ...EMPTY_STUDENT }]);
   const removeStudent = index => setStudents(previous => previous.filter((_, position) => position !== index));
+  const selectProgram = async event => {
+    const programId = event.target.value;
+    setForm(previous => ({ ...previous, programId, batchId: '', sessionsPerWeek: '1' }));
+    if (!programId) return;
+    try {
+      const response = await programsAPI.getPublicDetail(programId);
+      const programBatches = response.data.data?.batches || [];
+      setBatches(previous => [
+        ...previous.filter(batch => String(batch.program?._id || batch.program || '') !== programId),
+        ...programBatches,
+      ]);
+    } catch {
+      toast.error('Could not load batches for the selected program.');
+    }
+  };
 
   const submit = async event => {
     event.preventDefault();
@@ -133,7 +155,7 @@ export default function StripeRecovery() {
             <Field label="Program" required>
               <select
                 value={form.programId}
-                onChange={event => setForm(previous => ({ ...previous, programId: event.target.value, batchId: '' }))}
+                onChange={selectProgram}
                 style={styles.input}
                 required
               >
@@ -149,9 +171,9 @@ export default function StripeRecovery() {
             </Field>
             <Field label="Number of batch days" required>
               <select value={form.sessionsPerWeek} onChange={update('sessionsPerWeek')} style={styles.input}>
-                {Array.from({ length: selectedBatch?.sessionsPerWeek || 3 }, (_, index) => index + 1).map(value => (
+                {Array.from({ length: maxBatchDays }, (_, index) => index + 1).map(value => (
                   <option key={value} value={value}>
-                    {value === 1 ? 'Once a week' : value === 2 ? 'Twice a week' : value === 3 ? 'Three times a week' : `${value} times a week`}
+                    {frequencyLabel(value)}
                   </option>
                 ))}
               </select>
@@ -237,6 +259,10 @@ function TextField({ label, name, type = 'text', form, update, required = true }
 }
 function StudentField({ label, type = 'text', value, onChange, required = true }) {
   return <Field label={label} required={required}><input type={type} value={value} onChange={event => onChange(event.target.value)} style={styles.input} required={required} /></Field>;
+}
+function frequencyLabel(value) {
+  const labels = ['Once', 'Twice', 'Three times', 'Four times', 'Five times', 'Six times', 'Seven times'];
+  return `${labels[value - 1] || `${value} times`} a week`;
 }
 
 const styles = {

@@ -99,6 +99,7 @@ export const dashboardAPI = {
 // ISSUE 4 & 5: create/update accept FormData (with coverImage file)
 export const programsAPI = {
   getAll:  (params)   => client.get('/programs', { params }),
+  getPublicDetail: (id) => client.get(`/public/programs/${id}`),
   getOne:  (id)       => client.get(`/programs/${id}`),
   create:  (formData) => client.post('/programs', formData),
   update:  (id, formData) => client.put(`/programs/${id}`, formData),
