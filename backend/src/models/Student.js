@@ -6,6 +6,7 @@
 //  same child for a new program.
 // ============================================================
 const mongoose = require('mongoose');
+const { buildStudentCode } = require('../utils/studentCode');
 
 const studentSchema = new mongoose.Schema(
   {
@@ -32,7 +33,9 @@ const studentSchema = new mongoose.Schema(
       loggedAt:  { type: Date, default: Date.now },
     }],
 
-    // Auto-generated human readable student / member code, e.g. CCA-STU-000123
+    // Auto-generated human readable student/member code derived from the
+    // document ObjectId. Unlike countDocuments()+1, this remains unique when
+    // records are deleted/imported and when registrations run concurrently.
     // Used as the ID card number.
     studentCode: { type: String, unique: true },
 
@@ -48,8 +51,7 @@ const studentSchema = new mongoose.Schema(
 // Auto-generate studentCode before saving
 studentSchema.pre('save', async function (next) {
   if (!this.studentCode) {
-    const count = await mongoose.model('Student').countDocuments();
-    this.studentCode = `CCA-STU-${String(count + 1).padStart(6, '0')}`;
+    this.studentCode = buildStudentCode(this._id);
   }
   next();
 });
