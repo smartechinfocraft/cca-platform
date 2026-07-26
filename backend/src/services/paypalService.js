@@ -38,11 +38,13 @@ async function getAccessToken() {
   });
 }
 
-async function createOrder(amount, currency = 'USD') {
+async function createOrder(amount, currency = 'USD', metadata = {}) {
   const token = await getAccessToken();
   const body = JSON.stringify({
     intent: 'CAPTURE',
     purchase_units: [{
+      ...(metadata.registrationId ? { custom_id: String(metadata.registrationId) } : {}),
+      ...(metadata.invoiceId ? { invoice_id: String(metadata.invoiceId) } : {}),
       amount: { currency_code: currency, value: parseFloat(amount).toFixed(2) },
     }],
   });
@@ -72,6 +74,48 @@ async function createOrder(amount, currency = 'USD') {
   });
 }
 
+async function verifyWebhookSignature(headers, webhookEvent) {
+  if (!process.env.PAYPAL_WEBHOOK_ID) {
+    throw new Error('PAYPAL_WEBHOOK_ID is not set on the server.');
+  }
+  const token = await getAccessToken();
+  const body = JSON.stringify({
+    auth_algo: headers['paypal-auth-algo'],
+    cert_url: headers['paypal-cert-url'],
+    transmission_id: headers['paypal-transmission-id'],
+    transmission_sig: headers['paypal-transmission-sig'],
+    transmission_time: headers['paypal-transmission-time'],
+    webhook_id: process.env.PAYPAL_WEBHOOK_ID,
+    webhook_event: webhookEvent,
+  });
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: BASE.replace('https://', ''),
+      path: '/v1/notifications/verify-webhook-signature',
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        ...(metadata.registrationId ? { 'PayPal-Request-Id': `registration-order-${metadata.registrationId}` } : {}),
+      },
+    };
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data || '{}');
+          resolve(parsed.verification_status === 'SUCCESS');
+        } catch (err) { reject(err); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 async function captureOrder(orderId) {
   const token = await getAccessToken();
   return new Promise((resolve, reject) => {
@@ -83,6 +127,7 @@ async function captureOrder(orderId) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Content-Length': 0,
+        'PayPal-Request-Id': `capture-${orderId}`,
       },
     };
     const req = https.request(options, (res) => {
@@ -168,4 +213,4 @@ async function refundCapture(captureId, amount, currency = 'USD') {
   });
 }
 
-module.exports = { createOrder, captureOrder, getCaptureDetails, refundCapture };
+module.exports = { createOrder, captureOrder, getCaptureDetails, refundCapture, verifyWebhookSignature };

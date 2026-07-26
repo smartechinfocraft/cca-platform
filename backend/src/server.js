@@ -17,6 +17,7 @@ const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 const routes    = require('./routes/index');
 const { handleStripeWebhook } = require('./controllers/paymentWebhookController');
+const { handlePayPalWebhook } = require('./controllers/paypalWebhookController');
 const { UPLOAD_BASE } = require('./middleware/upload');
 
 require('./models/User');
@@ -105,6 +106,7 @@ app.use(
     '/api/public/stripe/create-payment-intent',
     '/api/public/stripe/finalize-registration',
     '/api/public/admin/stripe/recover-registration',
+    '/api/public/admin/paypal/recover-registration',
     '/api/public/stripe/cancel-payment-intent',
     '/api/public/paypal/create-order',
     '/api/public/paypal/capture-order',
@@ -116,6 +118,7 @@ app.use(
   paymentLimiter
 );
 app.use('/api/public/stripe/webhook', webhookLimiter);
+app.use('/api/public/paypal/webhook', webhookLimiter);
 
 // ─── Stripe webhook — MUST receive the raw body (for signature
 // verification) and MUST be registered before the global express.json()
@@ -130,6 +133,7 @@ app.post(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.post('/api/public/paypal/webhook', handlePayPalWebhook);
 
 // ─── Static uploads ──────────────────────────────────────────
 app.use('/uploads', express.static(UPLOAD_BASE));

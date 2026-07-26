@@ -35,6 +35,7 @@ Open `backend/.env` and fill in your real values:
 | `SUPER_ADMIN_USERNAME` / `PASSWORD` / `EMAIL` | Pick your own — created automatically on first boot |
 | `PAYPAL_CLIENT_ID` / `PAYPAL_SECRET` | [developer.paypal.com](https://developer.paypal.com/dashboard/applications) — use **Sandbox** credentials while testing |
 | `PAYPAL_MODE` | `sandbox` while testing, `live` only when you're ready to take real payments |
+| `PAYPAL_WEBHOOK_ID` | ID of the PayPal webhook configured for `/api/public/paypal/webhook`; subscribe to `PAYMENT.CAPTURE.COMPLETED` |
 | `SMTP_USER` / `SMTP_PASSWORD` | Your email + an **App Password** (not your normal password) — [how to get a Gmail App Password](https://support.google.com/accounts/answer/185833) |
 
 ### Frontend (the app)

@@ -4,7 +4,7 @@ import { programsAPI, batchesAPI, registrationsAPI } from '../api/client';
 import { PageHeader } from '../components/common/UI';
 
 const EMPTY = {
-  paymentIntentId: '', programId: '', batchId: '', sessionsPerWeek: '1',
+  gateway: 'Stripe', paymentIntentId: '', programId: '', batchId: '', sessionsPerWeek: '1',
   parentName: '', email: '', phone: '', address: '', city: '', state: 'CA', zip: '',
   studentFirstName: '', studentLastName: '', dob: '', gender: '', schoolName: '', medicalNotes: '',
   waiverSignature: '',
@@ -100,7 +100,8 @@ export default function StripeRecovery() {
   const submit = async event => {
     event.preventDefault();
     setResult(null);
-    if (!form.paymentIntentId.trim().startsWith('pi_')) return toast.error('PaymentIntent must begin with pi_.');
+    if (form.gateway === 'Stripe' && !form.paymentIntentId.trim().startsWith('pi_')) return toast.error('PaymentIntent must begin with pi_.');
+    if (!form.paymentIntentId.trim()) return toast.error('Enter the payment reference.');
     if (!selectedProgram || !selectedBatch) return toast.error('Select a program and batch.');
     if (!drawnSignature) return toast.error('Draw the waiver signature.');
     if (!confirmed) return toast.error('Confirm that you reviewed the recovery details.');
@@ -108,8 +109,10 @@ export default function StripeRecovery() {
 
     setSaving(true);
     try {
-      const response = await registrationsAPI.recoverStripe({
-        paymentIntentId: form.paymentIntentId.trim(),
+      const payload = {
+        ...(form.gateway === 'Stripe'
+          ? { paymentIntentId: form.paymentIntentId.trim() }
+          : { captureId: form.paymentIntentId.trim() }),
         selectedProgram: { _id: selectedProgram._id, title: selectedProgram.title },
         selectedBatch: {
           _id: selectedBatch._id,
@@ -140,9 +143,12 @@ export default function StripeRecovery() {
           drawnSignature,
           agreementVersion: 'CCA-WAIVER-2025-10-30',
         },
-      });
+      };
+      const response = form.gateway === 'Stripe'
+        ? await registrationsAPI.recoverStripe(payload)
+        : await registrationsAPI.recoverPayPal(payload);
       setResult(response.data);
-      toast.success('Stripe registration recovered.');
+      toast.success(`${form.gateway} registration recovered.`);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Recovery failed.');
     } finally {
@@ -152,9 +158,9 @@ export default function StripeRecovery() {
 
   return (
     <div>
-      <PageHeader title="Stripe Recovery" subtitle="Recover a successful Stripe payment with no registration record." />
+      <PageHeader title="Payment Recovery" subtitle="Recover a successful Stripe or PayPal payment with no registration record." />
       <div style={styles.notice}>
-        The payment is verified directly with Stripe. A confirmed registration is created and both customer and admin emails are sent.
+        The payment is verified directly with its gateway. A confirmed registration is created and both customer and admin emails are sent.
       </div>
 
       {result && (
@@ -171,10 +177,18 @@ export default function StripeRecovery() {
       )}
 
       <form onSubmit={submit} style={styles.form}>
-        <Section title="Stripe payment">
-          <Field label="PaymentIntent ID" required>
-            <input value={form.paymentIntentId} onChange={update('paymentIntentId')} placeholder="pi_..." style={styles.input} required />
-          </Field>
+        <Section title="Payment reference">
+          <div style={styles.grid}>
+            <Field label="Gateway" required>
+              <select value={form.gateway} onChange={update('gateway')} style={styles.input}>
+                <option value="Stripe">Stripe</option>
+                <option value="PayPal">PayPal</option>
+              </select>
+            </Field>
+            <Field label={form.gateway === 'Stripe' ? 'PaymentIntent ID' : 'PayPal capture ID'} required>
+              <input value={form.paymentIntentId} onChange={update('paymentIntentId')} placeholder={form.gateway === 'Stripe' ? 'pi_...' : 'PayPal capture ID'} style={styles.input} required />
+            </Field>
+          </div>
         </Section>
 
         <Section title="Program and batch">
@@ -242,7 +256,7 @@ export default function StripeRecovery() {
         </Section>
 
         <button type="submit" disabled={saving} style={{ ...styles.submit, opacity: saving ? 0.6 : 1 }}>
-          {saving ? 'Verifying and recovering…' : 'Recover Stripe registration'}
+          {saving ? 'Verifying and recovering…' : `Recover ${form.gateway} registration`}
         </button>
       </form>
     </div>

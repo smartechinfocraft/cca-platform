@@ -390,6 +390,7 @@ const registrationSchema = new mongoose.Schema(
     // attached to two different registrations — this is the DB-level guard
     // against duplicate/replayed payment submissions.
     transactionId: { type: String, unique: true, sparse: true },
+    paypalOrderId: { type: String, unique: true, sparse: true },
     checkNumber:   { type: String },
     confirmationEmailSentAt: { type: Date },
     confirmationEmailSendingAt: { type: Date },

@@ -63,6 +63,7 @@ export default function CartPage() {
   const [accountPromptOpen, setAccountPromptOpen] = useState(false);
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
+  const paypalRegistrationRef = useRef<string | null>(null);
   const paymentCartItems = useMemo(() => items.map((item) => {
     const effectiveSessionsPerWeek = Math.max(item.sessionsPerWeek || 1, splitScheduleItems(item.selectedDays).length || 1);
     return {
@@ -228,11 +229,9 @@ export default function CartPage() {
       window.paypal.Buttons({
         style: { layout: "vertical", color: "blue", shape: "pill", label: "pay" },
         createOrder: async () => {
-          const res = await api.post("/public/paypal/create-order", {
-            checkoutMode: "cart",
-            cartItems: paymentCartItems,
-            couponCode: coupon?.code ?? undefined,
-          });
+          const prepared = await submitRegistration("PayPal", undefined, true);
+          paypalRegistrationRef.current = prepared.registrationId;
+          const res = await api.post("/public/paypal/create-order", { registrationId: prepared.registrationId });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
           return res.data.orderID;
         },
@@ -242,12 +241,11 @@ export default function CartPage() {
           try {
             const capture = await api.post("/public/paypal/capture-order", {
               orderID: data.orderID,
-              checkoutMode: "cart",
-              cartItems: paymentCartItems,
-              couponCode: coupon?.code ?? undefined,
+              registrationId: paypalRegistrationRef.current,
             });
             if (!capture.data.success) throw new Error(capture.data.message || "Payment capture failed");
-            await submitRegistration("PayPal", capture.data.transactionId);
+            paypalRegistrationRef.current = null;
+            await completeStripeRegistration(capture.data);
           } catch (err) {
             setPayError(err instanceof Error ? err.message : "Payment failed.");
             setPaying(false);

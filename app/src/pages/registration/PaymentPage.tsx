@@ -59,6 +59,7 @@ function PaymentPage() {
   const [accountError, setAccountError] = useState<string | null>(null);
   const paypalRef    = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
+  const paypalRegistrationRef = useRef<string | null>(null);
 
   // Sum each student's individual batch fee (they may have different batches)
   const studentFees    = students.map(
@@ -96,17 +97,9 @@ function PaymentPage() {
       window.paypal.Buttons({
         style: { layout: "vertical", color: "blue", shape: "pill", label: "pay" },
         createOrder: async () => {
-          // couponCode is sent so the backend computes the discounted price
-          const res = await api.post("/public/paypal/create-order", {
-            programId:       selectedProgram?._id,
-            batchId:         selectedBatch?._id,
-            studentCount:    students.length || 1,
-            sessionsPerWeek: selectedBatch?.sessionsPerWeek,
-            selectedDays,
-            selectedMonth:    (selectedBatch as any)?.selectedMonth,
-            expectedUnitPrice: perStudentFee,
-            couponCode:      appliedCoupon?.code ?? undefined,
-          });
+          const prepared = await submitRegistration("PayPal", undefined, true);
+          paypalRegistrationRef.current = prepared.registrationId;
+          const res = await api.post("/public/paypal/create-order", { registrationId: prepared.registrationId });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
           return res.data.orderID;
         },
@@ -116,17 +109,11 @@ function PaymentPage() {
           try {
             const capture = await api.post("/public/paypal/capture-order", {
               orderID:         data.orderID,
-              programId:       selectedProgram?._id,
-              batchId:         selectedBatch?._id,
-              studentCount:    students.length || 1,
-              sessionsPerWeek: selectedBatch?.sessionsPerWeek,
-              selectedDays,
-              selectedMonth:    (selectedBatch as any)?.selectedMonth,
-              expectedUnitPrice: perStudentFee,
-              couponCode:      appliedCoupon?.code ?? undefined,
+              registrationId: paypalRegistrationRef.current,
             });
             if (!capture.data.success) throw new Error(capture.data.message || "Payment capture failed");
-            await submitRegistration("PayPal", capture.data.transactionId);
+            paypalRegistrationRef.current = null;
+            await completeStripeRegistration(capture.data);
           } catch (err) {
             setError(err instanceof Error ? err.message : "Payment failed.");
             setLoading(false);

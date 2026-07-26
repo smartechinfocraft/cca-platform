@@ -7,6 +7,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
+const { confirmPayPalRegistration, sendPayPalConfirmationOnce } = require('../services/paypalRegistrationService');
 const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits } = require('../services/stripeService');
 const { confirmStripeRegistration, sendStripeConfirmationOnce } = require('../services/stripeRegistrationService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
@@ -464,6 +465,33 @@ router.post('/validate-coupon', async (req, res) => {
 // less than the real price (or for $0).
 router.post('/paypal/create-order', async (req, res) => {
   try {
+    if (req.body?.registrationId) {
+      const Registration = mongoose.model('Registration');
+      const pending = await Registration.findOne({
+        _id: req.body.registrationId,
+        paymentMethod: 'PAYPAL',
+        paymentStatus: 'PENDING',
+        transactionId: { $exists: false },
+        paypalOrderId: { $exists: false },
+      });
+      if (!pending) return res.status(404).json({ success: false, message: 'Pending PayPal registration was not found.' });
+      const order = await createOrder(pending.totalAmount, 'USD', {
+        registrationId: pending._id,
+        invoiceId: pending.registrationNumber,
+      });
+      if (!order.id) return res.status(502).json({ success: false, message: 'Could not start the PayPal payment.' });
+      pending.paypalOrderId = order.id;
+      pending.paymentAuditLog.push({ event: 'PAYPAL_ORDER_CREATED', note: order.id });
+      await pending.save();
+      return res.json({
+        success: true,
+        orderID: order.id,
+        registrationId: pending._id,
+        amount: pending.totalAmount,
+        discount: pending.discountAmount,
+        currency: 'USD',
+      });
+    }
     const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems, checkoutMode } = req.body;
     if (checkoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
@@ -515,6 +543,44 @@ router.post('/paypal/create-order', async (req, res) => {
 // ── POST /api/public/paypal/capture-order ────────────────────
 router.post('/paypal/capture-order', async (req, res) => {
   try {
+    if (req.body?.registrationId) {
+      const { orderID, registrationId } = req.body;
+      const Registration = mongoose.model('Registration');
+      const pending = await Registration.findOne({
+        _id: registrationId,
+        paymentMethod: 'PAYPAL',
+        paypalOrderId: orderID,
+      });
+      if (!pending) return res.status(404).json({ success: false, message: 'Matching PayPal registration was not found.' });
+      const captureResponse = await captureOrder(orderID);
+      if (captureResponse.status !== 'COMPLETED') {
+        return res.status(400).json({ success: false, message: 'Payment not completed.' });
+      }
+      const captureId = captureResponse.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+      if (!captureId) return res.status(502).json({ success: false, message: 'PayPal did not return a capture ID.' });
+      const capture = await getCaptureDetails(captureId);
+      const reg = await confirmPayPalRegistration({
+        registrationId,
+        capture,
+        auditEvent: 'PAYMENT_VERIFIED',
+        auditNote: 'PAYPAL',
+      });
+      await reg.populate('programId', 'title');
+      await reg.populate('students', 'firstName lastName');
+      return res.json({
+        success: true,
+        registrationId: reg._id,
+        registrationNumber: reg.registrationNumber,
+        studentName: reg.students.map(s => `${s.firstName} ${s.lastName}`).join(', '),
+        programName: reg.programId?.title || reg.orderItems?.[0]?.programTitle || 'CCA Program',
+        paymentMethod: 'PayPal',
+        paymentStatus: reg.paymentStatus,
+        transactionId: captureId,
+        capturedAmount: reg.totalAmount,
+        totalAmount: reg.totalAmount,
+        orderItems: reg.orderItems,
+      });
+    }
     const { orderID, programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems, checkoutMode } = req.body;
     if (checkoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
       return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
@@ -944,8 +1010,10 @@ async function handleRegistration(req, res) {
     // Current program prices or expired coupons may legitimately differ from
     // what the parent paid at the time, so an authenticated admin recovery
     // records the verified gateway amount rather than rewriting payment history.
-    if (req.isStripeRecovery) {
-      const recoveredAmount = Number(req.recoveredStripeIntent?.amount_received || 0) / 100;
+    if (req.isStripeRecovery || req.isPayPalRecovery) {
+      const recoveredAmount = req.isStripeRecovery
+        ? Number(req.recoveredStripeIntent?.amount_received || 0) / 100
+        : Number(req.recoveredPayPalCapture?.amount?.value || 0);
       priced = {
         ...priced,
         unitPrice: recoveredAmount / Math.max(studentInputs.length, 1),
@@ -1238,11 +1306,11 @@ async function handleRegistration(req, res) {
       mediaConsent: true,
       medicalConsent: true,
       paymentAuditLog: [{
-        event: req.isStripeRecovery
-          ? 'ADMIN_STRIPE_RECOVERY'
+        event: (req.isStripeRecovery || req.isPayPalRecovery)
+          ? (req.isStripeRecovery ? 'ADMIN_STRIPE_RECOVERY' : 'ADMIN_PAYPAL_RECOVERY')
           : (pmStatus === 'SUCCESS' ? 'PAYMENT_VERIFIED' : (pmMethod === 'CHECK' ? 'CHECK_SUBMITTED' : 'PAYMENT_PENDING_REVIEW')),
-        note: req.isStripeRecovery ? `Recovered by ${req.user?.email || req.user?._id}` : pmMethod,
-        performedBy: req.isStripeRecovery ? req.user?._id : undefined,
+        note: (req.isStripeRecovery || req.isPayPalRecovery) ? `Recovered by ${req.user?.email || req.user?._id}` : pmMethod,
+        performedBy: (req.isStripeRecovery || req.isPayPalRecovery) ? req.user?._id : undefined,
       }],
     });
 
@@ -1272,7 +1340,14 @@ async function handleRegistration(req, res) {
         confirmationEmailError = emailErr.message;
         console.error('Recovered Stripe registration email failed:', emailErr);
       }
-    } else if (paymentMethod !== 'Stripe') sendRegistrationEmail({
+    } else if (req.isPayPalRecovery) {
+      try {
+        confirmationEmailSent = await sendPayPalConfirmationOnce(reg._id);
+      } catch (emailErr) {
+        confirmationEmailError = emailErr.message;
+        console.error('Recovered PayPal registration email failed:', emailErr);
+      }
+    } else if (paymentMethod !== 'Stripe' && !(paymentMethod === 'PayPal' && !transactionId)) sendRegistrationEmail({
       to: parentInfo.email,
       registrationNumber: reg.registrationNumber,
       studentName,
@@ -1305,7 +1380,7 @@ async function handleRegistration(req, res) {
       accountCreated,
       token: checkoutAccessToken || undefined,
       parent: checkoutSessionParent ? toSafeParent(checkoutSessionParent) : undefined,
-      ...(req.isStripeRecovery ? { confirmationEmailSent, confirmationEmailError } : {}),
+      ...((req.isStripeRecovery || req.isPayPalRecovery) ? { confirmationEmailSent, confirmationEmailError } : {}),
     });
   } catch (err) {
     sendPaymentError(res, err, 'We could not complete this registration. Please try again.', 'register');
@@ -1356,12 +1431,44 @@ async function prepareStripeRecovery(req, res, next) {
   }
 }
 
+async function preparePayPalRecovery(req, res, next) {
+  try {
+    const captureId = String(req.body?.captureId || req.body?.transactionId || '').trim();
+    if (!captureId) return res.status(400).json({ success: false, message: 'A PayPal capture ID is required.' });
+    const Registration = mongoose.model('Registration');
+    if (await Registration.exists({ transactionId: captureId })) {
+      return res.status(409).json({ success: false, message: 'This PayPal payment already has a registration.' });
+    }
+    const capture = await getCaptureDetails(captureId);
+    if (capture.status !== 'COMPLETED') {
+      return res.status(400).json({ success: false, message: `PayPal capture is ${capture.status || 'not completed'}.` });
+    }
+    if (capture.amount?.currency_code !== 'USD') {
+      return res.status(400).json({ success: false, message: 'Only USD PayPal captures can be recovered.' });
+    }
+    req.body.paymentMethod = 'PayPal';
+    req.body.transactionId = captureId;
+    req.isPayPalRecovery = true;
+    req.recoveredPayPalCapture = capture;
+    next();
+  } catch (err) {
+    sendPaymentError(res, err, 'Could not verify the PayPal payment for recovery.', 'paypal/recover-registration');
+  }
+}
+
 router.post('/register', handleRegistration);
 router.post(
   '/admin/stripe/recover-registration',
   protect,
   adminOrSuperAdmin,
   prepareStripeRecovery,
+  handleRegistration
+);
+router.post(
+  '/admin/paypal/recover-registration',
+  protect,
+  adminOrSuperAdmin,
+  preparePayPalRecovery,
   handleRegistration
 );
 

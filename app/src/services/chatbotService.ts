@@ -234,6 +234,7 @@ export const validateChatCoupon = async (payload: {
 };
 
 export const createChatPaypalOrder = async (payload: {
+  registrationId?: string;
   programId: string;
   batchId?: string;
   studentCount: number;
@@ -247,6 +248,7 @@ export const createChatPaypalOrder = async (payload: {
 };
 
 export const captureChatPaypalOrder = async (payload: {
+  registrationId?: string;
   orderID: string;
   programId: string;
   batchId?: string;

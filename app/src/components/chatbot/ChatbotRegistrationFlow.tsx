@@ -339,6 +339,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
 
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
+  const paypalRegistrationRef = useRef<string | null>(null);
 
   // Reset PayPal render state whenever we leave the payment step
   // (e.g. via Back), so it renders fresh if the user returns to it.
@@ -460,7 +461,10 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
       window.paypal.Buttons({
         style: { layout: "vertical", color: "blue", shape: "pill", label: "pay" },
         createOrder: async () => {
+          const prepared = await finishRegistration("PayPal", undefined, true);
+          paypalRegistrationRef.current = prepared.registrationId;
           const order = await createChatPaypalOrder({
+            registrationId: prepared.registrationId,
             programId: selectedProgram._id,
             batchId: selectedBatch?._id,
             studentCount: 1,
@@ -475,13 +479,15 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
           try {
             const capture = await captureChatPaypalOrder({
               orderID: data.orderID,
+              registrationId: paypalRegistrationRef.current || undefined,
               programId: selectedProgram._id,
               batchId: selectedBatch?._id,
               studentCount: 1,
               sessionsPerWeek: frequency,
               weeklyBatchIds: isWeeklyProgram ? selectedWeeklyBatchIds : undefined,
             });
-            await finishRegistration("PayPal", capture.transactionId);
+            paypalRegistrationRef.current = null;
+            await completeStripeRegistration(capture);
           } catch (err) {
             setError(err instanceof Error ? err.message : "Payment failed.");
             setSubmitting(false);
