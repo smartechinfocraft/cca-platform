@@ -1386,6 +1386,20 @@ async function handleRegistration(req, res) {
       ...((req.isStripeRecovery || req.isPayPalRecovery) ? { confirmationEmailSent, confirmationEmailError } : {}),
     });
   } catch (err) {
+    if (req.isStripeRecovery || req.isPayPalRecovery) {
+      console.error('Admin payment recovery registration error:', err);
+      let detail = err.message || 'Unknown recovery error.';
+      if (err.name === 'ValidationError' && err.errors) {
+        detail = Object.values(err.errors).map(item => item.message).join(' ');
+      } else if (err.code === 11000) {
+        detail = `A record already exists for ${Object.keys(err.keyPattern || err.keyValue || {}).join(', ') || 'a unique payment reference'}.`;
+      }
+      return res.status(err.status || 500).json({
+        success: false,
+        message: `Recovery could not create the registration: ${detail}`,
+        recoveryStage: 'registration-save',
+      });
+    }
     sendPaymentError(res, err, 'We could not complete this registration. Please try again.', 'register');
   }
 }

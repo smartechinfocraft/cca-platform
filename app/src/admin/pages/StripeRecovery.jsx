@@ -18,6 +18,7 @@ export default function StripeRecovery() {
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
+  const [recoveryError, setRecoveryError] = useState('');
 
   useEffect(() => {
     Promise.all([programsAPI.getAll({ active: true }), batchesAPI.getAll({ active: true })])
@@ -65,6 +66,7 @@ export default function StripeRecovery() {
   const submit = async event => {
     event.preventDefault();
     setResult(null);
+    setRecoveryError('');
     if (form.gateway === 'Stripe' && !form.paymentIntentId.trim().startsWith('pi_')) return toast.error('PaymentIntent must begin with pi_.');
     if (!form.paymentIntentId.trim()) return toast.error('Enter the payment reference.');
     if (!selectedProgram || !selectedBatch) return toast.error('Select a program and batch.');
@@ -109,7 +111,9 @@ export default function StripeRecovery() {
       setResult(response.data);
       toast.success(`${form.gateway} registration recovered.`);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Recovery failed.');
+      const message = error.response?.data?.message || 'Recovery failed.';
+      setRecoveryError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -132,6 +136,13 @@ export default function StripeRecovery() {
               : `not sent — ${result.confirmationEmailError || 'check backend logs'}`}
           </span>
           <a href="/admin/registrations" style={styles.link}>Open registrations</a>
+        </div>
+      )}
+      {recoveryError && (
+        <div style={styles.error}>
+          <strong>Recovery failed</strong>
+          <span>{recoveryError}</span>
+          <span>No second payment was initiated. Correct the details above and retry with the same payment reference.</span>
         </div>
       )}
 
@@ -268,6 +279,7 @@ function frequencyLabel(value) {
 const styles = {
   notice: { padding: 16, borderRadius: 10, background: '#2a2410', border: '1px solid #8a6d1d', color: '#f5d97a', marginBottom: 18, lineHeight: 1.5 },
   success: { display: 'grid', gap: 6, padding: 18, borderRadius: 10, background: '#12351c', border: '1px solid #2f855a', color: '#dcfce7', marginBottom: 18 },
+  error: { display: 'grid', gap: 6, padding: 18, borderRadius: 10, background: '#3b1515', border: '1px solid #b91c1c', color: '#fecaca', marginBottom: 18 },
   link: { color: '#f5d97a', fontWeight: 700, marginTop: 4 },
   form: { display: 'grid', gap: 18 },
   section: { background: '#142317', border: '1px solid #2c4430', borderRadius: 12, padding: 20 },
