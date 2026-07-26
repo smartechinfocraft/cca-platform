@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { programsAPI, batchesAPI, registrationsAPI } from '../api/client';
 import { PageHeader } from '../components/common/UI';
@@ -6,77 +6,15 @@ import { PageHeader } from '../components/common/UI';
 const EMPTY = {
   gateway: 'Stripe', paymentIntentId: '', programId: '', batchId: '', sessionsPerWeek: '1',
   parentName: '', email: '', phone: '', address: '', city: '', state: 'CA', zip: '',
-  studentFirstName: '', studentLastName: '', dob: '', gender: '', schoolName: '', medicalNotes: '',
-  waiverSignature: '',
+  adminOrderNote: '',
 };
-
-function SignaturePad({ onChange }) {
-  const canvasRef = useRef(null);
-  const drawing = useRef(false);
-
-  useEffect(() => {
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0f172a';
-  }, []);
-
-  const point = event => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (event.clientX - rect.left) * canvas.width / rect.width,
-      y: (event.clientY - rect.top) * canvas.height / rect.height,
-    };
-  };
-  const start = event => {
-    drawing.current = true;
-    const p = point(event);
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const move = event => {
-    if (!drawing.current) return;
-    const p = point(event);
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-  };
-  const stop = () => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    onChange(canvasRef.current.toDataURL('image/png'));
-  };
-  const clear = () => {
-    const canvas = canvasRef.current;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    onChange('');
-  };
-
-  return (
-    <div>
-      <canvas
-        ref={canvasRef}
-        width="900"
-        height="180"
-        onPointerDown={start}
-        onPointerMove={move}
-        onPointerUp={stop}
-        onPointerCancel={stop}
-        style={styles.canvas}
-      />
-      <button type="button" onClick={clear} style={styles.clear}>Clear signature</button>
-    </div>
-  );
-}
+const EMPTY_STUDENT = { firstName: '', lastName: '', dob: '', gender: '', schoolName: '', medicalNotes: '' };
 
 export default function StripeRecovery() {
   const [form, setForm] = useState(EMPTY);
   const [programs, setPrograms] = useState([]);
   const [batches, setBatches] = useState([]);
-  const [drawnSignature, setDrawnSignature] = useState('');
+  const [students, setStudents] = useState([{ ...EMPTY_STUDENT }]);
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
@@ -92,10 +30,15 @@ export default function StripeRecovery() {
 
   const selectedProgram = programs.find(item => item._id === form.programId);
   const availableBatches = batches.filter(item =>
-    String(item.programId?._id || item.programId || '') === form.programId
+    String(item.program?._id || item.program || item.programId?._id || item.programId || '') === form.programId
   );
   const selectedBatch = availableBatches.find(item => item._id === form.batchId);
   const update = key => event => setForm(previous => ({ ...previous, [key]: event.target.value }));
+  const updateStudent = (index, key, value) => setStudents(previous =>
+    previous.map((student, position) => position === index ? { ...student, [key]: value } : student)
+  );
+  const addStudent = () => setStudents(previous => [...previous, { ...EMPTY_STUDENT }]);
+  const removeStudent = index => setStudents(previous => previous.filter((_, position) => position !== index));
 
   const submit = async event => {
     event.preventDefault();
@@ -103,7 +46,8 @@ export default function StripeRecovery() {
     if (form.gateway === 'Stripe' && !form.paymentIntentId.trim().startsWith('pi_')) return toast.error('PaymentIntent must begin with pi_.');
     if (!form.paymentIntentId.trim()) return toast.error('Enter the payment reference.');
     if (!selectedProgram || !selectedBatch) return toast.error('Select a program and batch.');
-    if (!drawnSignature) return toast.error('Draw the waiver signature.');
+    if (students.some(student => !student.firstName.trim() || !student.lastName.trim())) return toast.error('Every student needs a first and last name.');
+    if (!form.adminOrderNote.trim()) return toast.error('Enter the incident and recovery reason.');
     if (!confirmed) return toast.error('Confirm that you reviewed the recovery details.');
     if (!window.confirm(`Recover ${form.paymentIntentId.trim()} and send both confirmation emails?`)) return;
 
@@ -119,14 +63,12 @@ export default function StripeRecovery() {
           title: selectedBatch.title || selectedBatch.name,
           sessionsPerWeek: Number(form.sessionsPerWeek) || 1,
         },
-        students: [{
-          firstName: form.studentFirstName.trim(),
-          lastName: form.studentLastName.trim(),
-          dob: form.dob || undefined,
-          gender: form.gender,
-          schoolName: form.schoolName.trim(),
-          medicalNotes: form.medicalNotes.trim(),
-        }],
+        students: students.map(student => ({
+          ...student,
+          firstName: student.firstName.trim(),
+          lastName: student.lastName.trim(),
+          dob: student.dob || undefined,
+        })),
         parent: {
           parentName: form.parentName.trim(),
           email: form.email.trim(),
@@ -137,12 +79,7 @@ export default function StripeRecovery() {
           zip: form.zip.trim(),
         },
         sessionsPerWeek: Number(form.sessionsPerWeek) || 1,
-        waiverConsent: {
-          accepted: true,
-          signature: form.waiverSignature.trim(),
-          drawnSignature,
-          agreementVersion: 'CCA-WAIVER-2025-10-30',
-        },
+        adminOrderNote: form.adminOrderNote.trim(),
       };
       const response = form.gateway === 'Stripe'
         ? await registrationsAPI.recoverStripe(payload)
@@ -210,7 +147,15 @@ export default function StripeRecovery() {
                 {availableBatches.map(item => <option key={item._id} value={item._id}>{item.title || item.name}</option>)}
               </select>
             </Field>
-            <TextField label="Sessions per week" name="sessionsPerWeek" type="number" form={form} update={update} />
+            <Field label="Number of batch days" required>
+              <select value={form.sessionsPerWeek} onChange={update('sessionsPerWeek')} style={styles.input}>
+                {Array.from({ length: selectedBatch?.sessionsPerWeek || 3 }, (_, index) => index + 1).map(value => (
+                  <option key={value} value={value}>
+                    {value === 1 ? 'Once a week' : value === 2 ? 'Twice a week' : value === 3 ? 'Three times a week' : `${value} times a week`}
+                  </option>
+                ))}
+              </select>
+            </Field>
           </div>
         </Section>
 
@@ -227,31 +172,45 @@ export default function StripeRecovery() {
         </Section>
 
         <Section title="Student details">
-          <div style={styles.grid}>
-            <TextField label="First name" name="studentFirstName" form={form} update={update} />
-            <TextField label="Last name" name="studentLastName" form={form} update={update} />
-            <TextField label="Date of birth" name="dob" type="date" form={form} update={update} required={false} />
-            <Field label="Gender">
-              <select value={form.gender} onChange={update('gender')} style={styles.input}>
-                <option value="">Not specified</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </Field>
-            <TextField label="School" name="schoolName" form={form} update={update} required={false} />
-            <TextField label="Medical notes" name="medicalNotes" form={form} update={update} required={false} />
-          </div>
+          {students.map((student, index) => (
+            <div key={index} style={styles.studentCard}>
+              <div style={styles.studentHeader}>
+                <strong>Student {index + 1}</strong>
+                {students.length > 1 && <button type="button" onClick={() => removeStudent(index)} style={styles.remove}>Remove</button>}
+              </div>
+              <div style={styles.grid}>
+                <StudentField label="First name" value={student.firstName} onChange={value => updateStudent(index, 'firstName', value)} />
+                <StudentField label="Last name" value={student.lastName} onChange={value => updateStudent(index, 'lastName', value)} />
+                <StudentField label="Date of birth" type="date" value={student.dob} onChange={value => updateStudent(index, 'dob', value)} required={false} />
+                <Field label="Gender">
+                  <select value={student.gender} onChange={event => updateStudent(index, 'gender', event.target.value)} style={styles.input}>
+                    <option value="">Not specified</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </Field>
+                <StudentField label="School" value={student.schoolName} onChange={value => updateStudent(index, 'schoolName', value)} required={false} />
+                <StudentField label="Medical notes" value={student.medicalNotes} onChange={value => updateStudent(index, 'medicalNotes', value)} required={false} />
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={addStudent} style={styles.add}>+ Add another student</button>
         </Section>
 
-        <Section title="Waiver record">
-          <Field label="Typed parent signature" required>
-            <input value={form.waiverSignature} onChange={update('waiverSignature')} style={styles.input} required />
+        <Section title="Admin backend order">
+          <Field label="Incident and recovery reason" required>
+            <textarea
+              value={form.adminOrderNote}
+              onChange={update('adminOrderNote')}
+              style={{ ...styles.input, minHeight: 110, resize: 'vertical' }}
+              placeholder="Explain what happened, why the original order was missing, and why this back order is being created."
+              required
+            />
           </Field>
-          <Field label="Drawn signature" required><SignaturePad onChange={setDrawnSignature} /></Field>
           <label style={styles.checkbox}>
             <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
-            I reviewed the Stripe payment and registration details and am authorized to recover this registration.
+            I reviewed the payment and registration details and authorize this Admin Backend Order. No customer waiver is being recorded.
           </label>
         </Section>
 
@@ -276,6 +235,9 @@ function TextField({ label, name, type = 'text', form, update, required = true }
     </Field>
   );
 }
+function StudentField({ label, type = 'text', value, onChange, required = true }) {
+  return <Field label={label} required={required}><input type={type} value={value} onChange={event => onChange(event.target.value)} style={styles.input} required={required} /></Field>;
+}
 
 const styles = {
   notice: { padding: 16, borderRadius: 10, background: '#2a2410', border: '1px solid #8a6d1d', color: '#f5d97a', marginBottom: 18, lineHeight: 1.5 },
@@ -288,8 +250,10 @@ const styles = {
   field: { display: 'grid', gap: 7, marginBottom: 12 },
   label: { color: '#d8e2d8', fontSize: 13, fontWeight: 600 },
   input: { width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8, border: '1px solid #475569', background: '#f8fafc', color: '#0f172a', fontSize: 14 },
-  canvas: { width: '100%', height: 130, background: '#fff', border: '1px solid #475569', borderRadius: 8, touchAction: 'none' },
-  clear: { marginTop: 8, border: '1px solid #64748b', background: 'transparent', color: '#cbd5e1', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' },
   checkbox: { display: 'flex', gap: 10, alignItems: 'flex-start', color: '#d8e2d8', lineHeight: 1.5 },
+  studentCard: { border: '1px solid #36533b', borderRadius: 10, padding: 14, marginBottom: 14 },
+  studentHeader: { display: 'flex', justifyContent: 'space-between', color: '#f5d97a', marginBottom: 10 },
+  add: { border: '1px solid #d4af37', background: 'transparent', color: '#f5d97a', borderRadius: 7, padding: '8px 12px', cursor: 'pointer' },
+  remove: { border: 0, background: 'transparent', color: '#fca5a5', cursor: 'pointer' },
   submit: { justifySelf: 'start', padding: '12px 20px', border: 0, borderRadius: 8, background: '#d4af37', color: '#0d1b0e', fontWeight: 800, cursor: 'pointer' },
 };

@@ -45,18 +45,17 @@ Example request:
     "zip": "95014"
   },
   "sessionsPerWeek": 1,
-  "waiverConsent": {
-    "accepted": true,
-    "signature": "Parent Name",
-    "drawnSignature": "data:image/png;base64,...",
-    "agreementVersion": "CCA-WAIVER-2025-10-30"
-  }
+  "adminOrderNote": "Original paid order did not reach MongoDB after the payment callback failed."
 }
 ```
 
 Weekly programs must also include `selectedWeeklyBatches` in the same snapshot
 shape used by the public registration flow. Cart recoveries may include
 `cartItems` and `cartCheckoutMode: "cart"`.
+
+Recovery records are marked as `ADMIN-BACKEND-ORDER`; customer waiver
+signatures are intentionally not required. Multiple student objects may be
+provided for a single parent/program/batch order.
 
 The recorded total comes from Stripe's verified `amount_received`, so later
 program price changes or expired historical coupons do not alter the recovered

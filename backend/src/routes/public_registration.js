@@ -900,7 +900,8 @@ async function handleRegistration(req, res) {
       }
     }
 
-    if (waiverConsent?.accepted !== true || !waiverSignature || !waiverDrawnSignature) {
+    const isAdminRecovery = req.isStripeRecovery || req.isPayPalRecovery;
+    if (!isAdminRecovery && (waiverConsent?.accepted !== true || !waiverSignature || !waiverDrawnSignature)) {
       return res.status(400).json({
         success: false,
         message: 'Waiver consent, typed e-signature, and drawn digital signature are required before registration.',
@@ -1297,19 +1298,21 @@ async function handleRegistration(req, res) {
       checkPaymentState: pmMethod === 'CHECK' ? 'SUBMITTED' : undefined,
       status: pmStatus === 'SUCCESS' ? 'CONFIRMED' : 'AWAITING_PAYMENT',
       customerNote: studentNote,
-      adminNote: verificationNote || undefined,
-      waiverAccepted: true,
-      waiverSignature,
-      waiverDrawnSignature,
-      waiverAcceptedAt: new Date(),
-      waiverAgreementVersion: waiverConsent.agreementVersion || 'CCA-WAIVER-2025-10-30',
+      waiverAccepted: !isAdminRecovery,
+      waiverSignature: isAdminRecovery ? undefined : waiverSignature,
+      waiverDrawnSignature: isAdminRecovery ? undefined : waiverDrawnSignature,
+      waiverAcceptedAt: isAdminRecovery ? undefined : new Date(),
+      waiverAgreementVersion: isAdminRecovery ? 'ADMIN-BACKEND-ORDER' : (waiverConsent.agreementVersion || 'CCA-WAIVER-2025-10-30'),
       mediaConsent: true,
       medicalConsent: true,
+      adminNote: isAdminRecovery ? req.body.adminOrderNote.trim() : (verificationNote || undefined),
       paymentAuditLog: [{
         event: (req.isStripeRecovery || req.isPayPalRecovery)
           ? (req.isStripeRecovery ? 'ADMIN_STRIPE_RECOVERY' : 'ADMIN_PAYPAL_RECOVERY')
           : (pmStatus === 'SUCCESS' ? 'PAYMENT_VERIFIED' : (pmMethod === 'CHECK' ? 'CHECK_SUBMITTED' : 'PAYMENT_PENDING_REVIEW')),
-        note: (req.isStripeRecovery || req.isPayPalRecovery) ? `Recovered by ${req.user?.email || req.user?._id}` : pmMethod,
+        note: isAdminRecovery
+          ? `Recovered by ${req.user?.email || req.user?._id}: ${req.body.adminOrderNote.trim()}`
+          : pmMethod,
         performedBy: (req.isStripeRecovery || req.isPayPalRecovery) ? req.user?._id : undefined,
       }],
     });
@@ -1389,6 +1392,9 @@ async function handleRegistration(req, res) {
 
 async function prepareStripeRecovery(req, res, next) {
   try {
+    if (!String(req.body?.adminOrderNote || '').trim()) {
+      return res.status(400).json({ success: false, message: 'An incident/order note is required for admin recovery.' });
+    }
     const paymentIntentId = String(req.body?.paymentIntentId || req.body?.transactionId || '').trim();
     if (!paymentIntentId.startsWith('pi_')) {
       return res.status(400).json({ success: false, message: 'A valid Stripe PaymentIntent ID (pi_...) is required.' });
@@ -1433,6 +1439,9 @@ async function prepareStripeRecovery(req, res, next) {
 
 async function preparePayPalRecovery(req, res, next) {
   try {
+    if (!String(req.body?.adminOrderNote || '').trim()) {
+      return res.status(400).json({ success: false, message: 'An incident/order note is required for admin recovery.' });
+    }
     const captureId = String(req.body?.captureId || req.body?.transactionId || '').trim();
     if (!captureId) return res.status(400).json({ success: false, message: 'A PayPal capture ID is required.' });
     const Registration = mongoose.model('Registration');
