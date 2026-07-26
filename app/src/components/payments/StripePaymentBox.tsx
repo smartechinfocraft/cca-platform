@@ -50,7 +50,8 @@ interface StripePaymentBoxProps {
   couponCode?: string;
   disabled?: boolean;
   onAmountConfirmed?: (amount: number) => void;
-  onSuccess: (paymentIntentId: string) => Promise<void>;
+  prepareRegistration: () => Promise<{ registrationId: string }>;
+  onSuccess: (registration: any) => Promise<void> | void;
 }
 
 export default function StripePaymentBox({
@@ -67,6 +68,7 @@ export default function StripePaymentBox({
   couponCode,
   disabled = false,
   onAmountConfirmed,
+  prepareRegistration,
   onSuccess,
 }: StripePaymentBoxProps) {
   const elementId = useRef(`stripe-payment-${Math.random().toString(36).slice(2)}`);
@@ -75,6 +77,7 @@ export default function StripePaymentBox({
   const elementsRef = useRef<StripeElements | null>(null);
   const paymentIntentRef = useRef<{ paymentIntentId: string; clientSecret: string } | null>(null);
   const paidRef = useRef(false);
+  const recoveryStartedRef = useRef(false);
 
   const [started, setStarted] = useState(false);
   const [ready, setReady] = useState(false);
@@ -100,13 +103,34 @@ export default function StripePaymentBox({
 
   useEffect(() => {
     return () => {
-      cancelPendingIntent();
       resetStripeForm();
     };
-    // The cleanup intentionally runs when payable context changes, so old
-    // unconfirmed intents do not linger if the user edits cart/payment state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, cartItems, checkoutMode, couponCode]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnedIntentId = params.get("payment_intent");
+    const returnedStatus = params.get("redirect_status");
+    const pending = JSON.parse(sessionStorage.getItem("cca:pendingStripeRegistration") || "{}");
+    if (!returnedIntentId || returnedStatus !== "succeeded" || !pending.registrationId) return;
+    if (recoveryStartedRef.current) return;
+    recoveryStartedRef.current = true;
+
+    setSubmitting(true);
+    api.post("/public/stripe/finalize-registration", {
+      registrationId: pending.registrationId,
+      paymentIntentId: returnedIntentId,
+    }).then(async (response) => {
+      sessionStorage.removeItem("cca:pendingStripeRegistration");
+      const cleanUrl = `${window.location.pathname}${window.location.hash}`;
+      window.history.replaceState({}, document.title, cleanUrl);
+      await onSuccess(response.data);
+    }).catch((err) => {
+      recoveryStartedRef.current = false;
+      setError(getErrorMessage(err, "Could not finalize Stripe payment."));
+    }).finally(() => setSubmitting(false));
+  }, [onSuccess]);
 
   const handleStartCardForm = async () => {
     setError(null);
@@ -117,18 +141,10 @@ export default function StripePaymentBox({
       }
 
       await loadStripeScript();
+      const prepared = await prepareRegistration();
+      if (!prepared?.registrationId) throw new Error("Could not create the pending registration.");
       const res = await api.post("/public/stripe/create-payment-intent", {
-        programId,
-        batchId,
-        studentCount,
-        sessionsPerWeek,
-        selectedDays,
-        selectedMonth,
-        expectedUnitPrice,
-        weeklyBatchIds,
-        cartItems,
-        checkoutMode,
-        couponCode,
+        registrationId: prepared.registrationId,
       });
 
       if (!res.data.success) throw new Error(res.data.message || "Could not start Stripe payment.");
@@ -150,6 +166,10 @@ export default function StripePaymentBox({
         paymentIntentId: res.data.paymentIntentId,
         clientSecret: res.data.clientSecret,
       };
+      sessionStorage.setItem("cca:pendingStripeRegistration", JSON.stringify({
+        registrationId: prepared.registrationId,
+        paymentIntentId: res.data.paymentIntentId,
+      }));
       stripeRef.current = stripe;
       elementsRef.current = elements;
       paymentElementRef.current = paymentElement;
@@ -180,7 +200,13 @@ export default function StripePaymentBox({
 
       paidRef.current = true;
       paymentIntentRef.current = null;
-      await onSuccess(result.paymentIntent.id);
+      const pending = JSON.parse(sessionStorage.getItem("cca:pendingStripeRegistration") || "{}");
+      const finalized = await api.post("/public/stripe/finalize-registration", {
+        registrationId: pending.registrationId,
+        paymentIntentId: result.paymentIntent.id,
+      });
+      sessionStorage.removeItem("cca:pendingStripeRegistration");
+      await onSuccess(finalized.data);
     } catch (err) {
       setError(getErrorMessage(err, "Stripe payment failed."));
     } finally {

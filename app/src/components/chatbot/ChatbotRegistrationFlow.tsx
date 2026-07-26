@@ -542,7 +542,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   };
 
   // ── Final submit (Check, or after PayPal/Stripe capture) ──
-  const finishRegistration = async (method: "PayPal" | "Stripe" | "Check", transactionId?: string) => {
+  const finishRegistration = async (method: "PayPal" | "Stripe" | "Check", transactionId?: string, prepareOnly = false): Promise<any> => {
     if (!selectedProgram) return;
     if (!waiverValid) {
       setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
@@ -586,6 +586,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
         },
         token
       );
+      if (prepareOnly) return data;
       setResult({
         registrationNumber: data.registrationNumber,
         programName: data.programName,
@@ -599,6 +600,17 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const completeStripeRegistration = async (data: any) => {
+    setResult({
+      registrationNumber: data.registrationNumber,
+      programName: selectedProgram?.title || "CCA Program",
+      totalAmount: data.totalAmount,
+      paymentStatus: data.paymentStatus,
+    });
+    setStep("done");
+    setStepStack([]);
   };
 
   // ── Add to cart instead of paying now ──
@@ -1062,7 +1074,8 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
                   sessionsPerWeek={!isWeeklyProgram ? frequency : undefined}
                   weeklyBatchIds={isWeeklyProgram ? selectedWeeklyBatchIds : undefined}
                   disabled={submitting}
-                  onSuccess={(paymentIntentId) => finishRegistration("Stripe", paymentIntentId)}
+                  prepareRegistration={() => finishRegistration("Stripe", undefined, true)}
+                  onSuccess={completeStripeRegistration}
                 />
               </div>
             )}

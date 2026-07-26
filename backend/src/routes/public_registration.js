@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const { sendRegistrationEmail } = require('../services/emailService');
 const { createOrder, captureOrder, getCaptureDetails } = require('../services/paypalService');
 const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits } = require('../services/stripeService');
+const { confirmStripeRegistration } = require('../services/stripeRegistrationService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
 const {
@@ -578,51 +579,42 @@ router.post('/paypal/capture-order', async (req, res) => {
 // never a trusted amount. The server recomputes the payable total.
 router.post('/stripe/create-payment-intent', async (req, res) => {
   try {
-    const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems, checkoutMode } = req.body;
-    if (checkoutMode === 'cart' && (!Array.isArray(cartItems) || cartItems.length === 0))
-      return res.status(400).json({ success: false, message: 'Cart checkout requires cartItems.' });
-
-    if (!programId && (!Array.isArray(cartItems) || cartItems.length === 0))
-      return res.status(400).json({ success: false, message: 'programId is required.' });
-
-    const parentId = resolveOptionalParentId(req);
-    const priced = Array.isArray(cartItems) && cartItems.length > 0
-      ? await computeCartTotal({
-          cartItems,
-          couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
-          parentId,
-        })
-      : await computeRegistrationTotal({
-          programId,
-          batchId,
-          studentCount,
-          sessionsPerWeek,
-          selectedDays,
-          selectedMonth,
-          expectedUnitPrice,
-          weeklyBatchIds,
-          couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
-          parentId,
-        });
-
-    if (!priced.total || priced.total <= 0)
+    const { registrationId } = req.body;
+    if (!registrationId || !mongoose.isValidObjectId(registrationId)) {
+      return res.status(400).json({ success: false, message: 'A pending Stripe registration is required.' });
+    }
+    const Registration = mongoose.model('Registration');
+    const pendingRegistration = await Registration.findOne({
+      _id: registrationId,
+      paymentMethod: 'STRIPE',
+      paymentStatus: 'PENDING',
+      transactionId: { $exists: false },
+    });
+    if (!pendingRegistration) {
+      return res.status(404).json({ success: false, message: 'Pending Stripe registration was not found.' });
+    }
+    const authenticatedParentId = resolveOptionalParentId(req);
+    if (authenticatedParentId && String(pendingRegistration.parentId) !== String(authenticatedParentId)) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to pay this registration.' });
+    }
+    if (!pendingRegistration.totalAmount || pendingRegistration.totalAmount <= 0)
       return res.status(400).json({ success: false, message: 'This program has no payable price configured.' });
 
-    const intent = await createPaymentIntent(priced.total, priced.currency, {
-      programId,
-      batchId,
-      studentCount: studentCount || 1,
-      weeklyBatchIds: Array.isArray(weeklyBatchIds) ? weeklyBatchIds.join(',') : '',
-      couponCode: couponCode ? couponCode.trim().toUpperCase() : '',
+    const intent = await createPaymentIntent(pendingRegistration.totalAmount, 'USD', {
+      registrationId: pendingRegistration._id,
+      programId: pendingRegistration.programId,
     });
+    pendingRegistration.transactionId = intent.id;
+    pendingRegistration.paymentAuditLog.push({ event: 'STRIPE_INTENT_CREATED', note: intent.id });
+    await pendingRegistration.save();
 
     res.json({
       success: true,
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
-      amount: priced.total,
-      discount: priced.discount,
-      currency: priced.currency,
+      amount: pendingRegistration.totalAmount,
+      discount: pendingRegistration.discountAmount,
+      currency: 'USD',
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
     });
   } catch (err) {
@@ -655,6 +647,42 @@ router.post('/stripe/cancel-payment-intent', async (req, res) => {
     return res.json({ success: true, status: cancelled.status });
   } catch (err) {
     sendPaymentError(res, err, 'Could not cancel the card payment.', 'stripe/cancel-payment-intent');
+  }
+});
+
+router.post('/stripe/finalize-registration', async (req, res) => {
+  try {
+    const { registrationId, paymentIntentId } = req.body || {};
+    if (!registrationId || !paymentIntentId) {
+      return res.status(400).json({ success: false, message: 'registrationId and paymentIntentId are required.' });
+    }
+    const intent = await getPaymentIntent(paymentIntentId);
+    const reg = await confirmStripeRegistration({
+      registrationId,
+      intent,
+      auditEvent: 'PAYMENT_VERIFIED',
+      auditNote: 'STRIPE',
+    });
+    await reg.populate('programId', 'title');
+    await reg.populate('students', 'firstName lastName');
+    const studentName = reg.students
+      .map(student => `${student.firstName || ''} ${student.lastName || ''}`.trim())
+      .filter(Boolean)
+      .join(', ');
+    return res.json({
+      success: true,
+      message: 'Registration successful!',
+      registrationId: reg._id,
+      registrationNumber: reg.registrationNumber,
+      studentName,
+      programName: reg.programId?.title || reg.orderItems?.[0]?.programTitle || 'CCA Program',
+      paymentMethod: 'Stripe',
+      paymentStatus: reg.paymentStatus,
+      totalAmount: reg.totalAmount,
+      orderItems: reg.orderItems,
+    });
+  } catch (err) {
+    sendPaymentError(res, err, 'Could not finalize the card registration.', 'stripe/finalize-registration');
   }
 });
 
@@ -1214,7 +1242,7 @@ router.post('/register', async (req, res) => {
       logPaymentSuccess({ gateway: pmMethod, transactionId, registrationNumber: reg.registrationNumber, amount: priced.total });
     }
 
-    sendRegistrationEmail({
+    if (paymentMethod !== 'Stripe') sendRegistrationEmail({
       to: parentInfo.email,
       registrationNumber: reg.registrationNumber,
       studentName,
@@ -1233,6 +1261,7 @@ router.post('/register', async (req, res) => {
         ? 'Registration successful!'
         : 'Registration received and is pending payment verification.',
       registrationNumber: reg.registrationNumber,
+      registrationId: reg._id,
       studentName,
       programName: selectedProgram.title,
       paymentMethod,

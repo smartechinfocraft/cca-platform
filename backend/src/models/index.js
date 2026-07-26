@@ -391,6 +391,11 @@ const registrationSchema = new mongoose.Schema(
     // against duplicate/replayed payment submissions.
     transactionId: { type: String, unique: true, sparse: true },
     checkNumber:   { type: String },
+    confirmationEmailSentAt: { type: Date },
+    confirmationEmailSendingAt: { type: Date },
+    confirmationEmailError: { type: String },
+    couponUsageRecordedAt: { type: Date },
+    couponUsageRecordingAt: { type: Date },
 
     // ── Check-payment workflow (never auto-approved) ─────────────────
     // Only meaningful when paymentMethod === 'CHECK'. Mirrors paymentStatus

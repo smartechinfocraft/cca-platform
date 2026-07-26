@@ -100,7 +100,7 @@ export default function CartPage() {
   const firstItem = items[0];
 
   // ── Submit the registration to the backend, then clear the cart ──
-  const submitRegistration = async (method: string, transactionId?: string) => {
+  const submitRegistration = async (method: string, transactionId?: string, prepareOnly = false): Promise<any> => {
     if (!waiverValid) {
       setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
       return;
@@ -178,6 +178,7 @@ export default function CartPage() {
       if (response.data.token && response.data.parent) {
         acceptSession(response.data.token, response.data.parent);
       }
+      if (prepareOnly) return response.data;
       clearCart();
       sessionStorage.setItem("cca:lastRegistration", JSON.stringify(response.data));
       navigate("/success", { state: response.data });
@@ -186,6 +187,12 @@ export default function CartPage() {
     } finally {
       setPaying(false);
     }
+  };
+
+  const completeStripeRegistration = async (data: any) => {
+    clearCart();
+    sessionStorage.setItem("cca:lastRegistration", JSON.stringify(data));
+    navigate("/success", { state: data });
   };
 
   const submitCheck = async () => {
@@ -496,7 +503,8 @@ export default function CartPage() {
                         checkoutMode="cart"
                         couponCode={coupon?.code ?? undefined}
                         disabled={paying}
-                        onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
+                        prepareRegistration={() => submitRegistration("Stripe", undefined, true)}
+                        onSuccess={completeStripeRegistration}
                       />
                     </div>
                   )}

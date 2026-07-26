@@ -148,7 +148,7 @@ function PaymentPage() {
     if (paymentMethod !== "PayPal") { paypalLoaded.current = false; }
   }, [paymentMethod]);
 
-  const submitRegistration = async (method: string, transactionId?: string) => {
+  const submitRegistration = async (method: string, transactionId?: string, prepareOnly = false): Promise<any> => {
     if (!waiverValid) {
       setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
       return;
@@ -202,6 +202,7 @@ function PaymentPage() {
       if (response.data.token && response.data.parent) {
         acceptSession(response.data.token, response.data.parent);
       }
+      if (prepareOnly) return response.data;
       sessionStorage.setItem("cca:lastRegistration", JSON.stringify(response.data));
       navigate("/success", { state: response.data });
       // Registration succeeded — empty the cart so a refreshed/returning
@@ -212,6 +213,12 @@ function PaymentPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const completeStripeRegistration = async (data: any) => {
+    sessionStorage.setItem("cca:lastRegistration", JSON.stringify(data));
+    navigate("/success", { state: data });
+    clearCart();
   };
 
   const submitCheck = async () => {
@@ -392,7 +399,8 @@ function PaymentPage() {
                     expectedUnitPrice={perStudentFee}
                     couponCode={appliedCoupon?.code ?? undefined}
                     disabled={loading}
-                    onSuccess={(paymentIntentId) => submitRegistration("Stripe", paymentIntentId)}
+                    prepareRegistration={() => submitRegistration("Stripe", undefined, true)}
+                    onSuccess={completeStripeRegistration}
                   />
                 ) : (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

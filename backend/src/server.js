@@ -103,6 +103,7 @@ const webhookLimiter = rateLimit({
 app.use(
   [
     '/api/public/stripe/create-payment-intent',
+    '/api/public/stripe/finalize-registration',
     '/api/public/stripe/cancel-payment-intent',
     '/api/public/paypal/create-order',
     '/api/public/paypal/capture-order',
