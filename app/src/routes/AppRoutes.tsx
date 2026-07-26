@@ -45,6 +45,7 @@ import AdminLevels from "../admin/pages/Levels";
 import AdminRegistrations from "../admin/pages/Registrations";
 import AdminMessages from "../admin/pages/Messages";
 import PaymentStudents from "../admin/pages/PaymentStudents";
+import StripeRecovery from "../admin/pages/StripeRecovery";
 
 // ── Coach portal ─────────────────────────────────────────────
 import CoachLayout from "../coach/components/CoachLayout";
@@ -182,6 +183,7 @@ function AppRoutes() {
         {/* Both admin roles */}
         <Route path="registrations" element={<AdminRegistrations />} />
         <Route path="payment-students" element={<PaymentStudents />} />
+        <Route path="stripe-recovery" element={<StripeRecovery />} />
         <Route path="coaches" element={<AdminCoaches />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="content" element={<AdminContent />} />

@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { path: '/admin/coupons',          label: 'Coupons',          icon: '🎟️', superOnly: false },
   { path: '/admin/content',          label: 'Content',          icon: '📝', superOnly: false },
   { path: '/admin/messages',         label: 'Messages',         icon: '💬', superOnly: false },
+  { path: '/admin/stripe-recovery',  label: 'Stripe Recovery',  icon: '↻', superOnly: false },
 ];
 
 export default function AdminLayout() {
