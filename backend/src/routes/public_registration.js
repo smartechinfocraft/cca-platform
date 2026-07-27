@@ -32,6 +32,27 @@ function fmtMonthDateRange(startDate, endDate, weeks) {
   return weeks ? `${range} ( ${weeks} week )` : range;
 }
 
+const SCHEDULE_DAY_NAMES = {
+  MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday',
+  FRI: 'Friday', SAT: 'Saturday', SUN: 'Sunday',
+};
+function fmtScheduleTime(value) {
+  if (!value) return '';
+  const match = String(value).match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!match) return String(value);
+  if (match[3]) return `${Number(match[1])}:${match[2]} ${match[3].toUpperCase()}`;
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+function formatScheduleEntry(item) {
+  return [
+    SCHEDULE_DAY_NAMES[item?.day] || item?.day,
+    fmtScheduleTime(item?.startTime),
+    fmtScheduleTime(item?.endTime),
+    item?.groundAddress,
+  ].filter(Boolean).join(' - ');
+}
+
 function normalizeOrderMonth(month, fallbackLabel) {
   if (!month && !fallbackLabel) return undefined;
   if (typeof month === 'string') return { label: month };
@@ -895,11 +916,28 @@ async function handleRegistration(req, res) {
     // mandatory, and it decides how many "weeks" get billed.
     const programForWeekCheck = await mongoose.model('Program')
       .findById(selectedProgram._id)
-      .select('batchType weeklyBatches')
+      .select('batchType weeklyBatches scheduleDays')
       .lean();
 
     if (!programForWeekCheck)
       return res.status(404).json({ success: false, message: 'Program not found.' });
+
+    // Recovery schedule display is rebuilt from the trusted Program record,
+    // so confirmation emails match organic registrations even if an older
+    // recovery UI submits only "SAT" or another abbreviated day.
+    if ((req.isStripeRecovery || req.isPayPalRecovery) && programForWeekCheck.scheduleDays?.length) {
+      const submitted = String(selectedBatch?.days || selectedBatch?.timing || '').toLowerCase();
+      const selectedSchedule = programForWeekCheck.scheduleDays.filter(item => {
+        const code = String(item.day || '').toLowerCase();
+        const full = String(SCHEDULE_DAY_NAMES[item.day] || '').toLowerCase();
+        return submitted.includes(code) || (full && submitted.includes(full));
+      });
+      if (selectedSchedule.length) {
+        const scheduleText = selectedSchedule.map(formatScheduleEntry).filter(Boolean).join(' | ');
+        selectedBatch.days = scheduleText;
+        selectedBatch.timing = scheduleText;
+      }
+    }
 
     // Client may send selectedWeeklyBatches as an array of full objects
     // ({_id, ...}) or as an array of ids embedded on selectedBatch — accept

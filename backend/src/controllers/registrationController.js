@@ -6,6 +6,24 @@ const mongoose = require('mongoose');
 const { logCheckApproval, logCheckRejection, logRefund } = require('../utils/paymentLogger');
 
 const getReg = () => mongoose.model('Registration');
+const DAY_FULL = {
+  MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday',
+  FRI: 'Friday', SAT: 'Saturday', SUN: 'Sunday',
+};
+const formatScheduleTime = value => {
+  if (!value) return '';
+  const match = String(value).match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!match) return String(value);
+  if (match[3]) return `${Number(match[1])}:${match[2]} ${match[3].toUpperCase()}`;
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
+};
+const formatScheduleEntry = item => [
+  DAY_FULL[item?.day] || item?.day,
+  formatScheduleTime(item?.startTime),
+  formatScheduleTime(item?.endTime),
+  item?.groundAddress,
+].filter(Boolean).join(' - ');
 
 // ─── GET /api/registrations ───────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
@@ -208,9 +226,7 @@ exports.superAdminEdit = async (req, res) => {
       const oldMonth = reg.selectedMonth?.label || oldItem?.selectedMonthLabel || '—';
       const oldSchedule = oldItem?.selectedDays || '—';
       const newMonth = selectedMonth?.label || '—';
-      const newSchedule = selectedDays.map(item =>
-        `${item.day || ''} ${item.startTime || ''}-${item.endTime || ''}${item.groundAddress ? ` @ ${item.groundAddress}` : ''}`.trim()
-      ).join(' | ') || '—';
+      const newSchedule = selectedDays.map(formatScheduleEntry).filter(Boolean).join(' | ') || '—';
 
       if (oldProgram !== program.title) changes.push({ field: 'Program', from: oldProgram, to: program.title });
       if (oldMonth !== newMonth) changes.push({ field: 'Month', from: oldMonth, to: newMonth });

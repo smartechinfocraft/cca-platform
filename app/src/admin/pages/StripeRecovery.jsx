@@ -10,6 +10,24 @@ const EMPTY = {
   adminOrderNote: '',
 };
 const EMPTY_STUDENT = { firstName: '', lastName: '', dob: '', gender: '', schoolName: '', medicalNotes: '' };
+const DAY_FULL = {
+  MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday',
+  FRI: 'Friday', SAT: 'Saturday', SUN: 'Sunday',
+};
+const formatTime = value => {
+  if (!value) return '';
+  const match = String(value).match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!match) return String(value);
+  if (match[3]) return `${Number(match[1])}:${match[2]} ${match[3].toUpperCase()}`;
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
+};
+const formatSchedule = item => [
+  DAY_FULL[item?.day] || item?.day,
+  formatTime(item?.startTime),
+  formatTime(item?.endTime),
+  item?.groundAddress || item?.location?.address,
+].filter(Boolean).join(' - ');
 
 export default function StripeRecovery() {
   const [form, setForm] = useState(EMPTY);
@@ -112,11 +130,8 @@ export default function StripeRecovery() {
           title: selectedBatch.title || selectedBatch.name,
           sessionsPerWeek: Number(form.sessionsPerWeek) || 1,
           selectedMonth: monthOptions.find(option => (option.label || option.name) === form.monthLabel),
-          days: selectedScheduleIndexes.map(index => scheduleOptions[index]?.day).filter(Boolean).join(' + '),
-          timing: selectedScheduleIndexes.map(index => {
-            const item = scheduleOptions[index];
-            return `${item?.day || ''} ${item?.startTime || ''}-${item?.endTime || ''}`.trim();
-          }).join(' | '),
+          days: selectedScheduleIndexes.map(index => formatSchedule(scheduleOptions[index])).filter(Boolean).join(' | '),
+          timing: selectedScheduleIndexes.map(index => formatSchedule(scheduleOptions[index])).filter(Boolean).join(' | '),
         },
         students: students.map(student => ({
           ...student,
