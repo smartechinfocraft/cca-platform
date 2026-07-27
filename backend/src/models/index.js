@@ -426,6 +426,28 @@ const registrationSchema = new mongoose.Schema(
       },
     ],
 
+    // Append-only order change history. Values are snapshots so the audit
+    // remains readable even if the user account or program later changes.
+    editAuditLog: [
+      {
+        action:      { type: String, enum: ['ORDER_EDITED', 'STATUS_EDITED', 'UPDATE_EMAIL_SENT'], required: true },
+        changes: [
+          {
+            field: { type: String, required: true },
+            from:  { type: String },
+            to:    { type: String },
+          },
+        ],
+        note:          { type: String },
+        performedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        performedByName: { type: String },
+        performedByRole: { type: String },
+        at:            { type: Date, default: Date.now },
+        notificationSentAt: { type: Date },
+        notificationSentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      },
+    ],
+
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }

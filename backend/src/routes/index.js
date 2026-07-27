@@ -540,6 +540,7 @@ router.post('/registrations/:id/refund', protect, superAdminOnly, regCtrl.refund
 // status/whatsapp toggles above since this can change what a parent
 // actually registered for.
 router.patch('/registrations/:id/edit',     protect, superAdminOnly, regCtrl.superAdminEdit);
+router.post('/registrations/:id/send-update-email', protect, superAdminOnly, regCtrl.sendUpdateEmail);
 
 // ═══════════════════════════════════════════════════════════
 //  MESSAGING (Admin side) — Both admin roles see every thread;

@@ -179,13 +179,12 @@ async function sendCoachWelcomeEmail({ to, firstName, lastName, username, passwo
     subject,
     html,
   });
+
 }
 
 // ============================================================
-//  sendRegistrationUpdateEmail — sent automatically whenever a
-//  super admin edits an existing registration (batch reassignment,
-//  student info correction, status change, etc). Shows the parent
-//  exactly what changed.
+//  sendRegistrationUpdateEmail — called only by the explicit Super Admin
+//  notification endpoint. Sends the customer and configured admin copies.
 // ============================================================
 async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber, studentName, programName, changes }) {
   const subject = `CCA Registration Updated — ${registrationNumber}`;
@@ -232,6 +231,17 @@ async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber,
     subject,
     html,
   });
+
+  if (REGISTRATION_ADMIN_TO.length) {
+    await resend.emails.send({
+      from: `California Cricket Academy <${FROM_ADDRESS}>`,
+      to: REGISTRATION_ADMIN_TO,
+      ...(REGISTRATION_ADMIN_CC.length ? { cc: REGISTRATION_ADMIN_CC } : {}),
+      ...(REGISTRATION_ADMIN_BCC.length ? { bcc: REGISTRATION_ADMIN_BCC } : {}),
+      subject: `Admin Copy - ${subject}`,
+      html,
+    });
+  }
 }
 
 

@@ -79,6 +79,8 @@ exports.getOne = async (req, res) => {
         select: 'title dayOfWeek multiDays startTime endTime location coach monthOptions groundLocationNote sessionsPerWeek startDate endDate price pricePerSession',
         populate: { path: 'location', select: 'title city address' },
       })
+      .populate('editAuditLog.performedBy', 'firstName lastName username role')
+      .populate('editAuditLog.notificationSentBy', 'firstName lastName username role')
       .lean();
 
     if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
@@ -99,11 +101,27 @@ exports.updateStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid status value' });
     }
 
-    const update = { status, updatedBy: req.user._id };
-    if (adminNote !== undefined) update.adminNote = adminNote;
-
-    const reg = await getReg().findByIdAndUpdate(req.params.id, update, { new: true });
+    const reg = await getReg().findById(req.params.id);
     if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
+
+    const changes = [];
+    if (reg.status !== status) changes.push({ field: 'Status', from: reg.status, to: status });
+    if (adminNote !== undefined && String(reg.adminNote || '') !== String(adminNote || '')) {
+      changes.push({ field: 'Admin Note', from: reg.adminNote || '—', to: adminNote || '—' });
+    }
+    reg.status = status;
+    if (adminNote !== undefined) reg.adminNote = adminNote;
+    reg.updatedBy = req.user._id;
+    if (changes.length) {
+      reg.editAuditLog.push({
+        action: 'STATUS_EDITED',
+        changes,
+        performedBy: req.user._id,
+        performedByName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
+        performedByRole: req.user.role,
+      });
+    }
+    await reg.save();
 
     res.json({ success: true, data: reg });
   } catch (err) {
@@ -131,14 +149,12 @@ exports.superAdminEdit = async (req, res) => {
   try {
     const { batches, students, adminNote, orderSelection } = req.body;
     const Batch = mongoose.model('Batch');
-    const Parent = mongoose.model('Parent');
     const Program = mongoose.model('Program');
 
     const reg = await getReg().findById(req.params.id).populate('programId', 'title');
     if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
 
     const changes = [];
-    let notificationProgramName = reg.programId?.title || 'CCA Program';
 
     // Program/month/schedule correction. This changes only the registration
     // snapshot; it never retries, captures, refunds, or changes the payment.
@@ -148,7 +164,6 @@ exports.superAdminEdit = async (req, res) => {
       if (!program) {
         return res.status(400).json({ success: false, message: 'Selected program was not found.' });
       }
-      notificationProgramName = program.title;
 
       const requestedMonth = orderSelection.selectedMonth;
       const enabledMonths = (program.monthOptions || []).filter(option => option.isEnabled !== false);
@@ -293,32 +308,25 @@ exports.superAdminEdit = async (req, res) => {
       return res.json({ success: true, message: 'No changes detected.', data: reg, emailSent: false });
     }
 
+    reg.editAuditLog.push({
+      action: 'ORDER_EDITED',
+      changes,
+      note: adminNote,
+      performedBy: req.user._id,
+      performedByName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
+      performedByRole: req.user.role,
+    });
     await reg.save();
 
-    // ── Auto-email the parent with exactly what changed ──
-    let emailSent = false;
-    try {
-      const parent = await Parent.findById(reg.parentId).select('firstName lastName email');
-      if (parent?.email) {
-        const { sendRegistrationUpdateEmail } = require('../services/emailService');
-        const studentName = reg.students?.[0]
-          ? `${reg.students[0].firstName} ${reg.students[0].lastName}`
-          : 'your child';
-        await sendRegistrationUpdateEmail({
-          to: parent.email,
-          parentName: `${parent.firstName} ${parent.lastName}`,
-          registrationNumber: reg.registrationNumber,
-          studentName,
-          programName: notificationProgramName,
-          changes,
-        });
-        emailSent = true;
-      }
-    } catch (emailErr) {
-      console.error('Failed to send registration-update email:', emailErr.message);
-    }
+    return res.json({
+      success: true,
+      message: 'Registration updated. No email was sent.',
+      data: reg,
+      changes,
+      emailSent: false,
+      notificationPending: true,
+    });
 
-    res.json({ success: true, message: 'Registration updated.', data: reg, changes, emailSent });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -328,6 +336,74 @@ exports.superAdminEdit = async (req, res) => {
 // Admin-only (see routes/index.js). Moves a CHECK payment from
 // SUBMITTED/UNDER_REVIEW to APPROVED. Checks are NEVER auto-approved —
 // this is the only code path that can mark one SUCCESS.
+// Explicit Super Admin action. Sends every order-edit audit entry that has
+// not already been notified; saving an edit never invokes this function.
+exports.sendUpdateEmail = async (req, res) => {
+  try {
+    const Parent = mongoose.model('Parent');
+    const reg = await getReg().findById(req.params.id)
+      .populate('programId', 'title')
+      .populate('students', 'firstName lastName');
+    if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
+
+    const pendingEntries = (reg.editAuditLog || []).filter(entry =>
+      entry.action === 'ORDER_EDITED' && !entry.notificationSentAt
+    );
+    if (!pendingEntries.length) {
+      return res.status(400).json({ success: false, message: 'There are no unsent order changes.' });
+    }
+
+    const parent = await Parent.findById(reg.parentId).select('firstName lastName email');
+    if (!parent?.email) {
+      return res.status(400).json({ success: false, message: 'The customer does not have an email address.' });
+    }
+
+    const changes = pendingEntries.flatMap(entry =>
+      (entry.changes || []).map(change => ({
+        field: change.field,
+        from: change.from,
+        to: change.to,
+      }))
+    );
+    const student = reg.students?.[0];
+    const { sendRegistrationUpdateEmail } = require('../services/emailService');
+    await sendRegistrationUpdateEmail({
+      to: parent.email,
+      parentName: `${parent.firstName || ''} ${parent.lastName || ''}`.trim() || 'Parent',
+      registrationNumber: reg.registrationNumber,
+      studentName: student ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : 'your child',
+      programName: reg.programId?.title || 'CCA Program',
+      changes,
+    });
+
+    const sentAt = new Date();
+    pendingEntries.forEach(entry => {
+      entry.notificationSentAt = sentAt;
+      entry.notificationSentBy = req.user._id;
+    });
+    reg.editAuditLog.push({
+      action: 'UPDATE_EMAIL_SENT',
+      changes: [],
+      note: `Customer and admin copies sent for ${pendingEntries.length} edit event(s).`,
+      performedBy: req.user._id,
+      performedByName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
+      performedByRole: req.user.role,
+      at: sentAt,
+    });
+    reg.updatedBy = req.user._id;
+    await reg.save();
+
+    res.json({
+      success: true,
+      message: 'Update email sent to the customer and configured admin recipients.',
+      sentAt,
+      changeCount: changes.length,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.confirmCheck = async (req, res) => {
   try {
     const reg = await getReg().findById(req.params.id);

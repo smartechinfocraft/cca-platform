@@ -596,6 +596,7 @@ export default function Registrations() {
   const [availableBatches, setAvailableBatches] = useState([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState([]);
   const [reassigning, setReassigning] = useState(false);
+  const [sendingUpdateEmail, setSendingUpdateEmail] = useState(false);
   const [lastEmailResult, setLastEmailResult] = useState(null);
   const [programCatalog, setProgramCatalog] = useState([]);
   const [orderProgramDetail, setOrderProgramDetail] = useState(null);
@@ -608,6 +609,9 @@ export default function Registrations() {
   const editScheduleOptions = orderProgramDetail?.scheduleDays || [];
   const editBatches = orderProgramDetail?.batches || [];
   const editMaxFrequency = Math.max(1, editScheduleOptions.length || orderProgramDetail?.sessionsPerWeek || 1);
+  const pendingEmailEdits = (selected?.editAuditLog || []).filter(entry =>
+    entry.action === 'ORDER_EDITED' && !entry.notificationSentAt
+  );
 
   const load = async () => {
     setLoading(true);
@@ -775,8 +779,8 @@ export default function Registrations() {
         },
       });
       if (res.data.changes?.length) {
-        toast.success(`Order updated — ${res.data.emailSent ? 'parent notified by email' : 'parent email could not be sent'}`);
-        setLastEmailResult(res.data.emailSent);
+        toast.success('Order saved. No email was sent.');
+        setLastEmailResult(null);
         const refreshed = await registrationsAPI.getOne(selected._id);
         hydrateSelectedRegistration(refreshed.data.data);
         load();
@@ -787,6 +791,21 @@ export default function Registrations() {
       toast.error(error.response?.data?.message || 'Order update failed');
     } finally {
       setReassigning(false);
+    }
+  };
+
+  const handleSendUpdateEmail = async () => {
+    if (!pendingEmailEdits.length) return toast.error('There are no unsent order changes.');
+    setSendingUpdateEmail(true);
+    try {
+      const response = await registrationsAPI.sendUpdateEmail(selected._id);
+      toast.success(response.data.message || 'Update email sent');
+      const refreshed = await registrationsAPI.getOne(selected._id);
+      hydrateSelectedRegistration(refreshed.data.data);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Update email could not be sent');
+    } finally {
+      setSendingUpdateEmail(false);
     }
   };
 
@@ -1391,13 +1410,66 @@ export default function Registrations() {
                 )}
                 <div style={{ marginTop: '10px' }}>
                   <Btn small variant="ghost" onClick={handleSaveOrderSelection} disabled={reassigning || !orderProgramDetail}>
-                    {reassigning ? 'Saving & emailing parent…' : 'Save Order Selection'}
+                    {reassigning ? 'Saving…' : 'Save Order Selection'}
+                  </Btn>
+                  <Btn
+                    small
+                    onClick={handleSendUpdateEmail}
+                    disabled={sendingUpdateEmail || pendingEmailEdits.length === 0}
+                  >
+                    {sendingUpdateEmail
+                      ? 'Sending…'
+                      : `Send Update Email${pendingEmailEdits.length ? ` (${pendingEmailEdits.length} unsent)` : ''}`}
                   </Btn>
                 </div>
                 {lastEmailResult === false && (
                   <p style={{ fontSize: '12px', color: '#fca5a5', marginTop: '8px' }}>
                     The change saved, but the notification email could not be sent. Check SMTP settings.
                   </p>
+                )}
+              </div>
+            )}
+
+            {(
+              <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#F5D97A', marginBottom: '10px' }}>
+                  Order Audit History
+                </div>
+                {(selected.editAuditLog || []).length === 0 ? (
+                  <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>No recorded changes yet.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '9px', maxHeight: '280px', overflowY: 'auto' }}>
+                    {[...(selected.editAuditLog || [])].reverse().map((entry, index) => {
+                      const actor = entry.performedByName ||
+                        `${entry.performedBy?.firstName || ''} ${entry.performedBy?.lastName || ''}`.trim() ||
+                        entry.performedBy?.username || 'System';
+                      return (
+                        <div key={entry._id || index} style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px', background: 'rgba(255,255,255,0.03)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', color: '#fff', fontSize: '12px' }}>
+                            <strong>{String(entry.action || '').replaceAll('_', ' ')}</strong>
+                            <span>{entry.at ? new Date(entry.at).toLocaleString() : '—'}</span>
+                          </div>
+                          <div style={{ marginTop: '3px', color: 'rgba(255,255,255,0.55)', fontSize: '11px' }}>
+                            By {actor}{entry.performedByRole ? ` (${entry.performedByRole})` : ''}
+                          </div>
+                          {(entry.changes || []).map((change, changeIndex) => (
+                            <div key={`${change.field}-${changeIndex}`} style={{ marginTop: '7px', color: '#fff', fontSize: '12px' }}>
+                              <strong style={{ color: '#F5D97A' }}>{change.field}:</strong>{' '}
+                              <span style={{ color: '#fca5a5' }}>{change.from || '—'}</span>
+                              {' → '}
+                              <span style={{ color: '#86efac' }}>{change.to || '—'}</span>
+                            </div>
+                          ))}
+                          {entry.note && <div style={{ marginTop: '6px', color: 'rgba(255,255,255,0.65)', fontSize: '11px' }}>{entry.note}</div>}
+                          {entry.notificationSentAt && (
+                            <div style={{ marginTop: '6px', color: '#86efac', fontSize: '11px' }}>
+                              Update email sent {new Date(entry.notificationSentAt).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}
