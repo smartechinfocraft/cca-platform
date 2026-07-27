@@ -129,17 +129,110 @@ exports.toggleWhatsapp = async (req, res) => {
 // ─── PATCH /api/registrations/:id/edit ───────────────────────────────────────
 exports.superAdminEdit = async (req, res) => {
   try {
-    const { batches, students, adminNote } = req.body;
+    const { batches, students, adminNote, orderSelection } = req.body;
     const Batch = mongoose.model('Batch');
     const Parent = mongoose.model('Parent');
+    const Program = mongoose.model('Program');
 
     const reg = await getReg().findById(req.params.id).populate('programId', 'title');
     if (!reg) return res.status(404).json({ success: false, message: 'Registration not found' });
 
     const changes = [];
+    let notificationProgramName = reg.programId?.title || 'CCA Program';
+
+    // Program/month/schedule correction. This changes only the registration
+    // snapshot; it never retries, captures, refunds, or changes the payment.
+    if (orderSelection) {
+      const program = await Program.findById(orderSelection.programId)
+        .select('title scheduleDays monthOptions sessionsPerWeek').lean();
+      if (!program) {
+        return res.status(400).json({ success: false, message: 'Selected program was not found.' });
+      }
+      notificationProgramName = program.title;
+
+      const requestedMonth = orderSelection.selectedMonth;
+      const enabledMonths = (program.monthOptions || []).filter(option => option.isEnabled !== false);
+      let selectedMonth = null;
+      if (enabledMonths.length) {
+        selectedMonth = enabledMonths.find(option =>
+          String(option._id || '') === String(requestedMonth?._id || '') ||
+          (option.label && option.label === requestedMonth?.label)
+        );
+        if (!selectedMonth) {
+          return res.status(400).json({ success: false, message: 'Select a valid enabled month option.' });
+        }
+      }
+
+      const requestedDays = Array.isArray(orderSelection.scheduleDays) ? orderSelection.scheduleDays : [];
+      const programDays = program.scheduleDays || [];
+      const scheduleKey = item => [
+        item?.day || '', item?.startTime || '', item?.endTime || '', item?.groundAddress || '',
+      ].join('|');
+      const allowedDays = new Map(programDays.map(item => [scheduleKey(item), item]));
+      const selectedDays = requestedDays.map(item => allowedDays.get(scheduleKey(item))).filter(Boolean);
+      const sessionsPerWeek = Number(orderSelection.sessionsPerWeek) || selectedDays.length;
+      if (programDays.length && (
+        selectedDays.length !== requestedDays.length ||
+        selectedDays.length !== sessionsPerWeek ||
+        sessionsPerWeek < 1
+      )) {
+        return res.status(400).json({ success: false, message: 'Select a valid number of schedule days for this program.' });
+      }
+
+      let selectedBatch = null;
+      if (orderSelection.batchId && String(orderSelection.batchId) !== String(program._id)) {
+        selectedBatch = await Batch.findOne({ _id: orderSelection.batchId, program: program._id })
+          .select('title dayOfWeek startTime endTime').lean();
+        if (!selectedBatch) {
+          return res.status(400).json({ success: false, message: 'Selected batch does not belong to the selected program.' });
+        }
+      }
+
+      const oldItem = reg.orderItems?.[0];
+      const oldProgram = reg.programId?.title || '—';
+      const oldMonth = reg.selectedMonth?.label || oldItem?.selectedMonthLabel || '—';
+      const oldSchedule = oldItem?.selectedDays || '—';
+      const newMonth = selectedMonth?.label || '—';
+      const newSchedule = selectedDays.map(item =>
+        `${item.day || ''} ${item.startTime || ''}-${item.endTime || ''}${item.groundAddress ? ` @ ${item.groundAddress}` : ''}`.trim()
+      ).join(' | ') || '—';
+
+      if (oldProgram !== program.title) changes.push({ field: 'Program', from: oldProgram, to: program.title });
+      if (oldMonth !== newMonth) changes.push({ field: 'Month', from: oldMonth, to: newMonth });
+      if (oldSchedule !== newSchedule) changes.push({ field: 'Schedule', from: oldSchedule, to: newSchedule });
+      if (Number(oldItem?.sessionsPerWeek || 0) !== sessionsPerWeek) {
+        changes.push({ field: 'Sessions / Week', from: oldItem?.sessionsPerWeek || '—', to: sessionsPerWeek });
+      }
+
+      reg.programId = program._id;
+      reg.batches = selectedBatch ? [selectedBatch._id] : [];
+      reg.selectedMonth = selectedMonth ? {
+        label: selectedMonth.label,
+        startDate: selectedMonth.startDate,
+        endDate: selectedMonth.endDate,
+        weeks: selectedMonth.weeks,
+        price: selectedMonth.price,
+      } : undefined;
+      reg.selectedWeeklyBatches = [];
+
+      const batchName = selectedBatch?.title || `Program schedule (${programDays.length || 1} days available)`;
+      if (reg.orderItems?.length) {
+        reg.orderItems.forEach(item => {
+          item.programId = String(program._id);
+          item.programTitle = program.title;
+          item.batchId = String(selectedBatch?._id || program._id);
+          item.batchName = batchName;
+          item.selectedMonth = reg.selectedMonth;
+          item.selectedMonthLabel = selectedMonth?.label || '';
+          item.selectedDays = newSchedule === '—' ? '' : newSchedule;
+          item.sessionsPerWeek = sessionsPerWeek;
+        });
+      }
+      reg.markModified('orderItems');
+    }
 
     // ── Batch reassignment ──
-    if (Array.isArray(batches)) {
+    if (!orderSelection && Array.isArray(batches)) {
       const foundBatches = await Batch.find({ _id: { $in: batches } })
         .select('title dayOfWeek startTime endTime').lean();
       if (foundBatches.length !== batches.length) {
@@ -216,7 +309,7 @@ exports.superAdminEdit = async (req, res) => {
           parentName: `${parent.firstName} ${parent.lastName}`,
           registrationNumber: reg.registrationNumber,
           studentName,
-          programName: reg.programId?.title || 'CCA Program',
+          programName: notificationProgramName,
           changes,
         });
         emailSent = true;

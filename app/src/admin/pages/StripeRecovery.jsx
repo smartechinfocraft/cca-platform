@@ -5,6 +5,7 @@ import { PageHeader } from '../components/common/UI';
 
 const EMPTY = {
   gateway: 'Stripe', paymentIntentId: '', programId: '', batchId: '', sessionsPerWeek: '1',
+  monthLabel: '',
   parentName: '', email: '', phone: '', address: '', city: '', state: 'CA', zip: '',
   adminOrderNote: '',
 };
@@ -13,7 +14,9 @@ const EMPTY_STUDENT = { firstName: '', lastName: '', dob: '', gender: '', school
 export default function StripeRecovery() {
   const [form, setForm] = useState(EMPTY);
   const [programs, setPrograms] = useState([]);
+  const [programDetail, setProgramDetail] = useState(null);
   const [batches, setBatches] = useState([]);
+  const [selectedScheduleIndexes, setSelectedScheduleIndexes] = useState([]);
   const [students, setStudents] = useState([{ ...EMPTY_STUDENT }]);
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -34,12 +37,23 @@ export default function StripeRecovery() {
     String(item.program?._id || item.program || item.programId?._id || item.programId || '') === form.programId
   );
   const selectedBatch = availableBatches.find(item => item._id === form.batchId);
-  const maxBatchDays = Math.max(
+  const monthOptions = (selectedBatch?.monthOptions?.length ? selectedBatch.monthOptions : programDetail?.monthOptions || [])
+    .filter(option => option.isEnabled !== false);
+  const scheduleOptions = Array.isArray(programDetail?.scheduleDays) && programDetail.scheduleDays.length
+    ? programDetail.scheduleDays
+    : selectedBatch
+      ? [{
+          day: selectedBatch.dayOfWeek,
+          startTime: selectedBatch.startTime,
+          endTime: selectedBatch.endTime,
+          groundAddress: selectedBatch.groundLocationNote || selectedBatch.location?.address || '',
+        }]
+      : [];
+  const maxBatchDays = scheduleOptions.length || Math.max(
     1,
     Number(selectedBatch?.sessionsPerWeek || 0),
     availableBatches.length,
-    Number(selectedProgram?.sessionsPerWeek || 0),
-    Array.isArray(selectedProgram?.scheduleDays) ? selectedProgram.scheduleDays.length : 0
+    Number(selectedProgram?.sessionsPerWeek || 0)
   );
   const update = key => event => setForm(previous => ({ ...previous, [key]: event.target.value }));
   const updateStudent = (index, key, value) => setStudents(previous =>
@@ -49,11 +63,18 @@ export default function StripeRecovery() {
   const removeStudent = index => setStudents(previous => previous.filter((_, position) => position !== index));
   const selectProgram = async event => {
     const programId = event.target.value;
-    setForm(previous => ({ ...previous, programId, batchId: '', sessionsPerWeek: '1' }));
+    setForm(previous => ({ ...previous, programId, batchId: '', sessionsPerWeek: '1', monthLabel: '' }));
+    setSelectedScheduleIndexes([]);
+    setProgramDetail(null);
     if (!programId) return;
     try {
       const response = await programsAPI.getPublicDetail(programId);
-      const programBatches = response.data.data?.batches || [];
+      const detail = response.data.data;
+      const programBatches = detail?.batches || [];
+      setProgramDetail(detail);
+      if (programBatches.length === 1) {
+        setForm(previous => ({ ...previous, batchId: String(programBatches[0]._id) }));
+      }
       setBatches(previous => [
         ...previous.filter(batch => String(batch.program?._id || batch.program || '') !== programId),
         ...programBatches,
@@ -70,6 +91,10 @@ export default function StripeRecovery() {
     if (form.gateway === 'Stripe' && !form.paymentIntentId.trim().startsWith('pi_')) return toast.error('PaymentIntent must begin with pi_.');
     if (!form.paymentIntentId.trim()) return toast.error('Enter the payment reference.');
     if (!selectedProgram || !selectedBatch) return toast.error('Select a program and batch.');
+    if (monthOptions.length && !form.monthLabel) return toast.error('Select a month option.');
+    if (scheduleOptions.length && selectedScheduleIndexes.length !== Number(form.sessionsPerWeek)) {
+      return toast.error(`Select exactly ${form.sessionsPerWeek} schedule day(s).`);
+    }
     if (students.some(student => !student.firstName.trim() || !student.lastName.trim())) return toast.error('Every student needs a first and last name.');
     if (!form.adminOrderNote.trim()) return toast.error('Enter the incident and recovery reason.');
     if (!confirmed) return toast.error('Confirm that you reviewed the recovery details.');
@@ -86,6 +111,12 @@ export default function StripeRecovery() {
           _id: selectedBatch._id,
           title: selectedBatch.title || selectedBatch.name,
           sessionsPerWeek: Number(form.sessionsPerWeek) || 1,
+          selectedMonth: monthOptions.find(option => (option.label || option.name) === form.monthLabel),
+          days: selectedScheduleIndexes.map(index => scheduleOptions[index]?.day).filter(Boolean).join(' + '),
+          timing: selectedScheduleIndexes.map(index => {
+            const item = scheduleOptions[index];
+            return `${item?.day || ''} ${item?.startTime || ''}-${item?.endTime || ''}`.trim();
+          }).join(' | '),
         },
         students: students.map(student => ({
           ...student,
@@ -177,11 +208,24 @@ export default function StripeRecovery() {
             <Field label="Batch" required>
               <select value={form.batchId} onChange={update('batchId')} style={styles.input} disabled={!form.programId} required>
                 <option value="">Select batch</option>
-                {availableBatches.map(item => <option key={item._id} value={item._id}>{item.title || item.name}</option>)}
+                {availableBatches.map(item => (
+                  <option key={item._id} value={item._id}>
+                    {String(item._id) === form.programId
+                      ? `Program schedule (${scheduleOptions.length || item.sessionsPerWeek || 1} days available)`
+                      : (item.batchLabel || item.title || item.name)}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Number of batch days" required>
-              <select value={form.sessionsPerWeek} onChange={update('sessionsPerWeek')} style={styles.input}>
+              <select
+                value={form.sessionsPerWeek}
+                onChange={event => {
+                  update('sessionsPerWeek')(event);
+                  setSelectedScheduleIndexes(previous => previous.slice(0, Number(event.target.value)));
+                }}
+                style={styles.input}
+              >
                 {Array.from({ length: maxBatchDays }, (_, index) => index + 1).map(value => (
                   <option key={value} value={value}>
                     {frequencyLabel(value)}
@@ -190,6 +234,43 @@ export default function StripeRecovery() {
               </select>
             </Field>
           </div>
+          {monthOptions.length > 0 && (
+            <Field label="Month selection" required>
+              <select value={form.monthLabel} onChange={update('monthLabel')} style={styles.input} required>
+                <option value="">Select month option</option>
+                {monthOptions.map((option, index) => (
+                  <option key={option._id || option.label || index} value={option.label || option.name}>
+                    {option.label || option.name}{option.price != null ? ` — $${option.price}` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {scheduleOptions.length > 0 && (
+            <Field label={`Schedule days — select ${form.sessionsPerWeek}`} required>
+              <div style={styles.scheduleGrid}>
+                {scheduleOptions.map((option, index) => {
+                  const selected = selectedScheduleIndexes.includes(index);
+                  return (
+                    <button
+                      key={`${option.day}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedScheduleIndexes(previous => {
+                        if (previous.includes(index)) return previous.filter(value => value !== index);
+                        if (previous.length >= Number(form.sessionsPerWeek)) return previous;
+                        return [...previous, index];
+                      })}
+                      style={{ ...styles.scheduleCard, ...(selected ? styles.scheduleSelected : {}) }}
+                    >
+                      <strong>{option.day || `Schedule ${index + 1}`}</strong>
+                      <span>{option.startTime || 'Time TBD'} – {option.endTime || 'Time TBD'}</span>
+                      <small>{option.groundAddress || option.location?.address || 'Ground TBD'}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
         </Section>
 
         <Section title="Parent details">
@@ -293,5 +374,8 @@ const styles = {
   studentHeader: { display: 'flex', justifyContent: 'space-between', color: '#f5d97a', marginBottom: 10 },
   add: { border: '1px solid #d4af37', background: 'transparent', color: '#f5d97a', borderRadius: 7, padding: '8px 12px', cursor: 'pointer' },
   remove: { border: 0, background: 'transparent', color: '#fca5a5', cursor: 'pointer' },
+  scheduleGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 },
+  scheduleCard: { display: 'grid', gap: 4, textAlign: 'left', padding: 12, borderRadius: 8, border: '1px solid #475569', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer' },
+  scheduleSelected: { borderColor: '#d4af37', background: '#3b3215', color: '#f5d97a' },
   submit: { justifySelf: 'start', padding: '12px 20px', border: 0, borderRadius: 8, background: '#d4af37', color: '#0d1b0e', fontWeight: 800, cursor: 'pointer' },
 };

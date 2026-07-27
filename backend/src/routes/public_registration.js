@@ -475,9 +475,15 @@ router.post('/paypal/create-order', async (req, res) => {
         paypalOrderId: { $exists: false },
       });
       if (!pending) return res.status(404).json({ success: false, message: 'Pending PayPal registration was not found.' });
+      await pending.populate('programId', 'title');
       const order = await createOrder(pending.totalAmount, 'USD', {
         registrationId: pending._id,
         invoiceId: pending.registrationNumber,
+        description: [
+          pending.registrationNumber,
+          pending.programId?.title || 'CCA Program',
+          `${pending.students?.length || 0} student(s)`,
+        ].join(' | '),
       });
       if (!order.id) return res.status(502).json({ success: false, message: 'Could not start the PayPal payment.' });
       pending.paypalOrderId = order.id;
@@ -660,6 +666,9 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
     if (!pendingRegistration) {
       return res.status(404).json({ success: false, message: 'Pending Stripe registration was not found.' });
     }
+    const rawBatchIds = (pendingRegistration.batches || []).map(batch => String(batch._id || batch));
+    await pendingRegistration.populate('programId', 'title');
+    await pendingRegistration.populate('students', 'firstName lastName');
     const authenticatedParentId = resolveOptionalParentId(req);
     if (authenticatedParentId && String(pendingRegistration.parentId) !== String(authenticatedParentId)) {
       return res.status(403).json({ success: false, message: 'You are not authorized to pay this registration.' });
@@ -667,9 +676,25 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
     if (!pendingRegistration.totalAmount || pendingRegistration.totalAmount <= 0)
       return res.status(400).json({ success: false, message: 'This program has no payable price configured.' });
 
+    const metadataValue = value => String(value || '').slice(0, 500);
+    const orderItems = pendingRegistration.orderItems || [];
+    const selectedDays = [...new Set(orderItems.map(item => item.selectedDays).filter(Boolean))].join(' | ');
+    const frequencies = [...new Set(orderItems.map(item => item.sessionsPerWeek).filter(Boolean))].join(',');
     const intent = await createPaymentIntent(pendingRegistration.totalAmount, 'USD', {
       registrationId: pendingRegistration._id,
-      programId: pendingRegistration.programId,
+      registrationNumber: pendingRegistration.registrationNumber,
+      programId: pendingRegistration.programId?._id || pendingRegistration.programId,
+      programName: metadataValue(pendingRegistration.programId?.title),
+      studentCount: pendingRegistration.students?.length || 0,
+      studentIds: metadataValue((pendingRegistration.students || []).map(student => student._id).join(',')),
+      studentNames: metadataValue((pendingRegistration.students || []).map(student => `${student.firstName} ${student.lastName}`).join(', ')),
+      batchIds: metadataValue(rawBatchIds.join(',')),
+      batchNames: metadataValue(orderItems.map(item => item.batchName).filter(Boolean).join(', ')),
+      weeklyBatchIds: metadataValue((pendingRegistration.selectedWeeklyBatches || []).map(batch => batch.batchId).join(',')),
+      weeklyBatchNames: metadataValue((pendingRegistration.selectedWeeklyBatches || []).map(batch => batch.label).filter(Boolean).join(', ')),
+      selectedDays: metadataValue(selectedDays),
+      sessionsPerWeek: metadataValue(frequencies),
+      registrationMode: pendingRegistration.registrationMode,
     });
     pendingRegistration.transactionId = intent.id;
     pendingRegistration.paymentAuditLog.push({ event: 'STRIPE_INTENT_CREATED', note: intent.id });

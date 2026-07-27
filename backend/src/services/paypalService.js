@@ -45,6 +45,7 @@ async function createOrder(amount, currency = 'USD', metadata = {}) {
     purchase_units: [{
       ...(metadata.registrationId ? { custom_id: String(metadata.registrationId) } : {}),
       ...(metadata.invoiceId ? { invoice_id: String(metadata.invoiceId) } : {}),
+      ...(metadata.description ? { description: String(metadata.description).slice(0, 127) } : {}),
       amount: { currency_code: currency, value: parseFloat(amount).toFixed(2) },
     }],
   });

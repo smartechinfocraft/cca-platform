@@ -12,6 +12,10 @@ const STATUSES = ['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','R
 
 const money = (value) => `$${(Number(value) || 0).toFixed(2)}`;
 const ACADEMY_NAME = 'California Cricket Academy';
+const frequencyLabel = (value) => {
+  const labels = ['Once a week', 'Twice a week', 'Three times a week'];
+  return labels[value - 1] || `${value} times a week`;
+};
 
 async function loadXLSX() {
   if (window.XLSX) return window.XLSX;
@@ -594,7 +598,16 @@ export default function Registrations() {
   const [reassigning, setReassigning] = useState(false);
   const [lastEmailResult, setLastEmailResult] = useState(null);
   const [programCatalog, setProgramCatalog] = useState([]);
+  const [orderProgramDetail, setOrderProgramDetail] = useState(null);
+  const [orderEdit, setOrderEdit] = useState({
+    programId: '', batchId: '', monthId: '', sessionsPerWeek: 1, scheduleIndexes: [],
+  });
   const detailRequestRef = useRef(0);
+
+  const editMonthOptions = (orderProgramDetail?.monthOptions || []).filter(option => option.isEnabled !== false);
+  const editScheduleOptions = orderProgramDetail?.scheduleDays || [];
+  const editBatches = orderProgramDetail?.batches || [];
+  const editMaxFrequency = Math.max(1, editScheduleOptions.length || orderProgramDetail?.sessionsPerWeek || 1);
 
   const load = async () => {
     setLoading(true);
@@ -636,6 +649,45 @@ export default function Registrations() {
     return hydrated;
   };
 
+  const loadEditableProgram = async (programId, registration = selected) => {
+    if (!programId) {
+      setOrderProgramDetail(null);
+      return;
+    }
+    const response = await programsAPI.getPublicDetail(programId);
+    const detail = response.data.data;
+    const item = registration?.orderItems?.[0] || {};
+    const existingSchedule = String(item.selectedDays || '');
+    const scheduleIndexes = (detail.scheduleDays || [])
+      .map((slot, index) => (
+        existingSchedule.includes(slot.day) &&
+        (!slot.startTime || existingSchedule.includes(slot.startTime)) ? index : -1
+      ))
+      .filter(index => index >= 0);
+    const requestedFrequency = Number(item.sessionsPerWeek) || scheduleIndexes.length || 1;
+    const effectiveIndexes = scheduleIndexes.length
+      ? scheduleIndexes.slice(0, requestedFrequency)
+      : (detail.scheduleDays || []).map((_, index) => index).slice(0, requestedFrequency);
+    const month = item.selectedMonth || registration?.selectedMonth || {};
+    const batches = detail.batches || [];
+
+    setOrderProgramDetail(detail);
+    setOrderEdit({
+      programId: String(programId),
+      batchId: String(
+        batches.find(batch => String(batch._id) === String(item.batchId))?._id ||
+        (batches.length === 1 ? batches[0]._id : '')
+      ),
+      monthId: String(
+        (detail.monthOptions || []).find(option =>
+          String(option._id || '') === String(month._id || '') || option.label === month.label
+        )?._id || ''
+      ),
+      sessionsPerWeek: Math.min(requestedFrequency, Math.max(1, (detail.scheduleDays || []).length || requestedFrequency)),
+      scheduleIndexes: effectiveIndexes,
+    });
+  };
+
   const openEdit = async (row) => {
     const requestId = detailRequestRef.current + 1;
     detailRequestRef.current = requestId;
@@ -646,13 +698,20 @@ export default function Registrations() {
       batchesAPI.getAll({ program: initial.programId._id, active: 'true' })
         .then(res => setAvailableBatches(res.data.data || []))
         .catch(() => setAvailableBatches([]));
+      loadEditableProgram(initial.programId._id, initial).catch(() => {
+        setOrderProgramDetail(null);
+        toast.error('Failed to load editable program options');
+      });
     }
 
     setLoadingDetails(true);
     try {
       const res = await registrationsAPI.getOne(row._id);
       if (detailRequestRef.current === requestId) {
-        hydrateSelectedRegistration(res.data.data);
+        const hydrated = hydrateSelectedRegistration(res.data.data);
+        if (isSuperAdmin && hydrated.programId?._id) {
+          loadEditableProgram(hydrated.programId._id, hydrated).catch(() => {});
+        }
       }
     } catch (e) {
       if (detailRequestRef.current === requestId) {
@@ -669,6 +728,7 @@ export default function Registrations() {
     detailRequestRef.current += 1;
     setLoadingDetails(false);
     setSelected(null);
+    setOrderProgramDetail(null);
   };
 
   const toggleBatchSelection = (batchId) => {
@@ -690,6 +750,41 @@ export default function Registrations() {
       load();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Batch reassignment failed');
+    } finally {
+      setReassigning(false);
+    }
+  };
+
+  const handleSaveOrderSelection = async () => {
+    const selectedMonth = editMonthOptions.find(option => String(option._id) === orderEdit.monthId);
+    if (!orderEdit.programId || !orderEdit.batchId) return toast.error('Select a program and batch.');
+    if (editMonthOptions.length && !selectedMonth) return toast.error('Select a month option.');
+    if (editScheduleOptions.length && orderEdit.scheduleIndexes.length !== Number(orderEdit.sessionsPerWeek)) {
+      return toast.error(`Select exactly ${orderEdit.sessionsPerWeek} schedule day(s).`);
+    }
+
+    setReassigning(true);
+    try {
+      const res = await registrationsAPI.superAdminEdit(selected._id, {
+        orderSelection: {
+          programId: orderEdit.programId,
+          batchId: orderEdit.batchId,
+          selectedMonth,
+          sessionsPerWeek: Number(orderEdit.sessionsPerWeek),
+          scheduleDays: orderEdit.scheduleIndexes.map(index => editScheduleOptions[index]),
+        },
+      });
+      if (res.data.changes?.length) {
+        toast.success(`Order updated — ${res.data.emailSent ? 'parent notified by email' : 'parent email could not be sent'}`);
+        setLastEmailResult(res.data.emailSent);
+        const refreshed = await registrationsAPI.getOne(selected._id);
+        hydrateSelectedRegistration(refreshed.data.data);
+        load();
+      } else {
+        toast('No order selection change detected.', { icon: 'ℹ️' });
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Order update failed');
     } finally {
       setReassigning(false);
     }
@@ -1183,6 +1278,131 @@ export default function Registrations() {
             </FormField>
 
             {isSuperAdmin && (
+              <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#F5D97A', marginBottom: '8px' }}>
+                  🔐 Super Admin — Edit Order Selection
+                </div>
+                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '12px' }}>
+                  Update the program, month, frequency, and schedule. This does not alter or retry the original payment.
+                </p>
+                <FormField label="Program" required>
+                  <Select
+                    value={orderEdit.programId}
+                    onChange={async event => {
+                      const programId = event.target.value;
+                      setOrderEdit({ programId, batchId: '', monthId: '', sessionsPerWeek: 1, scheduleIndexes: [] });
+                      try {
+                        await loadEditableProgram(programId, { orderItems: [], selectedMonth: null });
+                      } catch {
+                        setOrderProgramDetail(null);
+                        toast.error('Failed to load program options');
+                      }
+                    }}
+                  >
+                    <option value="">Select program</option>
+                    {programCatalog.filter(program => program.isActive !== false).map(program => (
+                      <option key={program._id} value={program._id}>{program.title}</option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Batch" required>
+                  <Select
+                    value={orderEdit.batchId}
+                    onChange={event => setOrderEdit(previous => ({ ...previous, batchId: event.target.value }))}
+                    disabled={!orderProgramDetail}
+                  >
+                    <option value="">Select batch</option>
+                    {editBatches.map(batch => (
+                      <option key={batch._id} value={batch._id}>
+                        {String(batch._id) === orderEdit.programId
+                          ? `Program schedule (${editScheduleOptions.length || batch.sessionsPerWeek || 1} days available)`
+                          : (batch.batchLabel || batch.title || batch.name)}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                {editMonthOptions.length > 0 && (
+                  <FormField label="Month" required>
+                    <Select
+                      value={orderEdit.monthId}
+                      onChange={event => setOrderEdit(previous => ({ ...previous, monthId: event.target.value }))}
+                    >
+                      <option value="">Select month option</option>
+                      {editMonthOptions.map(option => (
+                        <option key={option._id} value={option._id}>
+                          {option.label}{option.price != null ? ` — ${money(option.price)}` : ''}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                )}
+                {editScheduleOptions.length > 0 && (
+                  <>
+                    <FormField label="Number of batch days" required>
+                      <Select
+                        value={orderEdit.sessionsPerWeek}
+                        onChange={event => {
+                          const value = Number(event.target.value);
+                          setOrderEdit(previous => ({
+                            ...previous,
+                            sessionsPerWeek: value,
+                            scheduleIndexes: previous.scheduleIndexes.slice(0, value),
+                          }));
+                        }}
+                      >
+                        {Array.from({ length: editMaxFrequency }, (_, index) => index + 1).map(value => (
+                          <option key={value} value={value}>{frequencyLabel(value)}</option>
+                        ))}
+                      </Select>
+                    </FormField>
+                    <FormField label={`Schedule — select ${orderEdit.sessionsPerWeek}`} required>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+                        {editScheduleOptions.map((slot, index) => {
+                          const active = orderEdit.scheduleIndexes.includes(index);
+                          return (
+                            <button
+                              type="button"
+                              key={`${slot.day}-${index}`}
+                              onClick={() => setOrderEdit(previous => ({
+                                ...previous,
+                                scheduleIndexes: active
+                                  ? previous.scheduleIndexes.filter(value => value !== index)
+                                  : previous.scheduleIndexes.length < Number(previous.sessionsPerWeek)
+                                    ? [...previous.scheduleIndexes, index]
+                                    : previous.scheduleIndexes,
+                              }))}
+                              style={{
+                                display: 'grid', gap: '3px', padding: '10px', textAlign: 'left',
+                                borderRadius: '8px', cursor: 'pointer',
+                                border: `1px solid ${active ? '#D4AF37' : 'rgba(255,255,255,0.18)'}`,
+                                background: active ? 'rgba(212,175,55,0.15)' : 'rgba(255,255,255,0.035)',
+                                color: active ? '#F5D97A' : '#fff',
+                              }}
+                            >
+                              <strong>{slot.day}</strong>
+                              <span>{slot.startTime || 'TBD'} – {slot.endTime || 'TBD'}</span>
+                              <small>{slot.groundAddress || 'Ground TBD'}</small>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </FormField>
+                  </>
+                )}
+                <div style={{ marginTop: '10px' }}>
+                  <Btn small variant="ghost" onClick={handleSaveOrderSelection} disabled={reassigning || !orderProgramDetail}>
+                    {reassigning ? 'Saving & emailing parent…' : 'Save Order Selection'}
+                  </Btn>
+                </div>
+                {lastEmailResult === false && (
+                  <p style={{ fontSize: '12px', color: '#fca5a5', marginTop: '8px' }}>
+                    The change saved, but the notification email could not be sent. Check SMTP settings.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {false && isSuperAdmin && (
               <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: '#F5D97A', marginBottom: '8px' }}>
                   🔐 Super Admin — Reassign Batch
