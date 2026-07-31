@@ -10,7 +10,7 @@ const REGISTRATION_ADMIN_TO = (process.env.REGISTRATION_ADMIN_TO || process.env.
   .split(',')
   .map(email => email.trim()) 
   .filter(Boolean);
-const REGISTRATION_ADMIN_CC = (process.env.REGISTRATION_ADMIN_CC || 'buchhemant@yahoo.com,kinjalbuch@yahoo.com')
+const REGISTRATION_ADMIN_CC = (process.env.REGISTRATION_ADMIN_CC || 'buchhemant@yahoo.com')
   .split(',')
   .map(email => email.trim())
   .filter(Boolean);
