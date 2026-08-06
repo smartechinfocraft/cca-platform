@@ -252,6 +252,7 @@ export default function ProgramForm() {
   const [saving,      setSaving]      = useState(false);
   const [loading,     setLoading]     = useState(isEdit);
   const [slugPreview, setSlugPreview] = useState('');
+  const [titleManuallyEdited, setTitleManuallyEdited] = useState(isEdit);
 
   // Master data
   const [categories, setCategories] = useState([]);
@@ -320,8 +321,8 @@ export default function ProgramForm() {
   // ── Auto-generate title ───────────────────────────────────
   useEffect(() => {
     const auto = buildAutoTitle(form.ageGroups, form.skillLevels, form.cities);
-    if (auto) setForm(prev => ({ ...prev, title: auto }));
-  }, [form.ageGroups, form.skillLevels, form.cities]);
+    if (auto && !titleManuallyEdited) setForm(prev => ({ ...prev, title: auto }));
+  }, [form.ageGroups, form.skillLevels, form.cities, titleManuallyEdited]);
 
   // ── Auto-generate slug preview from category ──────────────
   useEffect(() => {
@@ -571,6 +572,7 @@ export default function ProgramForm() {
 
   // ─── Submit ───────────────────────────────────────────────
   const handleSave = async () => {
+    if (!form.title.trim()) { toast.error('Program Title is required'); return; }
     if (!form.categoryId) { toast.error('Category (Season) is required'); return; }
     if (!form.price)      { toast.error('Price is required'); return; }
     if (form.batchType === 'WEEKLY') {
@@ -589,7 +591,7 @@ export default function ProgramForm() {
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append('title',               form.title);
+      fd.append('title',               form.title.trim());
       fd.append('category',            form.categoryId);
       if (form.locationId)             fd.append('location', form.locationId);
       fd.append('batchType',           form.batchType);
@@ -682,22 +684,18 @@ export default function ProgramForm() {
 
       {/* ── SECTION 2: Title & Identification ── */}
       <Section title="📋 Program Title & Identification">
-        {/* Auto Title display */}
-        <FormField label="Program Title (auto-generated)">
-          <div style={{
-            padding: '10px 14px',
-            background: 'rgba(212,175,55,0.08)',
-            border: '1px solid rgba(212,175,55,0.3)',
-            borderRadius: '8px',
-            color: form.title ? '#F5D97A' : 'rgba(255,255,255,0.3)',
-            fontSize: '14px',
-            fontWeight: form.title ? '600' : '400',
-            minHeight: '42px', display: 'flex', alignItems: 'center',
-          }}>
-            {form.title || '← Select Age Groups, Levels and Cities below to generate title'}
-          </div>
+        <FormField label="Program Title (auto-generated, editable)" required>
+          <Input
+            value={form.title}
+            onChange={e => {
+              setTitleManuallyEdited(true);
+              setForm(prev => ({ ...prev, title: e.target.value }));
+            }}
+            placeholder="Select Age Groups, Levels and Cities below, or enter a custom title"
+            style={{ color: form.title ? '#F5D97A' : '#fff', fontWeight: form.title ? '600' : '400' }}
+          />
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '5px' }}>
-            Format: U8/U10 - Beginner Level 1/Level 2 - Dublin/Fremont
+            Default format: U8/U10 - Beginner Level 1/Level 2 - Dublin/Fremont. You can replace it with any custom title.
           </div>
         </FormField>
 
