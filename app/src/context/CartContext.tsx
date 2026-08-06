@@ -55,6 +55,7 @@ interface CartContextValue {
   couponDiscount: number;
   addItem: (item: Omit<CartItem, "cartId">) => void;
   upsertItem: (item: Omit<CartItem, "cartId">) => void;
+  replaceItem: (cartId: string, item: Omit<CartItem, "cartId">) => void;
   removeItem: (cartId: string) => void;
   clearCart: () => void;
   updateStudents: (cartId: string, students: CartStudent[]) => void;
@@ -166,6 +167,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const replaceItem = (cartId: string, item: Omit<CartItem, "cartId">) => {
+    setItems((prev) => {
+      const next = prev.map((existing) => existing.cartId === cartId ? { ...item, cartId } : existing);
+      persist(activeKeyRef.current, next);
+      return next;
+    });
+  };
+
   const clearCart = () => {
     setItems([]);
     setCouponState(null);
@@ -196,7 +205,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     <CartContext.Provider
       value={{
         items, coupon, couponDiscount,
-        addItem, upsertItem, removeItem, clearCart, updateStudents,
+        addItem, upsertItem, replaceItem, removeItem, clearCart, updateStudents,
         setCoupon, setCouponDiscount,
         itemCount, subtotal, grandTotal,
       }}

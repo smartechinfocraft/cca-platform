@@ -238,7 +238,7 @@ function Navbar() {
           <div className="hidden lg:flex items-center gap-3">
             {/* Cart Icon */}
             <button
-              onClick={() => navigate("/cart")}
+              onClick={() => navigate("/review-order")}
               className="relative flex items-center justify-center w-10 h-10 rounded-full transition hover:bg-[var(--pitch-soft)]"
               style={{ border: "1px solid var(--pitch-deep)" }}
               aria-label="View cart"
@@ -355,7 +355,7 @@ function Navbar() {
           <div className="pt-3 mt-3 space-y-2" style={{ borderTop: "1px solid var(--pitch-deep)" }}>
             {/* Cart */}
             <button
-              onClick={() => { navigate("/cart"); setOpen(false); }}
+              onClick={() => { navigate("/review-order"); setOpen(false); }}
               className="w-full py-3 rounded-full text-sm font-semibold flex items-center justify-center gap-2 transition"
               style={{ border: "1px solid var(--pitch-deep)", color: "var(--outfield)" }}
             >

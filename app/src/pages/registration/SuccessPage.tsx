@@ -95,7 +95,7 @@ function SuccessPage() {
     doc.setFontSize(9.5);
     doc.setTextColor(INK_LIGHT);
     doc.text("Youth Training Programs", marginX + 50, 62);
-    doc.text("10307 Bret Ave, Cupertino, CA 95014   ·  calcricket_academy@yahoo.com", marginX + 50, 76);
+    doc.text("California, USA   ·  calcricket_academy@yahoo.com", marginX + 50, 76);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);

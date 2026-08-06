@@ -4,6 +4,7 @@
 //  students covered, and a one-click "Download Invoice" PDF.
 // ============================================================
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   HiOutlineArrowDownTray,
   HiOutlineReceiptPercent,
@@ -209,14 +210,24 @@ function PurchaseHistory() {
                   )}
                 </div>
 
-                <button
-                  onClick={() => handleDownloadInvoice(reg._id)}
-                  disabled={downloadingId === reg._id}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-[#A33B2B] hover:text-[#0F172A] transition disabled:opacity-50"
-                >
-                  <HiOutlineArrowDownTray className="h-4 w-4" />
-                  {downloadingId === reg._id ? "Preparing..." : "Download Invoice"}
-                </button>
+                {reg.paymentStatus === "SUCCESS" && (
+                  <button
+                    onClick={() => handleDownloadInvoice(reg._id)}
+                    disabled={downloadingId === reg._id}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-[#A33B2B] hover:text-[#0F172A] transition disabled:opacity-50"
+                  >
+                    <HiOutlineArrowDownTray className="h-4 w-4" />
+                    {downloadingId === reg._id ? "Preparing..." : "Download Invoice"}
+                  </button>
+                )}
+                {["PAYPAL", "STRIPE"].includes(reg.paymentMethod) && reg.paymentStatus !== "SUCCESS" && !["CONFIRMED", "PAID", "CANCELLED", "REFUNDED"].includes(reg.status) && (
+                  <Link
+                    to={`/dashboard/purchases/${reg._id}/pay`}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#A33B2B] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#843025]"
+                  >
+                    <HiOutlineCreditCard className="h-4 w-4" /> Finish Payment
+                  </Link>
+                )}
               </div>
             </div>
           ))}

@@ -61,7 +61,7 @@ function ReviewOrder() {
     setCouponDiscount,
   } = useRegistration();
   const { user } = useAuth();
-  const { upsertItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
+  const { items, upsertItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
   const cartSyncedRef = useRef(false);
 
   const [editingBilling, setEditingBilling] = useState(false);
@@ -142,43 +142,27 @@ function ReviewOrder() {
     () => getEffectiveBatchFee(selectedBatch as any, selectedProgram?.basePrice ?? 0)
   );
   const perStudentFee = getEffectiveBatchFee(selectedBatch as any, selectedProgram?.basePrice ?? 0);
-  const subtotal = studentFees.reduce((sum, fee) => sum + fee, 0);
+  const singleProgramSubtotal = studentFees.reduce((sum, fee) => sum + fee, 0);
+  const subtotal = items.length > 0
+    ? items.reduce((sum, item) => sum + item.fee * item.students.length, 0)
+    : singleProgramSubtotal;
   const discount = couponDiscount;
   const grandTotal = Math.max(0, subtotal - discount);
   const reviewCartItems = useMemo(() => {
-    if (!selectedProgram || !selectedBatch) return [];
-    const selectedDays = selectedBatch.days ?? selectedBatch.timing ?? "";
-    const selectedMonthOption = (selectedBatch as any).selectedMonth;
-    const selectedWeeklyBatches = (selectedBatch as any).selectedWeeklyBatches;
-    const weeklyBatchIds = Array.isArray(selectedWeeklyBatches)
-      ? selectedWeeklyBatches.map((batch: any) => batch._id).filter(Boolean)
-      : [];
-    const cartStudents = students
-      .filter((student) => student.firstName.trim() && student.lastName.trim())
-      .map((student) => ({
-        firstName: student.firstName,
-        lastName: student.lastName,
-        dob: student.dob,
-        gender: student.gender,
-        schoolName: student.schoolName,
-        medicalNotes: student.medicalNotes,
-      }));
-
-    return [{
-      programId: selectedProgram._id,
-      programTitle: selectedProgram.title,
-      batchId: selectedBatch._id ?? selectedBatch.name ?? selectedProgram._id,
-      batchName: selectedBatch.name,
-      studentCount: cartStudents.length || students.length || 1,
-      sessionsPerWeek: Math.max(selectedBatch.sessionsPerWeek ?? 1, splitSelectedDays(selectedDays).length || 1),
-      selectedDays,
-      selectedMonth: selectedMonthOption ?? { label: selectedBatch.name },
-      selectedMonthLabel: selectedMonthOption?.label ?? "",
-      fee: perStudentFee,
-      weeklyBatchIds,
-      students: cartStudents,
-    }];
-  }, [perStudentFee, selectedBatch, selectedProgram, students]);
+    return items.map((item) => ({
+      programId: item.programId,
+      programTitle: item.programTitle,
+      batchId: item.batchId,
+      batchName: item.batchName,
+      studentCount: item.students.length || 1,
+      sessionsPerWeek: item.sessionsPerWeek,
+      selectedDays: item.selectedDays,
+      selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth },
+      selectedMonthLabel: item.selectedMonth,
+      fee: item.fee,
+      students: item.students,
+    }));
+  }, [items]);
 
   const billingValid =
     parentDetails.parentName.trim() &&
@@ -225,9 +209,8 @@ function ReviewOrder() {
     navigate("/cart");
   };
 
-  const handleEditProgram = () => {
-    if (!selectedProgram?._id) return;
-    navigate(`/register-program/${selectedProgram._id}?editProgram=true`);
+  const handleEditProgram = (programId: string, cartId: string) => {
+    navigate(`/register-program/${programId}?editProgram=true&cartId=${encodeURIComponent(cartId)}`);
   };
 
   const clearAppliedCoupon = () => {
@@ -381,13 +364,14 @@ function ReviewOrder() {
         <section className="max-w-7xl mx-auto px-6 pb-16">
           <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-6">
-              {/* Program & Batch */}
-              <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
+              {/* Every program currently in the cart */}
+              {items.map((item, programIndex) => (
+              <div key={item.cartId} className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
                 <div className="flex items-center justify-between gap-4 mb-4">
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-slate-500">Program Selected</p>
+                    <p className="text-xs uppercase tracking-widest text-slate-500">Program {programIndex + 1}</p>
                     <h2 className="mt-1 text-xl font-bold text-[#0F172A]">
-                      {selectedProgram?.title ?? "—"}
+                      {item.programTitle}
                     </h2>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -396,24 +380,19 @@ function ReviewOrder() {
                     </span>
                     <button
                       type="button"
-                      onClick={handleEditProgram}
-                      disabled={!selectedProgram?._id}
+                      onClick={() => handleEditProgram(item.programId, item.cartId)}
                       className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-[var(--gold)] hover:text-[var(--gold)] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <HiOutlinePencilSquare className="h-3.5 w-3.5" /> Edit
                     </button>
                   </div>
                 </div>
-                {selectedProgram?.shortDescription && (
-                  <p className="text-sm text-slate-500">{selectedProgram.shortDescription}</p>
-                )}
-
-                {selectedBatch && (
+                {item.batchId && (
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs uppercase tracking-widest text-slate-500">Selected Batch</p>
-                    <p className="mt-1 text-base font-bold text-[#0F172A]">{selectedBatch.name}</p>
+                    <p className="mt-1 text-base font-bold text-[#0F172A]">{item.batchName}</p>
                     {(() => {
-                      const month = (selectedBatch as any).selectedMonth;
+                      const month = item.selectedMonthOption;
                       if (!month?.label) return null;
                       const dateRange = fmtMonthDateRange(month.startDate, month.endDate, month.weeks);
                       return (
@@ -425,7 +404,7 @@ function ReviewOrder() {
                     })()}
                     <p className="mt-1 text-sm text-slate-500">
                       <ul className="mt-1 space-y-1 list-none">
-                        {(selectedBatch.days || selectedBatch.timing || "")
+                        {(item.selectedDays || "")
                           .split(/\s*\+\s*|\s*\|\s*/)
                           .filter((d: string, i: number, arr: string[]) => d.trim() && arr.indexOf(d.trim()) === i)
                           .map((day: string, i: number) => (
@@ -436,10 +415,20 @@ function ReviewOrder() {
                           ))}
                       </ul>
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--gold)]">${perStudentFee} </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.students.map((student, index) => (
+                        <span key={index} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                          {student.firstName} {student.lastName}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-[var(--gold)]">
+                      ${item.fee.toFixed(2)} per student · ${(item.fee * item.students.length).toFixed(2)} total
+                    </p>
                   </div>
                 )}
               </div>
+              ))}
 
               {/* Students List */}
               <div className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-200/70">
@@ -668,31 +657,15 @@ function ReviewOrder() {
                 <h2 className="mt-2 text-lg font-bold text-[#0F172A]">Total Amount</h2>
 
                 <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
-                  {/* Show individual student fees when batches differ, otherwise the simple ×N layout */}
-                  {students.length === 1 ? (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Fee per student</span>
-                        <span className="font-semibold text-[#0F172A]">${studentFees[0].toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Students</span>
-                        <span className="font-semibold text-[#0F172A]">× 1</span>
-                      </div>
-                    </>
-                  ) : (
-                    students.map((s, i) => {
-                      const fee = studentFees[i];
-                      const batchName = selectedBatch?.name ?? "—";
-                      const label = `${s.firstName || `Student ${i + 1}`} (${batchName})`;
-                      return (
-                        <div key={i} className="flex justify-between text-sm">
-                          <span className="text-slate-600 truncate max-w-[60%]">{label}</span>
-                          <span className="font-semibold text-[#0F172A]">${fee.toFixed(2)}</span>
-                        </div>
-                      );
-                    })
-                  )}
+                  {items.map((item) => (
+                    <div key={item.cartId} className="flex items-start justify-between gap-3 text-sm">
+                      <span className="text-slate-600">
+                        {item.programTitle}
+                        <span className="block text-xs text-slate-400">{item.batchName} · {item.students.length} student{item.students.length === 1 ? "" : "s"}</span>
+                      </span>
+                      <span className="shrink-0 font-semibold text-[#0F172A]">${(item.fee * item.students.length).toFixed(2)}</span>
+                    </div>
+                  ))}
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Subtotal</span>
                     <span className="font-semibold text-[#0F172A]">${subtotal.toFixed(2)}</span>

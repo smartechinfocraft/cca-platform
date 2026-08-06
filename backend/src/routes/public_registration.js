@@ -1661,6 +1661,114 @@ router.get('/parent/purchases/:id', parentAuth, async (req, res) => {
   }
 });
 
+// Start a new gateway attempt for an existing order. All enrollment and
+// pricing data comes from the stored Registration; the client can only pay it.
+router.post('/parent/purchases/:id/retry-payment/start', parentAuth, async (req, res) => {
+  try {
+    const Registration = mongoose.model('Registration');
+    const registration = await Registration.findOne({ _id: req.params.id, parentId: req.parent.id });
+    if (!registration) return res.status(404).json({ success: false, message: 'Registration not found.' });
+    if (!['PAYPAL', 'STRIPE'].includes(registration.paymentMethod)) {
+      return res.status(400).json({ success: false, message: 'Only PayPal or Stripe payments can be retried online.' });
+    }
+    if (registration.paymentStatus === 'SUCCESS' || ['CONFIRMED', 'PAID', 'CANCELLED', 'REFUNDED'].includes(registration.status)) {
+      return res.status(409).json({ success: false, message: 'This registration is not eligible for another payment attempt.' });
+    }
+    if (!registration.totalAmount || registration.totalAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'This registration has no payable balance.' });
+    }
+
+    if (registration.paymentMethod === 'PAYPAL') {
+      const order = await createOrder(registration.totalAmount, 'USD', {
+        registrationId: registration._id,
+        invoiceId: `${registration.registrationNumber}-${Date.now()}`,
+        description: `${registration.registrationNumber} | CCA registration payment retry`,
+      });
+      if (!order.id) return res.status(502).json({ success: false, message: 'Could not start the PayPal payment.' });
+      registration.paypalOrderId = order.id;
+      registration.paymentStatus = 'PENDING';
+      registration.paymentAuditLog.push({ event: 'PAYMENT_RETRY_STARTED', note: `PAYPAL ${order.id}` });
+      await registration.save();
+      return res.json({ success: true, gateway: 'PAYPAL', orderID: order.id, amount: registration.totalAmount, currency: 'USD' });
+    }
+
+    let intent = null;
+    if (registration.transactionId?.startsWith('pi_')) {
+      const priorIntent = await getPaymentIntent(registration.transactionId);
+      if (priorIntent.status === 'succeeded') {
+        await confirmStripeRegistration({ registrationId: registration._id, intent: priorIntent, auditEvent: 'PAYMENT_VERIFIED', auditNote: 'STRIPE RETRY RECOVERY' });
+        return res.json({ success: true, gateway: 'STRIPE', alreadyCompleted: true });
+      }
+      if (priorIntent.status === 'processing') {
+        return res.status(409).json({ success: false, message: 'Your previous card payment is still processing. Please check again shortly.' });
+      }
+      if (priorIntent.status !== 'canceled' && priorIntent.client_secret) intent = priorIntent;
+    }
+    if (!intent) {
+      intent = await createPaymentIntent(registration.totalAmount, 'USD', {
+        registrationId: registration._id,
+        registrationNumber: registration.registrationNumber,
+        paymentRetry: 'true',
+      });
+      registration.transactionId = intent.id;
+    }
+    registration.paymentStatus = 'PENDING';
+    registration.paymentAuditLog.push({ event: 'PAYMENT_RETRY_STARTED', note: `STRIPE ${intent.id}` });
+    await registration.save();
+    return res.json({
+      success: true,
+      gateway: 'STRIPE',
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      amount: registration.totalAmount,
+      currency: 'USD',
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+    });
+  } catch (err) {
+    sendPaymentError(res, err, 'Could not start the payment retry.', 'parent/retry-payment/start');
+  }
+});
+
+router.post('/parent/purchases/:id/retry-payment/paypal/capture', parentAuth, async (req, res) => {
+  try {
+    const Registration = mongoose.model('Registration');
+    const registration = await Registration.findOne({
+      _id: req.params.id,
+      parentId: req.parent.id,
+      paymentMethod: 'PAYPAL',
+      paymentStatus: { $ne: 'SUCCESS' },
+      paypalOrderId: req.body?.orderID,
+    });
+    if (!registration) return res.status(404).json({ success: false, message: 'Matching pending PayPal payment was not found.' });
+    const capturedOrder = await captureOrder(req.body.orderID);
+    if (capturedOrder.status !== 'COMPLETED') return res.status(400).json({ success: false, message: 'Payment was not completed.' });
+    const captureId = capturedOrder.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+    if (!captureId) return res.status(502).json({ success: false, message: 'PayPal did not return a capture ID.' });
+    const capture = await getCaptureDetails(captureId);
+    const completed = await confirmPayPalRegistration({ registrationId: registration._id, capture, auditEvent: 'PAYMENT_RETRY_VERIFIED', auditNote: 'PAYPAL' });
+    return res.json({ success: true, registrationId: completed._id, paymentStatus: completed.paymentStatus });
+  } catch (err) {
+    sendPaymentError(res, err, 'Could not complete the PayPal payment retry.', 'parent/retry-payment/paypal/capture');
+  }
+});
+
+router.post('/parent/purchases/:id/retry-payment/stripe/finalize', parentAuth, async (req, res) => {
+  try {
+    const Registration = mongoose.model('Registration');
+    const registration = await Registration.findOne({ _id: req.params.id, parentId: req.parent.id, paymentMethod: 'STRIPE' });
+    if (!registration) return res.status(404).json({ success: false, message: 'Registration not found.' });
+    if (registration.paymentStatus === 'SUCCESS') return res.json({ success: true, registrationId: registration._id, paymentStatus: 'SUCCESS' });
+    if (registration.transactionId !== req.body?.paymentIntentId) {
+      return res.status(400).json({ success: false, message: 'Payment attempt does not match this registration.' });
+    }
+    const intent = await getPaymentIntent(req.body.paymentIntentId);
+    const completed = await confirmStripeRegistration({ registrationId: registration._id, intent, auditEvent: 'PAYMENT_RETRY_VERIFIED', auditNote: 'STRIPE' });
+    return res.json({ success: true, registrationId: completed._id, paymentStatus: completed.paymentStatus });
+  } catch (err) {
+    sendPaymentError(res, err, 'Could not complete the card payment retry.', 'parent/retry-payment/stripe/finalize');
+  }
+});
+
 // ── GET /api/public/parent/students ─────────────────────────────
 router.get('/parent/students', parentAuth, async (req, res) => {
   try {

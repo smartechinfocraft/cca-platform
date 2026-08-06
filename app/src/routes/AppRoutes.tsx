@@ -23,6 +23,7 @@ import CartPage from "../pages/cart/CartPage";
 import ParentLayout from "../layouts/ParentLayout";
 import DashboardHome from "../pages/dashboard/DashboardHome";
 import PurchaseHistory from "../pages/dashboard/PurchaseHistory";
+import RetryPayment from "../pages/dashboard/RetryPayment";
 import MyStudents from "../pages/dashboard/MyStudents";
 import StudentDetail from "../pages/dashboard/StudentDetail";
 import MessagesPage from "../pages/dashboard/MessagesPage";
@@ -150,6 +151,7 @@ function AppRoutes() {
       >
         <Route index element={<DashboardHome />} />
         <Route path="purchases" element={<PurchaseHistory />} />
+        <Route path="purchases/:id/pay" element={<RetryPayment />} />
         <Route path="students" element={<MyStudents />} />
         <Route path="students/:id" element={<StudentDetail />} />
         <Route path="messages" element={<MessagesPage />} />

@@ -52,6 +52,9 @@ interface StripePaymentBoxProps {
   onAmountConfirmed?: (amount: number) => void;
   prepareRegistration: () => Promise<{ registrationId: string }>;
   onSuccess: (registration: any) => Promise<void> | void;
+  startPayment?: (registrationId: string) => Promise<any>;
+  finalizePayment?: (registrationId: string, paymentIntentId: string) => Promise<any>;
+  pendingStorageKey?: string;
 }
 
 export default function StripePaymentBox({
@@ -70,6 +73,9 @@ export default function StripePaymentBox({
   onAmountConfirmed,
   prepareRegistration,
   onSuccess,
+  startPayment,
+  finalizePayment,
+  pendingStorageKey = "cca:pendingStripeRegistration",
 }: StripePaymentBoxProps) {
   const elementId = useRef(`stripe-payment-${Math.random().toString(36).slice(2)}`);
   const paymentElementRef = useRef<StripePaymentElement | null>(null);
@@ -112,25 +118,25 @@ export default function StripePaymentBox({
     const params = new URLSearchParams(window.location.search);
     const returnedIntentId = params.get("payment_intent");
     const returnedStatus = params.get("redirect_status");
-    const pending = JSON.parse(sessionStorage.getItem("cca:pendingStripeRegistration") || "{}");
+    const pending = JSON.parse(sessionStorage.getItem(pendingStorageKey) || "{}");
     if (!returnedIntentId || returnedStatus !== "succeeded" || !pending.registrationId) return;
     if (recoveryStartedRef.current) return;
     recoveryStartedRef.current = true;
 
     setSubmitting(true);
-    api.post("/public/stripe/finalize-registration", {
-      registrationId: pending.registrationId,
-      paymentIntentId: returnedIntentId,
-    }).then(async (response) => {
-      sessionStorage.removeItem("cca:pendingStripeRegistration");
+    const finalize = finalizePayment
+      ? finalizePayment(pending.registrationId, returnedIntentId)
+      : api.post("/public/stripe/finalize-registration", { registrationId: pending.registrationId, paymentIntentId: returnedIntentId }).then(r => r.data);
+    finalize.then(async (data) => {
+      sessionStorage.removeItem(pendingStorageKey);
       const cleanUrl = `${window.location.pathname}${window.location.hash}`;
       window.history.replaceState({}, document.title, cleanUrl);
-      await onSuccess(response.data);
+      await onSuccess(data);
     }).catch((err) => {
       recoveryStartedRef.current = false;
       setError(getErrorMessage(err, "Could not finalize Stripe payment."));
     }).finally(() => setSubmitting(false));
-  }, [onSuccess]);
+  }, [finalizePayment, onSuccess, pendingStorageKey]);
 
   const handleStartCardForm = async () => {
     setError(null);
@@ -143,19 +149,20 @@ export default function StripePaymentBox({
       await loadStripeScript();
       const prepared = await prepareRegistration();
       if (!prepared?.registrationId) throw new Error("Could not create the pending registration.");
-      const res = await api.post("/public/stripe/create-payment-intent", {
-        registrationId: prepared.registrationId,
-      });
+      const responseData = startPayment
+        ? await startPayment(prepared.registrationId)
+        : (await api.post("/public/stripe/create-payment-intent", { registrationId: prepared.registrationId })).data;
 
-      if (!res.data.success) throw new Error(res.data.message || "Could not start Stripe payment.");
-      if (typeof res.data.amount === "number") onAmountConfirmed?.(res.data.amount);
+      if (!responseData.success) throw new Error(responseData.message || "Could not start Stripe payment.");
+      if (responseData.alreadyCompleted) { await onSuccess(responseData); return; }
+      if (typeof responseData.amount === "number") onAmountConfirmed?.(responseData.amount);
 
-      const publishableKey = res.data.publishableKey || STRIPE_PUBLISHABLE_KEY;
+      const publishableKey = responseData.publishableKey || STRIPE_PUBLISHABLE_KEY;
       const stripe = window.Stripe?.(publishableKey);
       if (!stripe) throw new Error("Stripe could not initialize.");
 
       const elements = stripe.elements({
-        clientSecret: res.data.clientSecret,
+        clientSecret: responseData.clientSecret,
         appearance: { theme: "stripe" },
       });
       const paymentElement = elements.create("payment");
@@ -163,12 +170,12 @@ export default function StripePaymentBox({
 
       paidRef.current = false;
       paymentIntentRef.current = {
-        paymentIntentId: res.data.paymentIntentId,
-        clientSecret: res.data.clientSecret,
+        paymentIntentId: responseData.paymentIntentId,
+        clientSecret: responseData.clientSecret,
       };
-      sessionStorage.setItem("cca:pendingStripeRegistration", JSON.stringify({
+      sessionStorage.setItem(pendingStorageKey, JSON.stringify({
         registrationId: prepared.registrationId,
-        paymentIntentId: res.data.paymentIntentId,
+        paymentIntentId: responseData.paymentIntentId,
       }));
       stripeRef.current = stripe;
       elementsRef.current = elements;
@@ -200,13 +207,12 @@ export default function StripePaymentBox({
 
       paidRef.current = true;
       paymentIntentRef.current = null;
-      const pending = JSON.parse(sessionStorage.getItem("cca:pendingStripeRegistration") || "{}");
-      const finalized = await api.post("/public/stripe/finalize-registration", {
-        registrationId: pending.registrationId,
-        paymentIntentId: result.paymentIntent.id,
-      });
-      sessionStorage.removeItem("cca:pendingStripeRegistration");
-      await onSuccess(finalized.data);
+      const pending = JSON.parse(sessionStorage.getItem(pendingStorageKey) || "{}");
+      const finalized = finalizePayment
+        ? await finalizePayment(pending.registrationId, result.paymentIntent.id)
+        : (await api.post("/public/stripe/finalize-registration", { registrationId: pending.registrationId, paymentIntentId: result.paymentIntent.id })).data;
+      sessionStorage.removeItem(pendingStorageKey);
+      await onSuccess(finalized);
     } catch (err) {
       setError(getErrorMessage(err, "Stripe payment failed."));
     } finally {

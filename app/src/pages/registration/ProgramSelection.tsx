@@ -4,6 +4,7 @@ import Footer from "../../components/Footer";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { HiOutlineArrowLeft, HiOutlineArrowRight, HiOutlinePlusCircle, HiOutlineTrash } from "react-icons/hi2";
 import { useRegistration } from "../../context/RegistrationContext";
+import { useCart } from "../../context/CartContext";
 import { getProgramById } from "../../services/programService";
 import type { Program } from "../../types/program";
 import GenderSelect from "../../components/registration/GenderSelect";
@@ -131,12 +132,15 @@ function freqLabel(n: number): string {
 export default function ProgramSelection() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { setSelectedBatch, setSelectedProgram, students, updateStudent, addStudent, removeStudent, currentStudentIndex, setCurrentStudentIndex, selectedBatch } =
+  const { setSelectedBatch, setSelectedProgram, students, updateStudent, addStudent, removeStudent, replaceStudents, currentStudentIndex, setCurrentStudentIndex, selectedBatch } =
     useRegistration();
+  const { items: cartItems, replaceItem } = useCart();
 
   const [searchParams] = useSearchParams();
   const isNewChild = searchParams.get("newChild") === "true";
   const isEditingProgram = searchParams.get("editProgram") === "true";
+  const editCartId = searchParams.get("cartId");
+  const editCartItem = editCartId ? cartItems.find((item) => item.cartId === editCartId) : undefined;
 
   const [program, setProgram] = useState<Program | null>(null);
   const [batches, setBatches] = useState<BatchRaw[]>([]);
@@ -197,6 +201,24 @@ export default function ProgramSelection() {
     };
     fetchProgram();
   }, [id, setSelectedProgram]);
+
+  useEffect(() => {
+    if (!editCartItem) return;
+    const batch = {
+      _id: editCartItem.batchId,
+      name: editCartItem.batchName,
+      days: editCartItem.selectedDays,
+      timing: editCartItem.selectedDays,
+      fee: editCartItem.fee,
+      sessionsPerWeek: editCartItem.sessionsPerWeek,
+      selectedMonth: editCartItem.selectedMonthOption ?? { label: editCartItem.selectedMonth, price: editCartItem.fee },
+    } as any;
+    setSelectedBatch(batch);
+    replaceStudents(editCartItem.students.map((student) => ({ ...student, selectedBatch: batch })));
+    // Load once when the selected cart entry changes; context setters are not
+    // stable references and must not retrigger this hydration on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editCartItem?.cartId]);
 
   useEffect(() => {
     if (batchConfirmed && selectedBatch?.days) return;
@@ -342,6 +364,23 @@ export default function ProgramSelection() {
 
   const handleProceedToReview = () => {
     if (!isStudentValid) return;
+    if (editCartId && program) {
+      const batch = buildBatchContext();
+      if (!batch) return;
+      replaceItem(editCartId, {
+        programId: program._id,
+        programTitle: program.title,
+        programImage: (program as any).coverImageUrl,
+        batchId: batch._id ?? batch.name ?? program._id,
+        batchName: batch.name,
+        selectedMonth: (batch as any).selectedMonth?.label ?? "",
+        selectedMonthOption: (batch as any).selectedMonth,
+        selectedDays: batch.days ?? batch.timing ?? "",
+        sessionsPerWeek: batch.sessionsPerWeek ?? 1,
+        fee: Number(batch.fee ?? program.basePrice ?? 0),
+        students: students.map(({ selectedBatch: _selectedBatch, ...student }) => student),
+      });
+    }
     navigate("/review-order");
   };
 

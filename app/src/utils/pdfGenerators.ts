@@ -21,7 +21,7 @@ const PITCH_SOFT = "#ECE6D4";
 const ACADEMY = {
   name: "California Cricket Academy",
   tagline: "Youth Training Programs",
-  address: "10307 Bret Ave, Cupertino, CA 95014",
+  address: "California, USA",
   phone: "Whatsapp - (408) 203-3594 ",
   email: "calcricket_academy@yahoo.com",
 };

@@ -81,6 +81,7 @@ export interface RegistrationContextValue {
   addStudent: (student: StudentDetails) => void;
   updateStudent: (index: number, student: Partial<StudentDetails>) => void;
   removeStudent: (index: number) => void;
+  replaceStudents: (students: StudentDetails[]) => void;
   setCurrentStudentIndex: (index: number) => void;
   updateParent: (parent: Partial<ParentDetails>) => void;
   setSubtotal: (amount: number) => void;
@@ -266,6 +267,11 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setStudents((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const replaceStudents = (nextStudents: StudentDetails[]) => {
+    setStudents(nextStudents.length ? nextStudents : [emptyStudent()]);
+    setCurrentStudentIndex(0);
+  };
+
   const updateParent = (parent: Partial<ParentDetails>) => {
     setParentDetails((prev) => ({ ...prev, ...parent }));
   };
@@ -344,6 +350,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
         addStudent,
         updateStudent,
         removeStudent,
+        replaceStudents,
         setCurrentStudentIndex,
         updateParent,
         setSubtotal,

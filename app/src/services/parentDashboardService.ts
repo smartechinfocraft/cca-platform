@@ -39,6 +39,21 @@ export const getPurchaseDetail = async (
   return res.data.data;
 };
 
+export const startPurchasePaymentRetry = async (token: string, registrationId: string): Promise<any> => {
+  const res = await api.post(`/public/parent/purchases/${registrationId}/retry-payment/start`, {}, authHeaders(token));
+  return res.data;
+};
+
+export const capturePurchasePayPalRetry = async (token: string, registrationId: string, orderID: string): Promise<any> => {
+  const res = await api.post(`/public/parent/purchases/${registrationId}/retry-payment/paypal/capture`, { orderID }, authHeaders(token));
+  return res.data;
+};
+
+export const finalizePurchaseStripeRetry = async (token: string, registrationId: string, paymentIntentId: string): Promise<any> => {
+  const res = await api.post(`/public/parent/purchases/${registrationId}/retry-payment/stripe/finalize`, { paymentIntentId }, authHeaders(token));
+  return res.data;
+};
+
 // ── Students ───────────────────────────────────────────────────
 export const getMyStudents = async (token: string): Promise<StudentWithSummary[]> => {
   const res = await api.get("/public/parent/students", authHeaders(token));
