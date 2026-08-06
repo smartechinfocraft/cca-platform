@@ -4,7 +4,7 @@ import Footer from "../../components/Footer";
 import { useNavigate } from "react-router-dom";
 import {
   HiOutlineArrowLeft, HiOutlineArrowRight,
-  HiOutlinePencilSquare, HiOutlineCheck, HiOutlineTag, HiOutlineXCircle,
+  HiOutlinePencilSquare, HiOutlineCheck, HiOutlineTag, HiOutlineXCircle, HiOutlineTrash,
 } from "react-icons/hi2";
 import { useRegistration } from "../../context/RegistrationContext";
 import { useAuth } from "../../context/AuthContext";
@@ -61,7 +61,7 @@ function ReviewOrder() {
     setCouponDiscount,
   } = useRegistration();
   const { user } = useAuth();
-  const { items, upsertItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
+  const { items, upsertItem, removeItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
   const cartSyncedRef = useRef(false);
 
   const [editingBilling, setEditingBilling] = useState(false);
@@ -211,6 +211,14 @@ function ReviewOrder() {
 
   const handleEditProgram = (programId: string, cartId: string) => {
     navigate(`/register-program/${programId}?editProgram=true&cartId=${encodeURIComponent(cartId)}`);
+  };
+
+  const handleRemoveProgram = (cartId: string, programTitle: string) => {
+    const confirmed = window.confirm(`Remove "${programTitle}" from your cart? This cannot be undone.`);
+    if (!confirmed) return;
+    const removingLastItem = items.length === 1;
+    removeItem(cartId);
+    if (removingLastItem) navigate("/programs");
   };
 
   const clearAppliedCoupon = () => {
@@ -384,6 +392,14 @@ function ReviewOrder() {
                       className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-[var(--gold)] hover:text-[var(--gold)] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <HiOutlinePencilSquare className="h-3.5 w-3.5" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProgram(item.cartId, item.programTitle)}
+                      className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                      aria-label={`Remove ${item.programTitle} from cart`}
+                    >
+                      <HiOutlineTrash className="h-3.5 w-3.5" /> Remove
                     </button>
                   </div>
                 </div>
