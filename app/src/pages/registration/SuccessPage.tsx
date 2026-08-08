@@ -1,10 +1,14 @@
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 import { HiOutlineCheckCircle, HiOutlineArrowDownTray, HiOutlineHome } from "react-icons/hi2";
+import api from "../../api/axios";
 
 interface SuccessData {
+  registrationId?: string;
+  receiptToken?: string;
   registrationNumber?: string;
   studentName?: string;
   programName?: string;
@@ -15,6 +19,7 @@ interface SuccessData {
   discountAmount?: number;
   couponCode?: string;
   transactionId?: string;
+  paymentStatus?: string;
   email?: string;
   orderItems?: OrderItem[];
 }
@@ -57,10 +62,36 @@ function SuccessPage() {
       return null;
     }
   })();
-  const response = stateResponse ?? storedResponse;
+  const receiptCredentials = stateResponse ?? storedResponse;
+  const [response, setResponse] = useState<SuccessData | null>(null);
+  const hasReceiptCredentials = Boolean(receiptCredentials?.registrationId && receiptCredentials?.receiptToken);
+  const [receiptLoading, setReceiptLoading] = useState(hasReceiptCredentials);
+  const [receiptError, setReceiptError] = useState(hasReceiptCredentials
+    ? ""
+    : "This receipt link is incomplete. Please open the invoice from your dashboard or confirmation email.");
 
-  const registrationNumber =
-    response?.registrationNumber ?? `CCA-${Date.now().toString(36).toUpperCase()}`;
+  useEffect(() => {
+    const registrationId = receiptCredentials?.registrationId;
+    const receiptToken = receiptCredentials?.receiptToken;
+    if (!registrationId || !receiptToken) return;
+
+    let active = true;
+    api.get(`/public/registration-success/${registrationId}`, {
+      headers: { "X-Receipt-Token": receiptToken },
+    }).then(({ data }) => {
+      if (!active) return;
+      const canonical = { ...data.data, registrationId, receiptToken } as SuccessData;
+      setResponse(canonical);
+      sessionStorage.setItem("cca:lastRegistration", JSON.stringify(canonical));
+    }).catch(() => {
+      if (active) setReceiptError("We could not verify this registration receipt. Please use your dashboard or confirmation email.");
+    }).finally(() => {
+      if (active) setReceiptLoading(false);
+    });
+    return () => { active = false; };
+  }, [receiptCredentials?.registrationId, receiptCredentials?.receiptToken]);
+
+  const registrationNumber = response?.registrationNumber ?? "";
   const studentName = response?.studentName ?? "—";
   const programName = response?.programName ?? "—";
   const paymentMethod = response?.paymentMethod ?? "—";
@@ -69,6 +100,24 @@ function SuccessPage() {
   const calculatedOriginalPrice = orderItems.reduce((sum, item) => sum + Number(item.itemTotal ?? ((item.feePerStudent || 0) * (item.studentCount || item.students?.length || 1))), 0);
   const subtotal = Number(response?.subtotal ?? calculatedOriginalPrice) || totalAmount;
   const discountAmount = Number(response?.discountAmount ?? response?.discount ?? Math.max(0, subtotal - totalAmount)) || 0;
+  const paymentConfirmed = response?.paymentStatus === "SUCCESS";
+
+  if (receiptLoading || receiptError || !response) {
+    return (
+      <>
+        <Navbar />
+        <div className="h-20" />
+        <main className="min-h-[70vh] bg-[#f8fafc] px-6 py-20 text-center text-[#0F172A]">
+          <div className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-10 shadow-lg">
+            <h1 className="text-2xl font-bold">{receiptLoading ? "Verifying registration…" : "Receipt unavailable"}</h1>
+            {!receiptLoading && <p className="mt-4 text-sm text-slate-600">{receiptError}</p>}
+            {!receiptLoading && <Link to="/dashboard/purchases" className="mt-6 inline-flex rounded-full bg-[#A33B2B] px-6 py-3 text-sm font-semibold text-white">View purchases</Link>}
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   const handleDownloadReceipt = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -342,16 +391,17 @@ function SuccessPage() {
               {/* Success badge */}
               <div className="inline-flex items-center gap-3 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
                 <HiOutlineCheckCircle className="h-5 w-5" />
-                Registration Confirmed!
+                {paymentConfirmed ? "Registration Confirmed!" : "Registration Received"}
               </div>
 
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-[#0F172A] sm:text-4xl">
-                  🎉 Your spot is reserved!
+                  {paymentConfirmed ? "🎉 Your spot is reserved!" : "Your registration is awaiting payment"}
                 </h1>
                 <p className="mt-3 text-base leading-7 text-slate-600">
-                  Thank you for registering with CCA. Your enrollment is confirmed and
-                  your child is ready to begin their cricket journey!
+                  {paymentConfirmed
+                    ? "Thank you for registering with CCA. Your enrollment is confirmed and your child is ready to begin their cricket journey!"
+                    : "Thank you for registering with CCA. We will confirm enrollment after payment is successfully received."}
                 </p>
               </div>
 
@@ -440,17 +490,14 @@ function SuccessPage() {
 
               {/* Notification confirmation */}
               <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-5">
-                <p className="text-sm font-semibold text-[#0F172A] mb-2">Confirmation Sent Via:</p>
+                <p className="text-sm font-semibold text-[#0F172A] mb-2">Email confirmation</p>
                 <div className="flex flex-wrap gap-3">
                   <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
                     📧 Email
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                    💬 WhatsApp
-                  </span>
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                  Invoice and barcode will be delivered to your registered email & WhatsApp.
+                  Check your registered email for the confirmation and invoice. You can also download this verified receipt below.
                 </p>
               </div>
 
@@ -482,10 +529,6 @@ function SuccessPage() {
                   <div className="rounded-xl bg-slate-50 p-4">
                     <p className="font-bold text-[#0F172A]">📧 Confirmation Email</p>
                     <p className="mt-1 text-xs">Invoice + barcode sent to your email within minutes.</p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 p-4">
-                    <p className="font-bold text-[#0F172A]">💬 WhatsApp Message</p>
-                    <p className="mt-1 text-xs">Registration summary sent to your WhatsApp number.</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-4">
                     <p className="font-bold text-[#0F172A]">🏏 Coach Onboarding</p>

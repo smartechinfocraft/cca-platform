@@ -22,9 +22,11 @@ const crypto = require('crypto');
 // though setting the two secrets below separately is recommended.
 const ACCESS_SECRET  = process.env.JWT_ACCESS_SECRET  || process.env.JWT_SECRET;
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || `${process.env.JWT_SECRET}_refresh`;
+const RECEIPT_SECRET = process.env.JWT_RECEIPT_SECRET || `${process.env.JWT_SECRET}_receipt`;
 
 const ACCESS_EXPIRES_IN  = process.env.JWT_ACCESS_EXPIRES_IN  || '15m';
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const RECEIPT_EXPIRES_IN = process.env.JWT_RECEIPT_EXPIRES_IN || '1h';
 
 // Used to set the cookie's Max-Age / Expires in ms (kept in sync with
 // REFRESH_EXPIRES_IN above; only 'Nd' / 'Nh' / 'Nm' formats are parsed,
@@ -48,6 +50,9 @@ const signRefreshToken = (payload) =>
 
 const verifyAccessToken = (token) => jwt.verify(token, ACCESS_SECRET);
 const verifyRefreshToken = (token) => jwt.verify(token, REFRESH_SECRET);
+const signReceiptToken = (payload) =>
+  jwt.sign(payload, RECEIPT_SECRET, { expiresIn: RECEIPT_EXPIRES_IN });
+const verifyReceiptToken = (token) => jwt.verify(token, RECEIPT_SECRET);
 
 // ─── Refresh-token hashing ──────────────────────────────────────────────────
 // We never store the raw refresh token — only a SHA-256 hash of it — so a
@@ -85,6 +90,8 @@ module.exports = {
   signRefreshToken,
   verifyAccessToken,
   verifyRefreshToken,
+  signReceiptToken,
+  verifyReceiptToken,
   hashToken,
   refreshCookieOptions,
   clearCookieOptions,

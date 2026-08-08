@@ -164,6 +164,8 @@ const {
   hashToken,
   refreshCookieOptions,
   clearCookieOptions,
+  signReceiptToken,
+  verifyReceiptToken,
 } = require('../utils/tokenService');
 
 const REFRESH_COOKIE_NAME = 'cca_parent_rt';
@@ -634,6 +636,7 @@ router.post('/paypal/capture-order', async (req, res) => {
       return res.json({
         success: true,
         registrationId: reg._id,
+        receiptToken: issueRegistrationReceiptToken(reg._id),
         registrationNumber: reg.registrationNumber,
         studentName: reg.students.map(s => `${s.firstName} ${s.lastName}`).join(', '),
         programName: reg.programId?.title || reg.orderItems?.[0]?.programTitle || 'CCA Program',
@@ -861,6 +864,7 @@ router.post('/stripe/finalize-registration', async (req, res) => {
       success: true,
       message: 'Registration successful!',
       registrationId: reg._id,
+      receiptToken: issueRegistrationReceiptToken(reg._id),
       registrationNumber: reg.registrationNumber,
       studentName,
       programName: reg.programId?.title || reg.orderItems?.[0]?.programTitle || 'CCA Program',
@@ -1486,6 +1490,7 @@ async function handleRegistration(req, res) {
         : 'Registration received and is pending payment verification.',
       registrationNumber: reg.registrationNumber,
       registrationId: reg._id,
+      receiptToken: issueRegistrationReceiptToken(reg._id),
       studentName,
       programName: selectedProgram.title,
       paymentMethod,
@@ -1521,6 +1526,54 @@ async function handleRegistration(req, res) {
     sendPaymentError(res, err, 'We could not complete this registration. Please try again.', 'register');
   }
 }
+
+function issueRegistrationReceiptToken(registrationId) {
+  return signReceiptToken({ id: String(registrationId) });
+}
+
+function registrationSuccessPayload(registration) {
+  const students = Array.isArray(registration.students) ? registration.students : [];
+  const program = registration.programId || {};
+  const paymentLabels = { PAYPAL: 'PayPal', STRIPE: 'Stripe', CHECK: 'Check' };
+  return {
+    registrationId: registration._id,
+    registrationNumber: registration.registrationNumber,
+    studentName: students.map(student => `${student.firstName || ''} ${student.lastName || ''}`.trim()).filter(Boolean).join(', '),
+    programName: program.title || registration.orderItems?.[0]?.programTitle || 'CCA Program',
+    paymentMethod: paymentLabels[registration.paymentMethod] || registration.paymentMethod,
+    paymentStatus: registration.paymentStatus,
+    transactionId: registration.transactionId,
+    subtotal: registration.subtotal,
+    discount: registration.discountAmount,
+    discountAmount: registration.discountAmount,
+    totalAmount: registration.totalAmount,
+    couponCode: registration.couponCode,
+    orderItems: registration.orderItems || [],
+  };
+}
+
+// Canonical receipt snapshot for both guest and authenticated checkout. Receipt
+// tokens use a separate signing secret and therefore cannot authenticate to a
+// parent, coach, or admin route.
+router.get('/registration-success/:id', async (req, res) => {
+  try {
+    const token = req.get('X-Receipt-Token');
+    if (!token) return res.status(401).json({ success: false, message: 'Receipt authorization is required.' });
+    const decoded = verifyReceiptToken(token);
+    if (decoded.id !== req.params.id) {
+      return res.status(403).json({ success: false, message: 'Receipt authorization is invalid.' });
+    }
+    const Registration = mongoose.model('Registration');
+    const registration = await Registration.findById(req.params.id)
+      .populate('programId', 'title')
+      .populate('students', 'firstName lastName dob gender')
+      .lean();
+    if (!registration) return res.status(404).json({ success: false, message: 'Registration not found.' });
+    return res.json({ success: true, data: registrationSuccessPayload(registration) });
+  } catch {
+    return res.status(401).json({ success: false, message: 'Receipt authorization has expired or is invalid.' });
+  }
+});
 
 async function prepareStripeRecovery(req, res, next) {
   try {

@@ -105,6 +105,36 @@ function loadCart(key: string): CartItem[] {
   }
 }
 
+function persistCart(key: string, next: CartItem[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    // Non-fatal — worst case the cart does not survive a refresh.
+  }
+}
+
+function cartItemIdentity(item: CartItem): string {
+  // cartId is generated independently in each bucket, so it cannot detect the
+  // same enrollment copied between guest and parent carts.
+  return [item.programId, item.batchId, item.selectedMonth, item.selectedDays,
+    item.students.map(student => `${student.firstName}|${student.lastName}|${student.dob}`).join(";")].join("::");
+}
+
+// The cart assembled during signed-out registration must survive authentication.
+// Guest entries take precedence; existing account-only entries are retained.
+function mergeGuestAndParentCarts(guestItems: CartItem[], parentItems: CartItem[]): CartItem[] {
+  const merged = [...guestItems];
+  const seen = new Set(guestItems.map(cartItemIdentity));
+  parentItems.forEach((item) => {
+    const identity = cartItemIdentity(item);
+    if (!seen.has(identity)) {
+      seen.add(identity);
+      merged.push(item);
+    }
+  });
+  return merged;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const storageKey = storageKeyFor(user?.id);
@@ -117,33 +147,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // to (kept in a ref so addItem/removeItem/etc. below never race with
   // the "switch buckets on login/logout" effect further down).
   const activeKeyRef = useRef(storageKey);
-  activeKeyRef.current = storageKey;
+  const previousKeyRef = useRef(storageKey);
 
   // (Re)load the correct bucket once we know who's signed in, and again
   // any time the signed-in account changes (login, logout, or switching
   // accounts on the same browser). Waiting for authLoading to settle
   // avoids briefly flashing the wrong account's cart on page load.
   useEffect(() => {
+    activeKeyRef.current = storageKey;
     if (authLoading) return;
+    const previousKey = previousKeyRef.current;
+    previousKeyRef.current = storageKey;
+
+    if (previousKey === "cca_cart_guest" && storageKey !== "cca_cart_guest") {
+      const guestItems = loadCart(previousKey);
+      const merged = mergeGuestAndParentCarts(guestItems, loadCart(storageKey));
+      persistCart(storageKey, merged);
+      localStorage.removeItem(previousKey);
+      setItems(merged);
+      // Keep the coupon selected during this checkout. The backend revalidates
+      // it against the now-authenticated parent before any payment is created.
+      return;
+    }
     setItems(loadCart(storageKey));
     setCouponState(null);
     setCouponDiscountState(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, storageKey]);
-
-  const persist = (key: string, next: CartItem[]) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(next));
-    } catch {
-      // Non-fatal — worst case the cart doesn't survive a refresh.
-    }
-  };
 
   const addItem = (item: Omit<CartItem, "cartId">) => {
     const cartId = `${item.programId}-${item.batchId}-${Date.now()}`;
     setItems((prev) => {
       const next = [...prev, { ...item, cartId }];
-      persist(activeKeyRef.current, next);
+      persistCart(activeKeyRef.current, next);
       return next;
     });
   };
@@ -172,7 +207,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         existingIndex >= 0
           ? prev.map((existing, index) => (index === existingIndex ? { ...existing, ...item } : existing))
           : [...prev, { ...item, cartId: `${item.programId}-${item.batchId}-${Date.now()}` }];
-      persist(activeKeyRef.current, next);
+      persistCart(activeKeyRef.current, next);
       return next;
     });
   };
@@ -180,7 +215,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const removeItem = (cartId: string) => {
     setItems((prev) => {
       const next = prev.filter((i) => i.cartId !== cartId);
-      persist(activeKeyRef.current, next);
+      persistCart(activeKeyRef.current, next);
       if (next.length === 0) {
         setCouponState(null);
         setCouponDiscountState(0);
@@ -192,7 +227,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const replaceItem = (cartId: string, item: Omit<CartItem, "cartId">) => {
     setItems((prev) => {
       const next = prev.map((existing) => existing.cartId === cartId ? { ...item, cartId } : existing);
-      persist(activeKeyRef.current, next);
+      persistCart(activeKeyRef.current, next);
       return next;
     });
   };
@@ -207,7 +242,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateStudents = (cartId: string, students: CartStudent[]) => {
     setItems((prev) => {
       const next = prev.map((i) => (i.cartId === cartId ? { ...i, students } : i));
-      persist(activeKeyRef.current, next);
+      persistCart(activeKeyRef.current, next);
       return next;
     });
   };
@@ -237,6 +272,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Context hooks intentionally live beside their provider.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCart() {
   const ctx = useContext(CartContext);
   if (!ctx) throw new Error("useCart must be used within a CartProvider");

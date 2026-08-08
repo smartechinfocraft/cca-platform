@@ -20,14 +20,15 @@ exports.getStats = async (req, res) => {
     const Coach        = mongoose.model('Coach');
 
     // ── Summary cards ────────────────────────────────────────
-    // Total confirmed+paid registrations
+    // Registration volume remains an enrollment/workflow metric.
+    const paidMatch = { paymentStatus: 'SUCCESS' };
     const totalRegistrations = await Registration.countDocuments({
       status: { $in: ['CONFIRMED', 'PAID'] },
     });
 
-    // Revenue: sum totalAmount of PAID/CONFIRMED registrations
+    // Financial metrics are based only on verified successful payments.
     const revenueAgg = await Registration.aggregate([
-      { $match: { status: { $in: ['CONFIRMED', 'PAID'] } } },
+      { $match: paidMatch },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } },
     ]);
     const totalRevenue = revenueAgg[0]?.total || 0;
@@ -47,7 +48,7 @@ exports.getStats = async (req, res) => {
     const monthlyRevenue = await Registration.aggregate([
       {
         $match: {
-          status: { $in: ['CONFIRMED', 'PAID'] },
+          ...paidMatch,
           createdAt: { $gte: sixMonthsAgo },
         },
       },

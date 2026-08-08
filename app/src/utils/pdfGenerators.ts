@@ -121,7 +121,13 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(OUTFIELD);
-  doc.text(registration.programId?.title || "CCA Program", marginX, y);
+  const canonicalOrderItems = registration.orderItems?.length ? registration.orderItems : [];
+  const programSummary = canonicalOrderItems.length
+    ? [...new Set(canonicalOrderItems.map(item => item.programTitle).filter((title): title is string => Boolean(title)))].join(" / ")
+    : registration.programId?.title || "CCA Program";
+  const programLines = doc.splitTextToSize(programSummary, pageWidth - marginX * 2).slice(0, 2);
+  doc.text(programLines, marginX, y);
+  y += Math.max(programLines.length, 1) * 14;
 
   const batchLabel = registration.batches?.length
     ? registration.batches.map(b => `${b.title || ""} ${b.dayOfWeek || ""} ${b.startTime || ""}-${b.endTime || ""}`.trim()).filter(Boolean).join("  ·  ")
@@ -129,9 +135,10 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.setTextColor(INK);
-  doc.text(batchLabel, marginX, y + 16);
+  const batchLines = doc.splitTextToSize(batchLabel, pageWidth - marginX * 2).slice(0, 2);
+  doc.text(batchLines, marginX, y + 4);
 
-  y += 42;
+  y += Math.max(batchLines.length, 1) * 12 + 18;
 
   // ── Itemized line-item table: one row per student ──
   const colDesc = marginX + 12;
@@ -143,16 +150,35 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
   doc.setTextColor("#FFFFFF");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("STUDENT", colDesc, y + 17);
+  doc.text("PROGRAM / STUDENT", colDesc, y + 17);
   doc.text("MEMBER ID", colCode, y + 17);
   doc.text("AMOUNT", colAmt, y + 17, { align: "right" });
   y += 26;
 
   const students = registration.students?.length ? registration.students : [];
-  const perStudentAmount = students.length > 0 ? registration.subtotal / students.length : registration.subtotal;
-  const rowHeight = 32;
+  const findStudentCode = (student: { firstName?: string; lastName?: string; dob?: string }) => students.find(candidate =>
+    candidate.firstName === student.firstName && candidate.lastName === student.lastName && (!student.dob || candidate.dob === student.dob)
+  )?.studentCode || "—";
+  const invoiceRows = canonicalOrderItems.flatMap(item => {
+    const itemStudents: Array<{ firstName?: string; lastName?: string; dob?: string }> = item.students?.length
+      ? item.students
+      : Array.from({ length: item.studentCount || 1 }, () => ({}));
+    const unitAmount = Number(item.feePerStudent) || (Number(item.itemTotal) / Math.max(itemStudents.length, 1));
+    return itemStudents.map(student => ({
+      description: [item.programTitle || "CCA Program", `${student.firstName || ""} ${student.lastName || ""}`.trim() || "Student", item.batchName].filter(Boolean).join(" — "),
+      studentCode: findStudentCode(student),
+      amount: unitAmount,
+    }));
+  });
+  const legacyRows = students.map(student => ({
+    description: `${registration.programId?.title || "CCA Program"} — ${student.firstName} ${student.lastName}`,
+    studentCode: student.studentCode || "—",
+    amount: students.length > 0 ? registration.subtotal / students.length : registration.subtotal,
+  }));
+  const rowsToRender = invoiceRows.length ? invoiceRows : legacyRows;
+  const rowHeight = 40;
 
-  if (students.length === 0) {
+  if (rowsToRender.length === 0) {
     doc.setDrawColor(INK_LIGHT);
     doc.setFillColor("#FFFFFF");
     doc.rect(marginX, y, pageWidth - marginX * 2, rowHeight, "FD");
@@ -163,7 +189,7 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
     doc.text(money(registration.subtotal), colAmt, y + 20, { align: "right" });
     y += rowHeight;
   } else {
-    students.forEach((s, i) => {
+    rowsToRender.forEach((row, i) => {
       const rowBg = i % 2 === 0 ? "#FFFFFF" : PITCH_SOFT;
       doc.setFillColor(rowBg);
       doc.rect(marginX, y, pageWidth - marginX * 2, rowHeight, "F");
@@ -173,17 +199,17 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
       doc.setTextColor(OUTFIELD);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.text(`${s.firstName} ${s.lastName}`, colDesc, y + 20);
+      doc.text(doc.splitTextToSize(row.description, 245).slice(0, 2), colDesc, y + 15);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(INK);
-      doc.text(s.studentCode || "—", colCode, y + 20);
+      doc.text(row.studentCode, colCode, y + 23);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(OUTFIELD);
-      doc.text(money(perStudentAmount), colAmt, y + 20, { align: "right" });
+      doc.text(money(row.amount), colAmt, y + 23, { align: "right" });
 
       y += rowHeight;
     });

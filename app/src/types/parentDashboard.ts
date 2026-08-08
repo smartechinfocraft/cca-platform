@@ -45,6 +45,19 @@ export interface Registration {
   programId: ProgramRef;
   students: StudentRef[];
   batches: BatchRef[];
+  orderItems?: Array<{
+    programId?: string;
+    programTitle?: string;
+    batchId?: string;
+    batchName?: string;
+    selectedMonth?: { label?: string; startDate?: string; endDate?: string; weeks?: string; price?: number };
+    selectedMonthLabel?: string;
+    selectedDays?: string;
+    feePerStudent?: number;
+    studentCount?: number;
+    itemTotal?: number;
+    students?: Array<{ firstName?: string; lastName?: string; dob?: string; gender?: string }>;
+  }>;
   selectedMonth?: {
     label?: string;
     startDate?: string;

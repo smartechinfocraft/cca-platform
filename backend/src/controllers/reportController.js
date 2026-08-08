@@ -12,7 +12,7 @@ exports.getRevenueSummary = async (req, res) => {
   try {
     const { from, to, groupBy = 'month' } = req.query;
 
-    const matchStage = { status: { $in: ['CONFIRMED', 'PAID'] } };
+    const matchStage = { paymentStatus: 'SUCCESS' };
     if (from || to) {
       matchStage.createdAt = {};
       if (from) matchStage.createdAt.$gte = new Date(from);
@@ -83,12 +83,12 @@ exports.buildCustomReport = async (req, res) => {
     const { filters = {}, groupBy = 'program' } = req.body;
 
     // Build match query from filters
-    const match = {};
+    // Every endpoint in this controller is financial. A display/workflow
+    // status must never make an unpaid registration count as revenue.
+    const match = { paymentStatus: 'SUCCESS' };
 
     if (filters.status)
       match.status = Array.isArray(filters.status) ? { $in: filters.status } : filters.status;
-    else
-      match.status = { $in: ['CONFIRMED', 'PAID'] };
 
     if (filters.from || filters.to) {
       match.createdAt = {};
