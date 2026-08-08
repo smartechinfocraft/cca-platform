@@ -44,6 +44,7 @@ interface BatchRaw {
   monthOptions?: MonthOption[];
   location?: { title?: string; city?: string; address?: string };
   groundLocationNote?: string;
+  scheduleDays?: { day?: string; startTime?: string; endTime?: string; groundAddress?: string }[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -69,6 +70,15 @@ function getDayLabel(batch: BatchRaw): string {
 }
 
 function buildDaySlotOptions(batch: BatchRaw): string[] {
+  if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
+    return batch.scheduleDays.map((schedule) => {
+      const day = schedule.day ? (DAY_FULL[schedule.day] ?? schedule.day) : "";
+      const time = schedule.startTime && schedule.endTime
+        ? `${fmt12(schedule.startTime)} - ${fmt12(schedule.endTime)}`
+        : "";
+      return [day, time, schedule.groundAddress].filter(Boolean).join(" - ");
+    }).filter(Boolean);
+  }
   const slots = getSlots(batch);
   const location = getLocationStr(batch);
   const locationSuffix = location ? ` - ${location}` : "";
@@ -176,6 +186,7 @@ export default function ProgramSelection() {
               multiDays: b.multiDays,
               timing: b.timing ?? "",
               timeSlots: b.timeSlots,
+              scheduleDays: Array.isArray(b.scheduleDays) ? b.scheduleDays : [],
               fee: Number(b.price ?? b.fee ?? 0),
               price: Number(b.price ?? b.fee ?? 0),
               pricePerSession: Number(b.pricePerSession ?? b.price ?? b.fee ?? 0),

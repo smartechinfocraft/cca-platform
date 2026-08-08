@@ -384,6 +384,7 @@ interface QuickBatch {
   monthOptions?: MonthOption[];
   location?: { title?: string; city?: string; address?: string };
   groundLocationNote?: string;
+  scheduleDays?: ProgramScheduleDay[];
 }
 
 const DAY_FULL: Record<string, string> = {
@@ -418,6 +419,15 @@ function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string 
 }
 
 function buildDaySlotOptions(batch: QuickBatch): string[] {
+  if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
+    return batch.scheduleDays.map((schedule) => {
+      const day = schedule.day ? (DAY_FULL[schedule.day] ?? schedule.day) : "";
+      const time = schedule.startTime && schedule.endTime
+        ? `${fmt12(schedule.startTime)} - ${fmt12(schedule.endTime)}`
+        : "";
+      return [day, time, schedule.groundAddress].filter(Boolean).join(" - ");
+    }).filter(Boolean);
+  }
   const slots = getSlots(batch);
   const locationSuffix = getLocationStr(batch) ? ` - ${getLocationStr(batch)}` : "";
   let days: string[] = [];
@@ -537,6 +547,7 @@ function QuickRegisterDrawer({
               monthOptions: Array.isArray(b.monthOptions) ? b.monthOptions : [],
               location: b.location,
               groundLocationNote: b.groundLocationNote,
+              scheduleDays: Array.isArray(b.scheduleDays) ? b.scheduleDays : [],
             }))
           : [];
         setFullProgram(data ?? program);

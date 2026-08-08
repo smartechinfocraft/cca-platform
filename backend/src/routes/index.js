@@ -269,6 +269,14 @@ router.get('/public/programs/:id', async (req, res) => {
         startTime:          firstDay ? firstDay.startTime : '',
         endTime:            firstDay ? firstDay.endTime   : '',
         timeSlots:          timeSlots.length > 0 ? timeSlots : [],
+        // Preserve the day/time/location relationship. Registration clients
+        // must not derive every option from the batch-level location fallback.
+        scheduleDays:       days.map(d => ({
+          day: d.day,
+          startTime: d.startTime,
+          endTime: d.endTime,
+          groundAddress: d.groundAddress,
+        })),
         groundLocationNote: groundLocationNote || undefined,
         location:           prog.location,
         price:              prog.discountedPrice || prog.basePrice || 0,
