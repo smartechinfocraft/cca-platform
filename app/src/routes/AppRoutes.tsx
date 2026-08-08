@@ -47,6 +47,7 @@ import AdminRegistrations from "../admin/pages/Registrations";
 import AdminMessages from "../admin/pages/Messages";
 import PaymentStudents from "../admin/pages/PaymentStudents";
 import StripeRecovery from "../admin/pages/StripeRecovery";
+import AdminSiteSettings from "../admin/pages/SiteSettings";
 
 // ── Coach portal ─────────────────────────────────────────────
 import CoachLayout from "../coach/components/CoachLayout";
@@ -181,6 +182,7 @@ function AppRoutes() {
         <Route path="age-groups" element={<AdminProtectedRoute superOnly><AdminAgeGroups /></AdminProtectedRoute>} />
         <Route path="levels" element={<AdminProtectedRoute superOnly><AdminLevels /></AdminProtectedRoute>} />
         <Route path="admin-users" element={<AdminProtectedRoute superOnly><AdminUsersPage /></AdminProtectedRoute>} />
+        <Route path="site-settings" element={<AdminProtectedRoute superOnly><AdminSiteSettings /></AdminProtectedRoute>} />
 
         {/* Both admin roles */}
         <Route path="registrations" element={<AdminRegistrations />} />

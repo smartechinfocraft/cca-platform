@@ -1,7 +1,27 @@
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
 import ChatbotWidget from "./components/chatbot/ChatbotWidget";
+import MaintenancePage from "./pages/MaintenancePage";
+
+type SiteStatus = { maintenanceEnabled: boolean; maintenanceTitle: string; maintenanceMessage: string; maintenanceContactEmail?: string };
 
 function App() {
+  const location = useLocation();
+  const [siteStatus, setSiteStatus] = useState<SiteStatus | null>(null);
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5001/api";
+    fetch(`${apiBase}/public/site-status`, { cache: "no-store" })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error("Site status unavailable")))
+      .then(payload => setSiteStatus(payload.data))
+      .catch(() => setSiteStatus({ maintenanceEnabled: false, maintenanceTitle: "", maintenanceMessage: "" }));
+  }, [location.pathname]);
+
+  const bypassMaintenance = location.pathname === "/login" || location.pathname.startsWith("/admin");
+  if (!siteStatus) return <div className="flex min-h-screen items-center justify-center bg-[#0b1d12] text-[#f5d97a]">Loading...</div>;
+  if (siteStatus.maintenanceEnabled && !bypassMaintenance) return <MaintenancePage title={siteStatus.maintenanceTitle} message={siteStatus.maintenanceMessage} contactEmail={siteStatus.maintenanceContactEmail} />;
+
   return (
     <>
       <AppRoutes />

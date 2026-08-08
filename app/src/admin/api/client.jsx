@@ -96,6 +96,11 @@ export const dashboardAPI = {
   getStats: () => client.get('/dashboard/stats'),
 };
 
+export const siteSettingsAPI = {
+  get: () => client.get('/site-settings'),
+  update: (data) => client.put('/site-settings', data),
+};
+
 // ISSUE 4 & 5: create/update accept FormData (with coverImage file)
 export const programsAPI = {
   getAll:  (params)   => client.get('/programs', { params }),

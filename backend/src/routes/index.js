@@ -51,6 +51,60 @@ const mongoose = require('mongoose');
 const { startOfTodayCalifornia, startOfDayCalifornia } = require('../utils/californiaTime');
 const { computeRegistrationTotal } = require('../utils/pricing');
 const { pickAllowedFields } = require('../utils/allowlist');
+const SiteSetting = require('../models/SiteSetting');
+
+const DEFAULT_MAINTENANCE_SETTING = {
+  maintenanceEnabled: false,
+  maintenanceTitle: 'We are improving your experience',
+  maintenanceMessage: 'Our website is temporarily unavailable while we make a few improvements. Please check back shortly.',
+  maintenanceContactEmail: 'calcricket_academy@yahoo.com',
+};
+
+// Public status is deliberately read-only and contains no admin information.
+router.get('/public/site-status', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const setting = await SiteSetting.findOne({ key: 'public-site' })
+      .select('maintenanceEnabled maintenanceTitle maintenanceMessage maintenanceContactEmail updatedAt')
+      .lean();
+    res.json({ success: true, data: setting || DEFAULT_MAINTENANCE_SETTING });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Could not load site status.' });
+  }
+});
+
+router.get('/site-settings', protect, superAdminOnly, async (req, res) => {
+  try {
+    const setting = await SiteSetting.findOne({ key: 'public-site' }).lean();
+    res.json({ success: true, data: setting || DEFAULT_MAINTENANCE_SETTING });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/site-settings', protect, superAdminOnly, async (req, res) => {
+  try {
+    const enabled = req.body?.maintenanceEnabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Maintenance status must be true or false.' });
+    }
+    const title = String(req.body?.maintenanceTitle || '').trim();
+    const message = String(req.body?.maintenanceMessage || '').trim();
+    const contactEmail = String(req.body?.maintenanceContactEmail || '').trim();
+    if (!title || title.length > 120) return res.status(400).json({ success: false, message: 'Title is required and must be 120 characters or fewer.' });
+    if (!message || message.length > 1000) return res.status(400).json({ success: false, message: 'Message is required and must be 1,000 characters or fewer.' });
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return res.status(400).json({ success: false, message: 'Enter a valid contact email.' });
+
+    const setting = await SiteSetting.findOneAndUpdate(
+      { key: 'public-site' },
+      { $set: { maintenanceEnabled: enabled, maintenanceTitle: title, maintenanceMessage: message, maintenanceContactEmail: contactEmail, updatedBy: req.user._id } },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
+    res.json({ success: true, data: setting });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // ── Payload Allowlisting ─────────────────────────────────────
 // `allowedFields` is REQUIRED for every makeCRUD() call below — it's the

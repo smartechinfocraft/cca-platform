@@ -27,6 +27,7 @@ require('./models/Student');
 require('./models/Attendance');
 require('./models/index'); // Batch, Category, Location, Coupon, Coach, Registration
 require('./models/MessageThread');
+require('./models/SiteSetting');
 
 const app  = express();
 const PORT = process.env.PORT || 5001;

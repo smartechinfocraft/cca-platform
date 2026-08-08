@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { path: '/admin/age-groups',       label: 'Age Groups',       icon: '🎯', superOnly: true  },
   { path: '/admin/levels',           label: 'Levels',           icon: '📶', superOnly: true  },
   { path: '/admin/admin-users',      label: 'Admin Users',      icon: '👑', superOnly: true  },
+  { path: '/admin/site-settings',    label: 'Site Maintenance', icon: '🛠', superOnly: true  },
   // ── Shared section ──
   { path: '/admin/registrations',    label: 'Registrations',    icon: '📋', superOnly: false },
   { path: '/admin/payment-students', label: 'Payment Students', icon: '💳', superOnly: false },
