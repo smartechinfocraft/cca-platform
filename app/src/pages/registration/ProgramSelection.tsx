@@ -392,7 +392,7 @@ export default function ProgramSelection() {
         students: students.map(({ selectedBatch: _selectedBatch, ...student }) => student),
       });
     }
-    navigate("/review-order");
+    navigate("/review-order", { state: isEditingProgram ? null : { syncRegistrationDraft: true } });
   };
 
   // ─── Loading state ────────────────────────────────────────────────────────────

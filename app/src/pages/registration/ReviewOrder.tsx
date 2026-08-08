@@ -43,7 +43,9 @@ function getEffectiveBatchFee(batch: any, fallbackPrice = 0): number {
 function ReviewOrder() {
   const navigate = useNavigate();
   const location = useLocation();
-  const validateBillingOnEntry = Boolean((location.state as { validateBilling?: boolean } | null)?.validateBilling);
+  const reviewNavigationState = location.state as { validateBilling?: boolean; syncRegistrationDraft?: boolean } | null;
+  const validateBillingOnEntry = Boolean(reviewNavigationState?.validateBilling);
+  const shouldSyncRegistrationDraft = Boolean(reviewNavigationState?.syncRegistrationDraft);
   const {
     selectedProgram,
     selectedBatch,
@@ -106,7 +108,7 @@ function ReviewOrder() {
   }, []);
 
   useEffect(() => {
-    if (cartSyncedRef.current || !selectedProgram || !selectedBatch) return;
+    if (!shouldSyncRegistrationDraft || cartSyncedRef.current || !selectedProgram || !selectedBatch) return;
 
     const cartStudents = students
       .filter((student) => student.firstName.trim() && student.lastName.trim())
@@ -142,7 +144,10 @@ function ReviewOrder() {
     });
 
     cartSyncedRef.current = true;
-  }, [selectedBatch, selectedProgram, students, upsertItem]);
+    // Consume the one-time draft flag. Revisiting review-order from the cart
+    // icon or browser history must never recreate a deleted cart item.
+    navigate("/review-order", { replace: true, state: null });
+  }, [navigate, selectedBatch, selectedProgram, shouldSyncRegistrationDraft, students, upsertItem]);
 
   useEffect(() => {
     if (user) {

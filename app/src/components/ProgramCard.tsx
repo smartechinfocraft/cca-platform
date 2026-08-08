@@ -679,7 +679,7 @@ function QuickRegisterDrawer({
     if (!isStudentValid) return;
     saveBatchSelection();
     onClose();
-    navigate("/review-order");
+    navigate("/review-order", { state: { syncRegistrationDraft: true } });
   };
 
   const drawer = (

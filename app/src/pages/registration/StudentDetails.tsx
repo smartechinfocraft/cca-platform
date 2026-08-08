@@ -59,7 +59,7 @@ function StudentDetails() {
   // Continue → go directly to review order (current student must be valid)
   const handleContinue = () => {
     if (!isStudentValid) return;
-    navigate("/review-order");
+    navigate("/review-order", { state: { syncRegistrationDraft: true } });
   };
 
   // Add another student to the SAME batch inline on this page

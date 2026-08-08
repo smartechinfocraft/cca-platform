@@ -237,7 +237,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
   const handleContinue = () => {
     if (!isStudentValid) return;
     setSelectedProgram({ _id: programId, title: programTitle } as any); // FIX
-    navigate("/review-order");
+    navigate("/review-order", { state: { syncRegistrationDraft: true } });
   };
 
   const handleAddToCart = () => {
