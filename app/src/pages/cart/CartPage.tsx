@@ -61,6 +61,8 @@ export default function CartPage() {
   const [waiverDrawnSignature, setWaiverDrawnSignature] = useState("");
   const [waiverError, setWaiverError] = useState<string | null>(null);
   const [accountPromptOpen, setAccountPromptOpen] = useState(false);
+  const [invalidAccountField, setInvalidAccountField] = useState<"password" | "confirm" | null>(null);
+  const [checkPayableError, setCheckPayableError] = useState(false);
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
   const paypalRegistrationRef = useRef<string | null>(null);
@@ -87,7 +89,7 @@ export default function CartPage() {
 
   const parentValid = Boolean(
     parentDetails.parentName.trim() &&
-    parentDetails.email.trim() &&
+    /^\S+@\S+\.\S+$/.test(parentDetails.email.trim()) &&
     parentDetails.phone.trim() &&
     parentDetails.address.trim() &&
     parentDetails.city.trim() &&
@@ -103,16 +105,36 @@ export default function CartPage() {
   // same simplification the rest of the app already uses for multi-item carts.
   const firstItem = items[0];
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
+  const scrollToField = (id: string) => {
+    requestAnimationFrame(() => {
+      const target = document.getElementById(id) as HTMLElement | null;
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      target?.focus({ preventScroll: true });
+    });
+  };
+
+  const showAccountPasswordError = () => {
+    const field = accountPassword.length < 6 ? "password" : "confirm";
+    setPayError(field === "password" ? "Password must be at least 6 characters." : "Passwords do not match.");
+    setInvalidAccountField(field);
+    scrollToField(`cart-account-${field}`);
+  };
+
   // ── Submit the registration to the backend, then clear the cart ──
   const submitRegistration = async (method: string, transactionId?: string, prepareOnly = false): Promise<any> => {
     if (!waiverValid) {
       setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+      scrollToField("waiver-consent-box");
       return;
     }
     setPayError(null);
     setWaiverError(null);
     if (createAccount && !accountPasswordValid) {
-      setPayError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
+      showAccountPasswordError();
       return;
     }
     setPaying(true);
@@ -200,12 +222,13 @@ export default function CartPage() {
   };
 
   const submitCheck = async () => {
-    if (!parentValid) { navigate("/review-order"); return; }
+    if (!parentValid) { navigate("/review-order", { state: { validateBilling: true } }); return; }
     if (!waiverValid) {
       setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before registering.");
+      scrollToField("waiver-consent-box");
       return;
     }
-    if (!checkPayableTo.trim()) { setPayError("Please fill check details."); return; }
+    if (!checkPayableTo.trim()) { setPayError("Please fill check details."); setCheckPayableError(true); scrollToField("cart-check-payable"); return; }
     await submitRegistration("Check");
   };
 
@@ -408,27 +431,31 @@ export default function CartPage() {
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">Password</label>
                         <input
+                          id="cart-account-password"
                           type="password"
                           value={accountPassword}
                           onChange={(e) => {
                             setAccountPassword(e.target.value);
                             setPayError(null);
+                            setInvalidAccountField(null);
                           }}
                           placeholder="At least 6 characters"
-                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15"
+                          className={`mt-2 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15 ${invalidAccountField === "password" ? "border-red-500 bg-red-50 ring-2 ring-red-200" : "border-slate-200"}`}
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">Confirm Password</label>
                         <input
+                          id="cart-account-confirm"
                           type="password"
                           value={accountPasswordConfirm}
                           onChange={(e) => {
                             setAccountPasswordConfirm(e.target.value);
                             setPayError(null);
+                            setInvalidAccountField(null);
                           }}
                           placeholder="Repeat password"
-                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15"
+                          className={`mt-2 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15 ${invalidAccountField === "confirm" ? "border-red-500 bg-red-50 ring-2 ring-red-200" : "border-slate-200"}`}
                         />
                       </div>
                     </div>
@@ -468,9 +495,9 @@ export default function CartPage() {
                         key={method}
                         type="button"
                         onClick={() => {
-                          if (!parentValid) { navigate("/review-order"); return; }
+                          if (!parentValid) { navigate("/review-order", { state: { validateBilling: true } }); return; }
                           if (!waiverValid) { setWaiverError("Please accept the waiver, type your e-signature, and draw your digital signature before choosing payment."); document.getElementById("waiver-consent-box")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
-                          if (!accountPasswordValid) { setPayError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match."); return; }
+                          if (!accountPasswordValid) { showAccountPasswordError(); return; }
                           setPaymentMethod(method);
                         }}
                         className={`flex flex-col items-center gap-3 rounded-[20px] border p-6 text-center transition ${paymentMethod === method ? "border-[var(--gold)] bg-[var(--gold)]/10 shadow-md" : "border-slate-200 bg-slate-50 hover:border-[var(--gold)]"}`}
@@ -528,7 +555,7 @@ export default function CartPage() {
                       <div className="mt-4 space-y-4">
                         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                           <label className="block text-sm font-semibold text-slate-700">Make Check Payable To <span className="text-red-500">*</span></label>
-                          <input type="text" value={checkPayableTo} onChange={(e) => setCheckPayableTo(e.target.value)} className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[var(--gold)]" />
+                          <input id="cart-check-payable" type="text" value={checkPayableTo} onChange={(e) => { setCheckPayableTo(e.target.value); setCheckPayableError(false); }} className={`mt-3 w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[var(--gold)] ${checkPayableError ? "border-red-500 bg-red-50 ring-2 ring-red-200" : "border-slate-200"}`} />
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                           <label className="block text-sm font-semibold text-slate-700">Check Number (optional)</label>
@@ -541,7 +568,7 @@ export default function CartPage() {
                       <button
                         type="button"
                         onClick={submitCheck}
-                        disabled={paying || !checkPayableTo.trim() || !accountPasswordValid}
+                        disabled={paying || !accountPasswordValid}
                         className="mt-5 inline-flex items-center justify-center gap-2 rounded-full px-8 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 transition w-full"
                         style={{ background: "var(--gold)" }}
                       >

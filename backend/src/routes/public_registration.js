@@ -297,8 +297,8 @@ router.post('/auth/register', async (req, res) => {
 });
 
 // ── POST /api/public/auth/login ──────────────────────────────
-// Check whether an email already belongs to an active parent portal account.
-// Guest parent records can still be activated by choosing a password.
+// Check whether an email already belongs to any parent record. The client uses
+// this before checkout so existing identities are handled before payment.
 router.post('/auth/check-parent-email', async (req, res) => {
   try {
     const Parent = require('../models/Parent');
@@ -307,7 +307,11 @@ router.post('/auth/check-parent-email', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email is required.' });
     }
     const parent = await Parent.findOne({ email: emailNormalized }).select('+password');
-    return res.json({ success: true, registered: isPortalAccount(parent) });
+    return res.json({
+      success: true,
+      exists: Boolean(parent),
+      registered: isPortalAccount(parent),
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

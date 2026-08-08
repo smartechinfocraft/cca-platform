@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   HiOutlineArrowLeft, HiOutlineArrowRight,
   HiOutlinePencilSquare, HiOutlineCheck, HiOutlineTag, HiOutlineXCircle, HiOutlineTrash,
@@ -10,6 +10,7 @@ import { useRegistration } from "../../context/RegistrationContext";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import api from "../../api/axios";
+import { isAxiosError } from "axios";
 
 // Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
 function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
@@ -41,6 +42,8 @@ function getEffectiveBatchFee(batch: any, fallbackPrice = 0): number {
 
 function ReviewOrder() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const validateBillingOnEntry = Boolean((location.state as { validateBilling?: boolean } | null)?.validateBilling);
   const {
     selectedProgram,
     selectedBatch,
@@ -60,14 +63,28 @@ function ReviewOrder() {
     couponDiscount,
     setCouponDiscount,
   } = useRegistration();
-  const { user } = useAuth();
+  const { user, acceptSession } = useAuth();
   const { items, upsertItem, removeItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
   const cartSyncedRef = useRef(false);
 
-  const [editingBilling, setEditingBilling] = useState(false);
+  const [editingBilling, setEditingBilling] = useState(validateBillingOnEntry);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [existingParentAccount, setExistingParentAccount] = useState(false);
+  const [existingGuestRecord, setExistingGuestRecord] = useState(false);
   const [checkingParentEmail, setCheckingParentEmail] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [invalidFields, setInvalidFields] = useState<Set<string>>(() => {
+    if (!validateBillingOnEntry) return new Set();
+    const values = [
+      ["parent-name", parentDetails.parentName], ["email", parentDetails.email],
+      ["phone", parentDetails.phone], ["address", parentDetails.address],
+      ["city", parentDetails.city], ["state", parentDetails.state], ["zip", parentDetails.zip],
+    ] as const;
+    return new Set(values.filter(([field, value]) => !value.trim() || (field === "email" && !/^\S+@\S+\.\S+$/.test(value.trim()))).map(([field]) => field));
+  });
 
   // Coupon state — local to this page
   const [couponInput, setCouponInput] = useState(appliedCoupon?.code ?? "");
@@ -76,6 +93,17 @@ function ReviewOrder() {
 
   // Available coupons
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    if (validateBillingOnEntry) {
+      requestAnimationFrame(() => {
+        const target = document.querySelector<HTMLInputElement>('[id^="review-"][class*="border-red-500"]');
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+        target?.focus({ preventScroll: true });
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (cartSyncedRef.current || !selectedProgram || !selectedBatch) return;
@@ -167,7 +195,7 @@ function ReviewOrder() {
 
   const billingValid =
     parentDetails.parentName.trim() &&
-    parentDetails.email.trim() &&
+    /^\S+@\S+\.\S+$/.test(parentDetails.email.trim()) &&
     parentDetails.phone.trim() &&
     parentDetails.address.trim() &&
     parentDetails.city.trim() &&
@@ -178,30 +206,102 @@ function ReviewOrder() {
     !createAccount ||
     (accountPassword.length >= 6 && accountPassword === accountPasswordConfirm);
 
+  const clearInvalidField = (field: string) => {
+    setInvalidFields((current) => {
+      if (!current.has(field)) return current;
+      const next = new Set(current);
+      next.delete(field);
+      return next;
+    });
+  };
+
+  const markInvalidAndScroll = (fields: string[]) => {
+    setInvalidFields(new Set(fields));
+    requestAnimationFrame(() => {
+      const target = document.getElementById(`review-${fields[0]}`) as HTMLInputElement | null;
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      target?.focus({ preventScroll: true });
+    });
+  };
+
+  const checkParentEmail = async (openLogin = true): Promise<boolean> => {
+    if (user) return true;
+    const email = parentDetails.email.trim();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) return true;
+
+    setCheckingParentEmail(true);
+    try {
+      const response = await api.post("/public/auth/check-parent-email", { email });
+      const registered = Boolean(response.data?.registered);
+      const guestRecord = Boolean(response.data?.exists) && !registered;
+      setExistingParentAccount(registered);
+      setExistingGuestRecord(guestRecord);
+      if (registered) {
+        setAccountError("A parent portal account with this email already exists. Please sign in to continue.");
+        if (openLogin) {
+          setLoginError(null);
+          setLoginModalOpen(true);
+        }
+        return false;
+      }
+      if (guestRecord) {
+        setAccountError("A prior guest registration already uses this email. Please contact support to verify ownership before continuing.");
+        markInvalidAndScroll(["email"]);
+        return false;
+      }
+      setAccountError(null);
+      return true;
+    } catch (error: unknown) {
+      setAccountError((isAxiosError(error) && error.response?.data?.message) || "Unable to verify this email. Please try again.");
+      markInvalidAndScroll(["email"]);
+      return false;
+    } finally {
+      setCheckingParentEmail(false);
+    }
+  };
+
+  const handleModalLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoginSubmitting(true);
+    setLoginError(null);
+    try {
+      const response = await api.post("/public/auth/login", {
+        email: parentDetails.email.trim(),
+        password: loginPassword,
+      });
+      acceptSession(response.data.token, response.data.parent);
+      setExistingParentAccount(false);
+      setExistingGuestRecord(false);
+      setAccountError(null);
+      setLoginModalOpen(false);
+      setLoginPassword("");
+      setCheckoutMode("account");
+    } catch (error: unknown) {
+      setLoginError((isAxiosError(error) && error.response?.data?.message) || "Unable to sign in. Please check your password and try again.");
+    } finally {
+      setLoginSubmitting(false);
+    }
+  };
+
   const handleProceedToPayment = async () => {
     if (!billingValid) {
       if (user) setEditingBilling(true);
+      const fields = ([
+        ["parent-name", parentDetails.parentName], ["email", parentDetails.email],
+        ["phone", parentDetails.phone], ["address", parentDetails.address],
+        ["city", parentDetails.city], ["state", parentDetails.state], ["zip", parentDetails.zip],
+      ] as const).filter(([field, value]) => !value.trim() || (field === "email" && !/^\S+@\S+\.\S+$/.test(value.trim()))).map(([field]) => field);
+      markInvalidAndScroll(fields);
       return;
     }
+    // Identity must be resolved before account-password validation. Otherwise
+    // an existing user who left the "create account" option selected could be
+    // asked to invent a new password before being shown the sign-in prompt.
+    if (!user && !(await checkParentEmail(true))) return;
     if (!user && createAccount && !accountPasswordValid) {
       setAccountError(accountPassword.length < 6 ? "Password must be at least 6 characters." : "Passwords do not match.");
+      markInvalidAndScroll(accountPassword.length < 6 ? ["account-password"] : ["account-password-confirm"]);
       return;
-    }
-    if (!user && createAccount) {
-      setCheckingParentEmail(true);
-      try {
-        const response = await api.post("/public/auth/check-parent-email", { email: parentDetails.email });
-        if (response.data?.registered) {
-          setExistingParentAccount(true);
-          setAccountError("A parent portal account with this email already exists. Please sign in to continue.");
-          return;
-        }
-      } catch (error: any) {
-        setAccountError(error?.response?.data?.message || "Unable to verify this email. Please try again.");
-        return;
-      } finally {
-        setCheckingParentEmail(false);
-      }
     }
     setExistingParentAccount(false);
     setAccountError(null);
@@ -334,6 +434,7 @@ function ReviewOrder() {
 
   const inputCls =
     "mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15";
+  const fieldClass = (field: string) => `${inputCls} ${invalidFields.has(field) ? "border-red-500 bg-red-50 ring-2 ring-red-200" : ""}`;
 
   return (
     <>
@@ -551,35 +652,49 @@ function ReviewOrder() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">Parent Name <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.parentName} onChange={e => updateParent({ parentName: e.target.value })} placeholder="Full name" className={inputCls} />
+                        <input id="review-parent-name" type="text" value={parentDetails.parentName} onChange={e => { updateParent({ parentName: e.target.value }); clearInvalidField("parent-name"); }} placeholder="Full name" className={fieldClass("parent-name")} />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">Email <span className="text-red-500">*</span></label>
-                        <input type="email" value={parentDetails.email} onChange={e => { updateParent({ email: e.target.value }); setExistingParentAccount(false); setAccountError(null); }} placeholder="parent@example.com" className={inputCls} />
+                        <input
+                          id="review-email"
+                          type="email"
+                          value={parentDetails.email}
+                          onChange={e => {
+                            updateParent({ email: e.target.value });
+                            setExistingParentAccount(false);
+                            setExistingGuestRecord(false);
+                            setAccountError(null);
+                            clearInvalidField("email");
+                          }}
+                          onBlur={() => { void checkParentEmail(true); }}
+                          placeholder="parent@example.com"
+                          className={fieldClass("email")}
+                        />
                       </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">Phone <span className="text-red-500">*</span></label>
-                        <input type="tel" value={parentDetails.phone} onChange={e => updateParent({ phone: e.target.value })} placeholder="(123) 456-7890" className={inputCls} />
+                        <input id="review-phone" type="tel" value={parentDetails.phone} onChange={e => { updateParent({ phone: e.target.value }); clearInvalidField("phone"); }} placeholder="(123) 456-7890" className={fieldClass("phone")} />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">City <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.city} onChange={e => updateParent({ city: e.target.value })} placeholder="San Jose" className={inputCls} />
+                        <input id="review-city" type="text" value={parentDetails.city} onChange={e => { updateParent({ city: e.target.value }); clearInvalidField("city"); }} placeholder="San Jose" className={fieldClass("city")} />
                       </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-700">Street Address <span className="text-red-500">*</span></label>
-                      <input type="text" value={parentDetails.address} onChange={e => updateParent({ address: e.target.value })} placeholder="123 Maple Avenue" className={inputCls} />
+                      <input id="review-address" type="text" value={parentDetails.address} onChange={e => { updateParent({ address: e.target.value }); clearInvalidField("address"); }} placeholder="123 Maple Avenue" className={fieldClass("address")} />
                     </div>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700">State <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.state} onChange={e => updateParent({ state: e.target.value })} placeholder="CA" maxLength={2} className={inputCls} />
+                        <input id="review-state" type="text" value={parentDetails.state} onChange={e => { updateParent({ state: e.target.value }); clearInvalidField("state"); }} placeholder="CA" maxLength={2} className={fieldClass("state")} />
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-semibold text-slate-700">ZIP Code <span className="text-red-500">*</span></label>
-                        <input type="text" value={parentDetails.zip} onChange={e => updateParent({ zip: e.target.value })} placeholder="95123" className={inputCls} />
+                        <input id="review-zip" type="text" value={parentDetails.zip} onChange={e => { updateParent({ zip: e.target.value }); clearInvalidField("zip"); }} placeholder="95123" className={fieldClass("zip")} />
                       </div>
                     </div>
                     {!billingValid && (
@@ -622,27 +737,31 @@ function ReviewOrder() {
                         <div>
                           <label className="block text-xs font-semibold text-slate-700">Password</label>
                           <input
+                            id="review-account-password"
                             type="password"
                             value={accountPassword}
                             onChange={(e) => {
                               setAccountPassword(e.target.value);
                               setAccountError(null);
+                              clearInvalidField("account-password");
                             }}
                             placeholder="At least 6 characters"
-                            className={inputCls}
+                            className={fieldClass("account-password")}
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-slate-700">Confirm Password</label>
                           <input
+                            id="review-account-password-confirm"
                             type="password"
                             value={accountPasswordConfirm}
                             onChange={(e) => {
                               setAccountPasswordConfirm(e.target.value);
                               setAccountError(null);
+                              clearInvalidField("account-password-confirm");
                             }}
                             placeholder="Repeat password"
-                            className={inputCls}
+                            className={fieldClass("account-password-confirm")}
                           />
                         </div>
                       </div>
@@ -655,11 +774,14 @@ function ReviewOrder() {
                     {existingParentAccount && (
                       <button
                         type="button"
-                        onClick={() => navigate("/login", { state: { from: "/review-order", mode: "parent-login", prefill: { email: parentDetails.email } } })}
+                        onClick={() => setLoginModalOpen(true)}
                         className="mt-3 rounded-full bg-[#0F172A] px-5 py-2 text-xs font-semibold text-white"
                       >
                         Sign in to your parent account
                       </button>
+                    )}
+                    {existingGuestRecord && (
+                      <p className="mt-3 text-xs text-slate-600">Contact CCA support before paying so the prior guest record can be verified and linked safely.</p>
                     )}
                   </div>
                 )}
@@ -822,6 +944,33 @@ function ReviewOrder() {
           </div>
         </section>
       </main>
+      {loginModalOpen && !user && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="existing-parent-login-title">
+          <div className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl sm:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold)]">Account found</p>
+                <h2 id="existing-parent-login-title" className="mt-2 text-2xl font-bold text-[#0F172A]">Sign in to continue</h2>
+              </div>
+              <button type="button" onClick={() => setLoginModalOpen(false)} aria-label="Close sign-in dialog" className="text-2xl text-slate-400 hover:text-slate-700">&times;</button>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">A parent portal account already exists for <strong>{parentDetails.email}</strong>. Sign in now; your cart and registration details will remain here.</p>
+            <form onSubmit={handleModalLogin} className="mt-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700">Email</label>
+                <input type="email" value={parentDetails.email} readOnly className={`${inputCls} bg-slate-100`} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700">Password</label>
+                <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} autoFocus required className={inputCls} placeholder="Enter your password" />
+              </div>
+              {loginError && <p className="text-sm font-semibold text-red-600">{loginError}</p>}
+              <button type="submit" disabled={loginSubmitting} className="w-full rounded-full bg-[#0F172A] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">{loginSubmitting ? "Signing in..." : "Sign in and continue"}</button>
+              <button type="button" onClick={() => navigate("/login", { state: { from: "/review-order", mode: "parent-login", prefill: { email: parentDetails.email } } })} className="w-full text-sm font-semibold text-slate-600 underline">Forgot password?</button>
+            </form>
+          </div>
+        </div>
+      )}
       <Footer />
     </>
   );

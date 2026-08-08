@@ -157,7 +157,7 @@ function WaiverConsent({
   };
 
   return (
-    <div className="rounded-[24px] border-2 border-[var(--gold)] bg-amber-50 p-5 shadow-md ring-4 ring-[var(--gold)]/10">
+    <div className={`rounded-[24px] border-2 bg-amber-50 p-5 shadow-md ring-4 ${error ? "border-red-500 ring-red-200" : "border-[var(--gold)] ring-[var(--gold)]/10"}`}>
       <div className="rounded-2xl border border-[var(--gold)]/40 bg-white p-4">
         <p className="mb-3 text-xs font-bold uppercase tracking-widest text-[var(--gold)]">
           Mandatory Checkout Consent
@@ -168,7 +168,7 @@ function WaiverConsent({
             type="checkbox"
             checked={accepted}
             onChange={(e) => onAcceptedChange(e.target.checked)}
-            className="mt-0.5 h-6 w-6 shrink-0 rounded border-2 border-[var(--gold)] text-[var(--gold)] focus:ring-[var(--gold)]"
+            className={`mt-0.5 h-6 w-6 shrink-0 rounded border-2 text-[var(--gold)] focus:ring-[var(--gold)] ${error && !accepted ? "border-red-500 ring-2 ring-red-200" : "border-[var(--gold)]"}`}
           />
           <label htmlFor="waiver-consent" className="text-sm leading-6 text-slate-700">
             <span className="font-bold text-[#0F172A]">Required waiver and consent.</span>{" "}
@@ -194,7 +194,7 @@ function WaiverConsent({
           onChange={(e) => onSignatureChange(e.target.value)}
           readOnly={Boolean(resolvedGuardianName)}
           placeholder={guardianName || "Type parent/guardian full name"}
-          className={`mt-3 w-full rounded-xl border border-amber-200 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15 ${
+          className={`mt-3 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/15 ${error && !signature.trim() ? "border-red-500 bg-red-50 ring-2 ring-red-200" : "border-amber-200"} ${
             resolvedGuardianName ? "bg-slate-50 text-slate-700 cursor-not-allowed" : "bg-white"
           }`}
         />
@@ -210,7 +210,7 @@ function WaiverConsent({
             onPointerUp={finishDrawing}
             onPointerCancel={finishDrawing}
             onPointerLeave={finishDrawing}
-            className="mt-3 h-40 w-full touch-none rounded-2xl border border-amber-200 bg-white shadow-inner"
+            className={`mt-3 h-40 w-full touch-none rounded-2xl border bg-white shadow-inner ${error && !drawnSignature ? "border-red-500 ring-2 ring-red-200" : "border-amber-200"}`}
             aria-label="Draw parent or guardian signature"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
