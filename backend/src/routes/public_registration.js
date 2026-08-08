@@ -11,6 +11,7 @@ const { confirmPayPalRegistration, sendPayPalConfirmationOnce } = require('../se
 const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits } = require('../services/stripeService');
 const { confirmStripeRegistration, sendStripeConfirmationOnce } = require('../services/stripeRegistrationService');
 const { markPaymentFailed } = require('../services/paymentFailureService');
+const { saveRegistrationWithCouponReservation } = require('../services/couponReservationService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { protect, adminOrSuperAdmin } = require('../middleware/auth');
 const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
@@ -19,6 +20,7 @@ const {
   normalizeEmail,
   validateOptionalAccountPassword,
   isPortalAccount,
+  guestCheckoutRequiresSignIn,
   deriveRegistrationMode,
 } = require('../utils/parentAccount');
 
@@ -77,12 +79,32 @@ function normalizeOrderStudent(student) {
   };
 }
 
+function buildCartStudentInputs(cartItems) {
+  if (!Array.isArray(cartItems) || cartItems.length === 0) return [];
+  return cartItems.flatMap(item => {
+    if (!Array.isArray(item.students) || item.students.length === 0) return [];
+    return item.students.map(student => ({
+      ...student,
+      selectedBatch: {
+        _id: item.batchId,
+        title: item.batchName,
+        name: item.batchName,
+        days: item.selectedDays,
+        timing: item.selectedDays,
+        sessionsPerWeek: item.sessionsPerWeek,
+        selectedMonth: item.selectedMonth,
+        selectedWeeklyBatches: item.selectedWeeklyBatches,
+      },
+    }));
+  });
+}
+
 function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced, registrationMode }) {
   if (Array.isArray(cartItems) && cartItems.length > 0) {
     return cartItems.map((item, index) => {
       const itemStudents = Array.isArray(item.students) && item.students.length ? item.students : [];
       const studentCount = Number(item.studentCount) || itemStudents.length || 1;
-      const feePerStudent = round2(Number(item.fee) || Number(priced?.lineItems?.[index]?.unitPrice) || 0);
+      const feePerStudent = round2(Number(priced?.lineItems?.[index]?.unitPrice) || 0);
       return {
         programId: item.programId ? String(item.programId) : '',
         programTitle: item.programTitle
@@ -244,10 +266,10 @@ router.post('/auth/register', async (req, res) => {
     if (passwordError) return res.status(400).json({ success: false, message: passwordError });
 
     const exists = await Parent.findOne({ email: emailNormalized }).select('+password');
-    if (exists && isPortalAccount(exists))
-      return res.status(400).json({ success: false, message: 'An account with this email already exists.' });
+    if (exists)
+      return res.status(409).json({ success: false, message: 'An account or prior guest record with this email already exists. Please sign in or contact support to verify ownership.' });
 
-    const parent = exists || new Parent();
+    const parent = new Parent();
     parent.firstName = firstName;
     parent.lastName = lastName;
     parent.email = emailNormalized;
@@ -264,7 +286,7 @@ router.post('/auth/register', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: exists ? 'Account activated successfully!' : 'Account created successfully!',
+      message: 'Account created successfully!',
       token: accessToken,
       parent: toSafeParent(parent),
     });
@@ -518,6 +540,12 @@ router.post('/paypal/create-order', async (req, res) => {
         amount: pending.totalAmount,
         discount: pending.discountAmount,
         currency: 'USD',
+      });
+    }
+    if (req.body?.couponCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Create the pending registration before starting a discounted PayPal payment.',
       });
     }
     const { programId, batchId, studentCount, sessionsPerWeek, selectedDays, selectedMonth, expectedUnitPrice, weeklyBatchIds, couponCode, cartItems, checkoutMode } = req.body;
@@ -988,7 +1016,8 @@ async function handleRegistration(req, res) {
     ).map(b => (typeof b === 'string' ? b : b?._id)).filter(Boolean);
 
     let matchedWeeklyBatches = [];
-    if (programForWeekCheck.batchType === 'WEEKLY') {
+    const isCartRequest = Array.isArray(cartItems) && cartItems.length > 0;
+    if (programForWeekCheck.batchType === 'WEEKLY' && !isCartRequest) {
       if (requestedWeeklyBatchIds.length === 0) {
         return res.status(400).json({ success: false, message: 'Please select at least one batch for this program.' });
       }
@@ -1010,9 +1039,16 @@ async function handleRegistration(req, res) {
       });
     }
 
-    const studentInputs = Array.isArray(students) && students.length
-      ? students
-      : (req.body.student ? [req.body.student] : []);
+    const isCartCheckout = Array.isArray(cartItems) && cartItems.length > 0;
+    const studentInputs = isCartCheckout
+      ? buildCartStudentInputs(cartItems)
+      : (Array.isArray(students) && students.length ? students : (req.body.student ? [req.body.student] : []));
+
+    if (isCartCheckout && studentInputs.length !== cartItems.reduce(
+      (total, item) => total + (Array.isArray(item.students) ? item.students.length : 0), 0
+    )) {
+      return res.status(400).json({ success: false, message: 'Cart student details are incomplete.' });
+    }
 
     if (!studentInputs.length)
       return res.status(400).json({ success: false, message: 'At least one student is required.' });
@@ -1109,6 +1145,13 @@ async function handleRegistration(req, res) {
       };
     }
 
+    const effectiveWeeklyBatchCandidates = Array.isArray(priced.lineItems)
+      ? priced.lineItems.flatMap(line => line.weeklyBatches || [])
+      : matchedWeeklyBatches;
+    const effectiveWeeklyBatches = [...new Map(
+      effectiveWeeklyBatchCandidates.map(batch => [String(batch._id), batch])
+    ).values()];
+
     // Recovery is based on the historical amount Stripe actually received.
     // Current program prices or expired coupons may legitimately differ from
     // what the parent paid at the time, so an authenticated admin recovery
@@ -1154,36 +1197,30 @@ async function handleRegistration(req, res) {
       const emailNormalized = normalizeEmail(parentInfo.email);
       let parent = await Parent.findOne({ email: emailNormalized }).select('+password');
       const existingPortalAccount = isPortalAccount(parent);
-      if (checkoutAccountPassword && existingPortalAccount) {
+      if (guestCheckoutRequiresSignIn(parent)) {
         return res.status(409).json({
           success: false,
           message: 'A parent portal account with this email already exists. Please sign in before continuing.',
         });
       }
-      const nameParts = splitParentName(parentInfo.parentName);
-      if (!parent) {
-        parent = new Parent({
-          firstName: nameParts.firstName,
-          lastName: nameParts.lastName,
-          email: emailNormalized,
-          phone: parentInfo.phone || '000-000-0000',
-          address: parentInfo.address,
-          city: parentInfo.city,
-          state: parentInfo.state,
-          zip: parentInfo.zip,
-          accountStatus: checkoutAccountPassword ? 'ACTIVE' : 'GUEST',
+      if (parent) {
+        return res.status(409).json({
+          success: false,
+          message: 'A prior guest record with this email already exists. Please contact support to verify ownership before continuing.',
         });
-      } else if (parentInfo?.address || parentInfo?.city || parentInfo?.state || parentInfo?.zip) {
-        // Existing guest-checkout parent found by email — keep their saved
-        // address current too, same as the logged-in path above.
-        parent.firstName = nameParts.firstName;
-        parent.lastName = nameParts.lastName;
-        if (parentInfo.phone) parent.phone = parentInfo.phone;
-        if (parentInfo.address) parent.address = parentInfo.address;
-        if (parentInfo.city) parent.city = parentInfo.city;
-        if (parentInfo.state) parent.state = parentInfo.state;
-        if (parentInfo.zip) parent.zip = parentInfo.zip;
       }
+      const nameParts = splitParentName(parentInfo.parentName);
+      parent = new Parent({
+        firstName: nameParts.firstName,
+        lastName: nameParts.lastName,
+        email: emailNormalized,
+        phone: parentInfo.phone || '000-000-0000',
+        address: parentInfo.address,
+        city: parentInfo.city,
+        state: parentInfo.state,
+        zip: parentInfo.zip,
+        accountStatus: checkoutAccountPassword ? 'ACTIVE' : 'GUEST',
+      });
       if (checkoutAccountPassword && !existingPortalAccount) {
         parent.password = checkoutAccountPassword;
         parent.accountStatus = 'ACTIVE';
@@ -1298,45 +1335,6 @@ async function handleRegistration(req, res) {
       }
     }
 
-    // ── Decrement coupon usedCount AFTER payment is confirmed ──
-    // Only do this when the registration has a coupon and the payment
-    // was either successful (PayPal/Stripe) or submitted (Check). Uses an
-    // ATOMIC conditional update (only increments if still under the
-    // limit) rather than read-then-write, so two concurrent registrations
-    // racing on the last remaining use of a maxUses coupon can't both
-    // succeed — this closes the duplicate-usage race window.
-    let couponHonored = !!priced.coupon;
-    if (priced.coupon?.perUserLimit != null) {
-      const priorUses = await Registration.countDocuments({
-        parentId: resolvedParentId,
-        couponCode: priced.coupon.code,
-        paymentStatus: { $ne: 'FAILED' },
-      });
-      if (priorUses >= priced.coupon.perUserLimit) {
-        return res.status(400).json({
-          success: false,
-          message: 'You have already used this coupon the maximum number of times.',
-        });
-      }
-    }
-
-    if (priced.coupon && (pmStatus === 'SUCCESS' || paymentMethod === 'Check')) {
-      const Coupon = mongoose.model('Coupon');
-      const incremented = await Coupon.findOneAndUpdate(
-        {
-          _id: priced.coupon._id,
-          isActive: true,
-          $or: [{ maxUses: null }, { $expr: { $lt: ['$usedCount', '$maxUses'] } }],
-        },
-        { $inc: { usedCount: 1 } },
-        { new: true }
-      );
-      if (!incremented) {
-        couponHonored = false;
-        console.error(`Coupon abuse/race detected — ${priced.coupon.code} was already at its usage limit at save time.`);
-      }
-    }
-
     const studentNote = studentInputs
       .map(s => `${s.firstName} ${s.lastName} | DOB: ${s.dob || 'N/A'} | Gender: ${s.gender || 'N/A'}`)
       .join('; ');
@@ -1373,7 +1371,7 @@ async function handleRegistration(req, res) {
         weeks:     monthOpt.weeks != null ? String(monthOpt.weeks) : undefined,
         price:     monthOpt.price != null ? Number(monthOpt.price) : undefined,
       } : undefined,
-      selectedWeeklyBatches: matchedWeeklyBatches.length ? matchedWeeklyBatches.map(b => ({
+      selectedWeeklyBatches: effectiveWeeklyBatches.length ? effectiveWeeklyBatches.map(b => ({
         batchId:       String(b._id),
         label:         b.label,
         startDate:     b.startDate,
@@ -1389,7 +1387,7 @@ async function handleRegistration(req, res) {
       totalAmount: priced.total,
       orderItems,
       registrationMode,
-      couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
+      couponCode: priced.coupon ? priced.coupon.code : undefined,
       paymentMethod: pmMethod,
       paymentStatus: pmStatus,
       transactionId: transactionId || undefined,
@@ -1420,7 +1418,7 @@ async function handleRegistration(req, res) {
     });
 
     try {
-      await reg.save();
+      await saveRegistrationWithCouponReservation(reg, priced.coupon);
     } catch (saveErr) {
       // Unique index on transactionId is the last line of defense against
       // a duplicate/replayed payment slipping past the earlier check due
@@ -1481,7 +1479,7 @@ async function handleRegistration(req, res) {
       totalAmount: priced.total,
       orderItems,
       registrationMode,
-      couponCode: couponHonored && priced.coupon ? priced.coupon.code : undefined,
+      couponCode: priced.coupon ? priced.coupon.code : undefined,
       accountCreated,
       token: checkoutAccessToken || undefined,
       parent: checkoutSessionParent ? toSafeParent(checkoutSessionParent) : undefined,

@@ -6,6 +6,7 @@ const {
   normalizeEmail,
   validateOptionalAccountPassword,
   isPortalAccount,
+  guestCheckoutRequiresSignIn,
   deriveRegistrationMode,
 } = require('../src/utils/parentAccount');
 
@@ -59,4 +60,10 @@ test('deriveRegistrationMode tracks guest versus registered checkout', () => {
   assert.equal(deriveRegistrationMode({ authenticatedParentId: null, accountPassword: '' }), 'GUEST');
   assert.equal(deriveRegistrationMode({ authenticatedParentId: null, accountPassword: 'secret1' }), 'REGISTERED');
   assert.equal(deriveRegistrationMode({ authenticatedParentId: 'parent-id', accountPassword: '' }), 'REGISTERED');
+});
+
+test('guest checkout must sign in when the email belongs to a portal account', () => {
+  assert.equal(guestCheckoutRequiresSignIn({ accountStatus: 'ACTIVE', password: 'hash' }), true);
+  assert.equal(guestCheckoutRequiresSignIn({ accountStatus: 'GUEST' }), false);
+  assert.equal(guestCheckoutRequiresSignIn(null), false);
 });

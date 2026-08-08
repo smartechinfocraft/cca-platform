@@ -400,6 +400,7 @@ const registrationSchema = new mongoose.Schema(
     paymentFailureNotificationError: { type: String },
     couponUsageRecordedAt: { type: Date },
     couponUsageRecordingAt: { type: Date },
+    couponReservationExpiresAt: { type: Date, index: true },
 
     // ── Check-payment workflow (never auto-approved) ─────────────────
     // Only meaningful when paymentMethod === 'CHECK'. Mirrors paymentStatus

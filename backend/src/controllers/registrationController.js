@@ -139,7 +139,15 @@ exports.updateStatus = async (req, res) => {
         performedByRole: req.user.role,
       });
     }
-    await reg.save();
+    if (status === 'CANCELLED' && reg.paymentStatus !== 'SUCCESS' && reg.couponUsageRecordedAt) {
+      const { releaseCouponReservation } = require('../services/couponReservationService');
+      await mongoose.connection.transaction(async transactionSession => {
+        await reg.save({ session: transactionSession });
+        await releaseCouponReservation(reg._id, { session: transactionSession });
+      });
+    } else {
+      await reg.save();
+    }
 
     res.json({ success: true, data: reg });
   } catch (err) {
@@ -480,7 +488,11 @@ exports.rejectCheck = async (req, res) => {
     reg.updatedBy = req.user._id;
     reg.paymentAuditLog.push({ event: 'CHECK_REJECTED', performedBy: req.user._id, note: reason });
 
-    await reg.save();
+    const { releaseCouponReservation } = require('../services/couponReservationService');
+    await mongoose.connection.transaction(async transactionSession => {
+      await reg.save({ session: transactionSession });
+      await releaseCouponReservation(reg._id, { session: transactionSession });
+    });
     logCheckRejection({ registrationId: reg._id.toString(), registrationNumber: reg.registrationNumber, admin: req.user._id.toString(), reason });
 
     res.json({ success: true, message: 'Check rejected.', data: reg });

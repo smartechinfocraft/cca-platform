@@ -79,6 +79,13 @@ async function verifyWebhookSignature(headers, webhookEvent) {
   if (!process.env.PAYPAL_WEBHOOK_ID) {
     throw new Error('PAYPAL_WEBHOOK_ID is not set on the server.');
   }
+  const requiredHeaders = [
+    'paypal-auth-algo', 'paypal-cert-url', 'paypal-transmission-id',
+    'paypal-transmission-sig', 'paypal-transmission-time',
+  ];
+  if (!webhookEvent || requiredHeaders.some(name => !String(headers?.[name] || '').trim())) {
+    return false;
+  }
   const token = await getAccessToken();
   const body = JSON.stringify({
     auth_algo: headers['paypal-auth-algo'],
@@ -98,7 +105,6 @@ async function verifyWebhookSignature(headers, webhookEvent) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
-        ...(metadata.registrationId ? { 'PayPal-Request-Id': `registration-order-${metadata.registrationId}` } : {}),
       },
     };
     const req = https.request(options, res => {
@@ -107,7 +113,7 @@ async function verifyWebhookSignature(headers, webhookEvent) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data || '{}');
-          resolve(parsed.verification_status === 'SUCCESS');
+          resolve(res.statusCode >= 200 && res.statusCode < 300 && parsed.verification_status === 'SUCCESS');
         } catch (err) { reject(err); }
       });
     });

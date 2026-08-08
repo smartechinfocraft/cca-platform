@@ -108,6 +108,7 @@ function ReviewOrder() {
       selectedMonthOption,
       selectedDays,
       sessionsPerWeek: Math.max(selectedBatch.sessionsPerWeek ?? 1, splitSelectedDays(selectedDays).length || 1),
+      selectedWeeklyBatches: (selectedBatch as any).selectedWeeklyBatches,
       fee: effectiveSelectedBatchFee,
       students: cartStudents,
     });

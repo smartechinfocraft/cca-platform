@@ -37,6 +37,16 @@ export interface CartItem {
   selectedMonthOption?: { label?: string; startDate?: string; endDate?: string; weeks?: string | number; price?: string | number };
   selectedDays: string;     // e.g. "Monday + Wednesday"
   sessionsPerWeek: number;
+  selectedWeeklyBatches?: Array<{
+    _id?: string;
+    batchId?: string;
+    label?: string;
+    startDate?: string;
+    startTime?: string;
+    endDate?: string;
+    endTime?: string;
+    groundAddress?: string;
+  }>;
   fee: number;              // total fee for this item
   students: CartStudent[];
 }

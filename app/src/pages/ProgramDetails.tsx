@@ -266,6 +266,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
       selectedMonthOption: (batchCtx as any).selectedMonth,
       selectedDays: batchCtx.days,
       sessionsPerWeek: batchCtx.sessionsPerWeek ?? 1,
+      selectedWeeklyBatches: (batchCtx as any).selectedWeeklyBatches,
       fee: batchCtx.fee,
       students: cartStudents,
     });

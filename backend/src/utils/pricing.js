@@ -56,9 +56,12 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     const programIdStr = String(programId);
     if (batchIdStr !== programIdStr) {
       batch = await Batch.findOne({ _id: batchId, program: programId, isActive: true }).lean();
-      // If batch not found, don't throw — fall back to program-level pricing
-      // so a bad batchId doesn't block registration. Price priority below
-      // naturally falls through to program.discountedPrice / basePrice.
+      if (!batch) {
+        const err = new Error('Selected batch is not valid for this program.');
+        err.status = 400;
+        err.code = 'INVALID_BATCH';
+        throw err;
+      }
     }
   }
 
@@ -91,6 +94,12 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   const matchedMonthOption = selectedMonthLabel && monthOptions.length > 0
     ? monthOptions.find((m) => String(m.label || '').trim() === String(selectedMonthLabel).trim())
     : null;
+  if (monthOptions.length > 0 && !matchedMonthOption) {
+    const err = new Error('Select a valid month option for this program.');
+    err.status = 400;
+    err.code = 'INVALID_MONTH_OPTION';
+    throw err;
+  }
   if (matchedMonthOption && !isMonthOptionAvailable(matchedMonthOption)) {
     const err = new Error('Selected month option is not currently available for registration.');
     err.status = 400;
@@ -98,19 +107,12 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   }
   const expectedUnit = Number(expectedUnitPrice);
   const selectedDayCount = countSelectedDays(selectedDays);
+  validateSelectedSchedule({ program, selectedDays, sessionsPerWeek, selectedDayCount });
   const requestedFrequency = Math.max(Number(sessionsPerWeek) > 0 ? Number(sessionsPerWeek) : 1, selectedDayCount);
-  const matchedMonthByPrice = !matchedMonthOption && expectedUnit > 0 && monthOptions.length > 0
-    ? monthOptions.filter(isMonthOptionAvailable).find((m) => {
-        const price = Number(m.price);
-        return price > 0 && Math.abs(Math.round(expectedUnit / price) * price - expectedUnit) <= 0.01;
-      })
-    : null;
   const selectedMonthPrice =
     matchedMonthOption?.price != null
       ? Number(matchedMonthOption.price)
-      : matchedMonthByPrice?.price != null
-        ? Number(matchedMonthByPrice.price)
-        : 0;
+      : 0;
   const frequencyFromExpected = selectedMonthPrice > 0 && expectedUnit > 0
     ? Math.round(expectedUnit / selectedMonthPrice)
     : 0;
@@ -138,6 +140,15 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     unitPrice = program.basePrice;
   }
 
+  unitPrice = round2(unitPrice);
+  if (expectedUnit > 0 && Math.abs(expectedUnit - unitPrice) > 0.01) {
+    const err = new Error('The displayed price no longer matches the current program price. Please refresh your cart and try again.');
+    err.status = 409;
+    err.code = 'PRICE_CHANGED';
+    err.expectedUnitPrice = unitPrice;
+    throw err;
+  }
+
   const safeStudentCount = Math.max(1, parseInt(studentCount, 10) || 1);
   const subtotal = round2(unitPrice * safeStudentCount);
 
@@ -146,6 +157,8 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
   let appliedCoupon = null;
 
   if (couponCode) {
+    const { releaseExpiredUnstartedReservations } = require('../services/couponReservationService');
+    await releaseExpiredUnstartedReservations();
     const coupon = await Coupon.findOne({
       code: couponCode.trim().toUpperCase(),
       isActive: true,
@@ -239,6 +252,57 @@ function countSelectedDays(selectedDays) {
   return Math.max(1, count);
 }
 
+const DAY_NAMES = { MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday', SUN: 'Sunday' };
+
+function formatScheduleTime(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!match) return text;
+  if (match[3]) return `${Number(match[1])}:${match[2]} ${match[3].toUpperCase()}`;
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
+function normalizeSchedule(value) {
+  return String(value || '').toLowerCase().replace(/\s+/g, ' ').replace(/\s*-\s*/g, ' - ').trim();
+}
+
+function scheduleParts(selectedDays) {
+  return String(selectedDays || '').split(/\s*(?:\+|\||\n)\s*/).map(part => part.trim()).filter(Boolean);
+}
+
+function validateSelectedSchedule({ program, selectedDays, sessionsPerWeek, selectedDayCount }) {
+  if (program.batchType === 'WEEKLY') return;
+  const storedDays = Array.isArray(program.scheduleDays) ? program.scheduleDays.filter(day => day?.day) : [];
+  if (!storedDays.length) return; // legacy Batch-only programs
+  const requested = scheduleParts(selectedDays);
+  if (!requested.length) {
+    const err = new Error('Select at least one valid program day.');
+    err.status = 400;
+    err.code = 'INVALID_SCHEDULE';
+    throw err;
+  }
+  const allowed = new Set(storedDays.map(day => normalizeSchedule([
+    DAY_NAMES[day.day] || day.day,
+    formatScheduleTime(day.startTime),
+    formatScheduleTime(day.endTime),
+    day.groundAddress,
+  ].filter(Boolean).join(' - '))));
+  if (requested.some(part => !allowed.has(normalizeSchedule(part)))) {
+    const err = new Error('One or more selected program days are invalid or have changed.');
+    err.status = 400;
+    err.code = 'INVALID_SCHEDULE';
+    throw err;
+  }
+  const submittedFrequency = Number(sessionsPerWeek);
+  if (submittedFrequency > 0 && submittedFrequency !== selectedDayCount) {
+    const err = new Error('Selected frequency does not match the selected program days.');
+    err.status = 400;
+    err.code = 'INVALID_FREQUENCY';
+    throw err;
+  }
+}
+
 function isMonthOptionAvailable(option) {
   if (!option) return false;
   if (isDisabledFlag(option.isEnabled)) return false;
@@ -253,6 +317,9 @@ async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
   const Coupon = mongoose.model('Coupon');
   const safeSubtotal = round2(subtotal);
   if (!couponCode) return { discount: 0, total: safeSubtotal, coupon: null };
+
+  const { releaseExpiredUnstartedReservations } = require('../services/couponReservationService');
+  await releaseExpiredUnstartedReservations();
 
   const coupon = await Coupon.findOne({
     code: couponCode.trim().toUpperCase(),
@@ -322,9 +389,15 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
       : Array.isArray(item.selectedWeeklyBatches)
         ? item.selectedWeeklyBatches.map((b) => (typeof b === 'string' ? b : b?._id)).filter(Boolean)
         : [];
-    const studentCount = Array.isArray(item.students) && item.students.length ? item.students.length : (item.studentCount || 1);
-    const unitPrice = round2(Number(item.fee));
-    if (!item.programId || !item.batchId || !unitPrice || unitPrice <= 0) {
+    if (!Array.isArray(item.students) || item.students.length === 0) {
+      const err = new Error('Every cart item must contain at least one student.');
+      err.status = 400;
+      err.code = 'CART_STUDENTS_REQUIRED';
+      throw err;
+    }
+    const studentCount = item.students.length;
+    const displayedUnitPrice = round2(Number(item.fee));
+    if (!item.programId || !item.batchId || !displayedUnitPrice || displayedUnitPrice <= 0) {
       const err = new Error('Each cart item must include programId, batchId, and a payable line fee.');
       err.status = 400;
       throw err;
@@ -343,8 +416,9 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
 
     return {
       ...priced,
-      unitPrice,
-      subtotal: round2(unitPrice * studentCount),
+      // `priced` is reconstructed from Program/Batch records. Never replace
+      // it with the browser's localStorage/request value (`item.fee`).
+      displayedUnitPrice,
     };
   }));
 
@@ -373,4 +447,5 @@ module.exports = {
   round2,
   isMonthOptionAvailable,
   countSelectedDays,
+  validateSelectedSchedule,
 };

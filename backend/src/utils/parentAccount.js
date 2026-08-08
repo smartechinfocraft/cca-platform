@@ -27,6 +27,10 @@ function isPortalAccount(parent) {
   return Boolean(parent && parent.accountStatus === 'ACTIVE' && parent.password);
 }
 
+function guestCheckoutRequiresSignIn(parent) {
+  return isPortalAccount(parent);
+}
+
 function deriveRegistrationMode({ authenticatedParentId, accountPassword }) {
   return authenticatedParentId || normalizePassword(accountPassword) ? 'REGISTERED' : 'GUEST';
 }
@@ -37,5 +41,6 @@ module.exports = {
   normalizePassword,
   validateOptionalAccountPassword,
   isPortalAccount,
+  guestCheckoutRequiresSignIn,
   deriveRegistrationMode,
 };

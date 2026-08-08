@@ -77,6 +77,8 @@ export default function CartPage() {
       selectedDays: item.selectedDays,
       selectedMonth: item.selectedMonthOption ?? { label: item.selectedMonth },
       selectedMonthLabel: item.selectedMonth,
+      selectedWeeklyBatches: item.selectedWeeklyBatches,
+      weeklyBatchIds: item.selectedWeeklyBatches?.map((batch) => batch.batchId ?? batch._id).filter(Boolean),
       fee: item.fee,
       students: item.students,
     };
