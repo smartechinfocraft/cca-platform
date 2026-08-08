@@ -50,6 +50,7 @@ function toRelativeUploadPath(absPath) {
 const mongoose = require('mongoose');
 const { startOfTodayCalifornia, startOfDayCalifornia } = require('../utils/californiaTime');
 const { computeRegistrationTotal } = require('../utils/pricing');
+const { buildPublicCouponFilter } = require('../utils/couponVisibility');
 const { pickAllowedFields } = require('../utils/allowlist');
 const SiteSetting = require('../models/SiteSetting');
 
@@ -444,13 +445,7 @@ router.get('/public/coupons', async (req, res) => {
   try {
     const now = new Date();
     const data = await mongoose.model('Coupon')
-      .find({
-        isActive: true,
-        $or: [
-          { expiresAt: null },
-          { expiresAt: { $gt: now } },
-        ],
-      })
+      .find(buildPublicCouponFilter(now))
       .select('code type value minAmount description expiresAt')
       .sort({ createdAt: -1 });
     res.json({ success: true, data });
@@ -887,7 +882,7 @@ router.post('/coach-portal/messages/:threadId/reply', coachAuth, async (req, res
 // ═══════════════════════════════════════════════════════════
 const couponCRUD = makeCRUD('Coupon', [
   'code', 'type', 'value', 'minAmount', 'maxUses',
-  'expiresAt', 'description', 'isActive',
+  'expiresAt', 'description', 'isActive', 'isPubliclyVisible',
 ]);
 router.get(   '/coupons',     protect, couponCRUD.getAll);
 router.get(   '/coupons/:id', protect, couponCRUD.getOne);

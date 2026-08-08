@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 const EMPTY = {
   code: '', type: 'PERCENTAGE', value: '', minAmount: '0',
   maxUses: '', expiresAt: '', description: '', isActive: true,
+  isPubliclyVisible: true,
 };
 
 export default function Coupons() {
@@ -45,6 +46,7 @@ export default function Coupons() {
       expiresAt:   row.expiresAt ? row.expiresAt.split('T')[0] : '',
       description: row.description || '',
       isActive:    row.isActive !== false,
+      isPubliclyVisible: row.isPubliclyVisible !== false,
     });
     setModalOpen(true);
   };
@@ -113,6 +115,7 @@ export default function Coupons() {
       },
     },
     { key: 'isActive', label: 'Status', render: v => <Badge label={v ? 'ACTIVE' : 'INACTIVE'} /> },
+    { key: 'isPubliclyVisible', label: 'Visibility', render: v => <Badge label={v === false ? 'DIRECT ENTRY' : 'PUBLIC'} /> },
     { key: 'description', label: 'Note', render: v => <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>{v || '—'}</span> },
     {
       key: '_id', label: 'Actions',
@@ -179,6 +182,20 @@ export default function Coupons() {
                 style={{ width: '16px', height: '16px', accentColor: '#D4AF37' }}
               />
               Active (usable by parents)
+            </label>
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>
+              <input type="checkbox" checked={form.isPubliclyVisible}
+                onChange={e => setForm(p => ({ ...p, isPubliclyVisible: e.target.checked }))}
+                style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: '#D4AF37' }}
+              />
+              <span>
+                Show in public available-coupons list
+                <span style={{ display: 'block', marginTop: '3px', color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
+                  Turn this off for private/admin test codes. The code will work only when entered directly.
+                </span>
+              </span>
             </label>
           </div>
         </div>

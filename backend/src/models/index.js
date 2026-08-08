@@ -199,6 +199,9 @@ const couponSchema = new mongoose.Schema(
     expiresAt:  { type: Date },
     description:{ type: String },
     isActive:   { type: Boolean, default: true },
+    // Hidden coupons remain valid when a customer/admin enters the exact
+    // code, but are omitted from every public "available coupons" list.
+    isPubliclyVisible: { type: Boolean, default: true, index: true },
     createdBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }
