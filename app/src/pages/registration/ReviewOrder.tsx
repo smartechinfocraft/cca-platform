@@ -168,20 +168,20 @@ function ReviewOrder() {
     }).catch(() => { });
   }, []);
 
-  // The currently selected batch is authoritative for this registration.
-  // Saved draft/student records can carry an old selectedBatch from a previous
-  // flow, so do not let stale per-student batch data override the visible
-  // selected program/batch card.
-  const studentFees = students.map(
-    () => getEffectiveBatchFee(selectedBatch as any, selectedProgram?.basePrice ?? 0)
-  );
-  const perStudentFee = getEffectiveBatchFee(selectedBatch as any, selectedProgram?.basePrice ?? 0);
-  const singleProgramSubtotal = studentFees.reduce((sum, fee) => sum + fee, 0);
-  const subtotal = items.length > 0
-    ? items.reduce((sum, item) => sum + item.fee * item.students.length, 0)
-    : singleProgramSubtotal;
-  const discount = couponDiscount;
+  // Once review-order is rendered, the persisted cart is the only source of
+  // truth. RegistrationContext is merely an in-progress draft and may still
+  // contain a program/student that the customer has deleted from the cart.
+  const subtotal = items.reduce((sum, item) => sum + item.fee * item.students.length, 0);
+  const discount = items.length > 0 ? couponDiscount : 0;
   const grandTotal = Math.max(0, subtotal - discount);
+  const reviewStudents = items.flatMap((item) => item.students.map((student) => ({
+    ...student,
+    selectedBatch: {
+      name: item.batchName,
+      selectedMonth: item.selectedMonthOption,
+      days: item.selectedDays,
+    },
+  })));
   const reviewCartItems = useMemo(() => {
     return items.map((item) => ({
       programId: item.programId,
@@ -324,7 +324,12 @@ function ReviewOrder() {
     if (!confirmed) return;
     const removingLastItem = items.length === 1;
     removeItem(cartId);
-    if (removingLastItem) navigate("/programs");
+    if (removingLastItem) {
+      setAppliedCoupon(null);
+      setCouponDiscount(0);
+      setCartCoupon(null);
+      setCartCouponDiscount(0);
+    }
   };
 
   const clearAppliedCoupon = () => {
@@ -477,6 +482,14 @@ function ReviewOrder() {
         </section>
 
         <section className="max-w-7xl mx-auto px-6 pb-16">
+          {items.length === 0 ? (
+            <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-14 text-center shadow-lg">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--gold)]/10 text-2xl">🛒</div>
+              <h2 className="mt-5 text-2xl font-bold text-[#0F172A]">Your cart is empty</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">The deleted program, its students, and its pricing have been removed from this order.</p>
+              <button type="button" onClick={() => navigate("/programs")} className="mt-6 rounded-full bg-[var(--gold)] px-7 py-3 text-sm font-semibold text-[var(--outfield)] shadow-md">Browse Programs</button>
+            </div>
+          ) : (
           <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-6">
               {/* Every program currently in the cart */}
@@ -560,14 +573,14 @@ function ReviewOrder() {
                     <p className="text-xs uppercase tracking-widest text-slate-500">Students Enrolled</p>
                     <h2 className="mt-1 text-xl font-bold text-[#0F172A] flex items-center gap-2">
                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-600 text-sm font-bold text-white">
-                              {students.length} 
+                              {reviewStudents.length} 
               </span>
    
-                      Student{students.length > 1 ? "s" : ""}</h2>
+                      Student{reviewStudents.length > 1 ? "s" : ""}</h2>
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate("/student-details")}
+                    onClick={() => items[0] && handleEditProgram(items[0].programId, items[0].cartId)}
                     className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-[var(--gold)] hover:text-[var(--gold)] transition"
                   >
                     <HiOutlinePencilSquare className="h-3.5 w-3.5" /> Edit
@@ -575,7 +588,7 @@ function ReviewOrder() {
                 </div>
 
                 <div className="space-y-3">
-                  {students.map((s, i) => (
+                  {reviewStudents.map((s, i) => (
                     <div key={i} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -947,6 +960,7 @@ function ReviewOrder() {
               </div>
             </aside>
           </div>
+          )}
         </section>
       </main>
       {loginModalOpen && !user && (

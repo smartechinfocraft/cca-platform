@@ -132,7 +132,7 @@ export default function Hero() {
                 className="btn-glow px-8 py-3.5 rounded-full font-semibold text-sm shadow-lg hover:scale-105 transition-transform"
                 style={{ background: "var(--outfield)", color: "var(--pitch)" }}
               >
-                Fall 2026 Programs →
+                Fall 2026 Programs
               </button>
 
                   {/* All Programs option */}
