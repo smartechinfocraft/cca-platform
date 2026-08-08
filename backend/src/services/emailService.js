@@ -244,6 +244,34 @@ async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber,
   }
 }
 
+async function sendPaymentFailedEmail({ to, parentName, registrationNumber, programName, paymentMethod, totalAmount, reason }) {
+  const subject = `CCA Payment Unsuccessful — ${registrationNumber}`;
+  const html = `<!DOCTYPE html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;">
+    <tr><td style="background:#0F172A;padding:26px 30px;"><h1 style="margin:0;color:#A33B2B;font-size:21px;">CALIFORNIA CRICKET ACADEMY</h1><p style="margin:5px 0 0;color:#cbd5e1;">Payment attempt unsuccessful</p></td></tr>
+    <tr><td style="padding:28px 30px;color:#334155;font-size:14px;line-height:1.6;">
+      <p>Hi ${escapeHtml(parentName || 'Parent')},</p>
+      <p>Your ${escapeHtml(paymentMethod)} payment attempt for registration <strong>${escapeHtml(registrationNumber)}</strong> was not completed.</p>
+      <table width="100%" style="border-collapse:collapse;background:#f8fafc;margin:18px 0;">
+        <tr><td style="padding:10px;">Program</td><td style="padding:10px;font-weight:bold;">${escapeHtml(programName)}</td></tr>
+        <tr><td style="padding:10px;">Amount</td><td style="padding:10px;font-weight:bold;">${money(totalAmount)}</td></tr>
+        <tr><td style="padding:10px;">Reason</td><td style="padding:10px;font-weight:bold;">${escapeHtml(reason || 'The payment provider could not complete the transaction.')}</td></tr>
+      </table>
+      <p>No successful payment has been recorded. You can sign in to your parent dashboard and use <strong>Finish Payment</strong> to retry without changing the registration.</p>
+      <p style="font-size:12px;color:#64748b;">Do not email card numbers or security codes. Contact the academy if you need assistance.</p>
+    </td></tr>
+  </table></body></html>`;
+  await resend.emails.send({ from: `California Cricket Academy <${FROM_ADDRESS}>`, to, subject, html });
+  if (REGISTRATION_ADMIN_TO.length) {
+    await resend.emails.send({
+      from: `California Cricket Academy <${FROM_ADDRESS}>`, to: REGISTRATION_ADMIN_TO,
+      ...(REGISTRATION_ADMIN_CC.length ? { cc: REGISTRATION_ADMIN_CC } : {}),
+      ...(REGISTRATION_ADMIN_BCC.length ? { bcc: REGISTRATION_ADMIN_BCC } : {}),
+      subject: `Admin Alert - ${subject}`, html,
+    });
+  }
+}
+
 
 // ============================================================
 //  sendForgotPasswordEmail — sends a temporary password to
@@ -297,4 +325,4 @@ async function sendForgotPasswordEmail({ to, firstName, tempPassword, role, logi
   });
 }
 
-module.exports = { sendRegistrationEmail, sendCoachWelcomeEmail, sendRegistrationUpdateEmail, sendForgotPasswordEmail };
+module.exports = { sendRegistrationEmail, sendCoachWelcomeEmail, sendRegistrationUpdateEmail, sendPaymentFailedEmail, sendForgotPasswordEmail };

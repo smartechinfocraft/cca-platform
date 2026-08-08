@@ -173,7 +173,7 @@ export const Textarea = ({ ...props }) => (
 const STATUS_COLORS = {
   CONFIRMED:'#22c55e', PAID:'#3b82f6', PENDING:'#A33B2B', ACTIVE:'#22c55e',
   CANCELLED:'#ef4444', REFUNDED:'#8b5cf6', INACTIVE:'#6b7280',
-  WAITLISTED:'#6b7280', AWAITING_PAYMENT:'#eab308', SUPER_ADMIN:'#D4AF37',
+  WAITLISTED:'#6b7280', AWAITING_PAYMENT:'#eab308', PAYMENT_FAILED:'#ef4444', SUPER_ADMIN:'#D4AF37',
 };
 
 export const Badge = ({ label }) => {

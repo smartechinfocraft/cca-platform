@@ -230,7 +230,9 @@ function round2(n) {
 function countSelectedDays(selectedDays) {
   if (!selectedDays || typeof selectedDays !== 'string') return 1;
   const count = selectedDays
-    .split(/\s*(?:\+|\||,|\n)\s*/)
+    // A comma is part of many ground addresses ("San Francisco, CA") and
+    // must never be interpreted as another selected training day.
+    .split(/\s*(?:\+|\||\n)\s*/)
     .map((day) => day.trim())
     .filter(Boolean)
     .length;
@@ -370,4 +372,5 @@ module.exports = {
   applyCouponToSubtotal,
   round2,
   isMonthOptionAvailable,
+  countSelectedDays,
 };

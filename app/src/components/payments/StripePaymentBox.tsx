@@ -214,6 +214,16 @@ export default function StripePaymentBox({
       sessionStorage.removeItem(pendingStorageKey);
       await onSuccess(finalized);
     } catch (err) {
+      const pendingIntent = paymentIntentRef.current;
+      const pendingRegistration = JSON.parse(sessionStorage.getItem(pendingStorageKey) || "{}");
+      if (pendingIntent && pendingRegistration.registrationId) {
+        api.post("/public/stripe/report-payment-failure", {
+          registrationId: pendingRegistration.registrationId,
+          paymentIntentId: pendingIntent.paymentIntentId,
+          clientSecret: pendingIntent.clientSecret,
+          reason: getErrorMessage(err, "Card payment was not completed."),
+        }).catch(() => undefined);
+      }
       setError(getErrorMessage(err, "Stripe payment failed."));
     } finally {
       setSubmitting(false);

@@ -357,7 +357,7 @@ const registrationSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'],
+      enum: ['PENDING','AWAITING_PAYMENT','PAYMENT_FAILED','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'],
       default: 'PENDING',
     },
 
@@ -395,6 +395,9 @@ const registrationSchema = new mongoose.Schema(
     confirmationEmailSentAt: { type: Date },
     confirmationEmailSendingAt: { type: Date },
     confirmationEmailError: { type: String },
+    lastPaymentFailureKey: { type: String },
+    paymentFailureNotifiedAt: { type: Date },
+    paymentFailureNotificationError: { type: String },
     couponUsageRecordedAt: { type: Date },
     couponUsageRecordingAt: { type: Date },
 

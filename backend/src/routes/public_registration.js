@@ -10,6 +10,7 @@ const { createOrder, captureOrder, getCaptureDetails } = require('../services/pa
 const { confirmPayPalRegistration, sendPayPalConfirmationOnce } = require('../services/paypalRegistrationService');
 const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits } = require('../services/stripeService');
 const { confirmStripeRegistration, sendStripeConfirmationOnce } = require('../services/stripeRegistrationService');
+const { markPaymentFailed } = require('../services/paymentFailureService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { protect, adminOrSuperAdmin } = require('../middleware/auth');
 const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
@@ -563,6 +564,9 @@ router.post('/paypal/create-order', async (req, res) => {
       currency: priced.currency,
     });
   } catch (err) {
+    if (req.body?.registrationId && mongoose.isValidObjectId(req.body.registrationId)) {
+      await markPaymentFailed({ registrationId: req.body.registrationId, gateway: 'PAYPAL', failureKey: 'paypal-order-create-failed', reason: 'PayPal could not start the payment.', auditEvent: 'PAYPAL_ORDER_CREATE_FAILED' });
+    }
     sendPaymentError(res, err, 'Could not start the PayPal payment.', 'paypal/create-order');
   }
 });
@@ -581,6 +585,7 @@ router.post('/paypal/capture-order', async (req, res) => {
       if (!pending) return res.status(404).json({ success: false, message: 'Matching PayPal registration was not found.' });
       const captureResponse = await captureOrder(orderID);
       if (captureResponse.status !== 'COMPLETED') {
+        await markPaymentFailed({ registrationId, gateway: 'PAYPAL', failureKey: `paypal-${orderID}-${captureResponse.status || 'failed'}`, reason: captureResponse.details?.[0]?.description || 'PayPal did not complete the payment.', auditEvent: 'PAYPAL_CAPTURE_FAILED' });
         return res.status(400).json({ success: false, message: 'Payment not completed.' });
       }
       const captureId = captureResponse.purchase_units?.[0]?.payments?.captures?.[0]?.id;
@@ -664,6 +669,9 @@ router.post('/paypal/capture-order', async (req, res) => {
 
     res.json({ success: true, transactionId: txnId, capturedAmount: capturedValue });
   } catch (err) {
+    if (req.body?.registrationId && mongoose.isValidObjectId(req.body.registrationId)) {
+      await markPaymentFailed({ registrationId: req.body.registrationId, gateway: 'PAYPAL', failureKey: `paypal-capture-${req.body.orderID || Date.now()}`, reason: 'PayPal could not complete the payment.', auditEvent: 'PAYPAL_CAPTURE_FAILED' });
+    }
     sendPaymentError(res, err, 'Could not verify the PayPal payment.', 'paypal/capture-order');
   }
 });
@@ -731,6 +739,9 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
     });
   } catch (err) {
+    if (req.body?.registrationId && mongoose.isValidObjectId(req.body.registrationId)) {
+      await markPaymentFailed({ registrationId: req.body.registrationId, gateway: 'STRIPE', failureKey: 'stripe-intent-create-failed', reason: 'The secure card payment could not be started.', auditEvent: 'STRIPE_INTENT_CREATE_FAILED' });
+    }
     sendPaymentError(res, err, 'Could not start the card payment.', 'stripe/create-payment-intent');
   }
 });
@@ -761,6 +772,34 @@ router.post('/stripe/cancel-payment-intent', async (req, res) => {
   } catch (err) {
     sendPaymentError(res, err, 'Could not cancel the card payment.', 'stripe/cancel-payment-intent');
   }
+});
+
+router.post('/stripe/report-payment-failure', async (req, res) => {
+  try {
+    const { registrationId, paymentIntentId, clientSecret, reason } = req.body || {};
+    if (!registrationId || !paymentIntentId || !clientSecret) return res.status(400).json({ success: false, message: 'Payment attempt details are required.' });
+    const intent = await getPaymentIntent(paymentIntentId);
+    if (intent.client_secret !== clientSecret || String(intent.metadata?.registrationId) !== String(registrationId)) {
+      return res.status(403).json({ success: false, message: 'Payment attempt verification failed.' });
+    }
+    if (intent.status === 'succeeded') return res.json({ success: true, ignored: 'payment_succeeded' });
+    await markPaymentFailed({
+      registrationId, gateway: 'STRIPE', failureKey: `stripe-client-${paymentIntentId}-${intent.last_payment_error?.code || intent.status}`,
+      reason: intent.last_payment_error?.message || reason || 'Card payment was not completed.', auditEvent: 'STRIPE_CLIENT_FAILED',
+    });
+    res.json({ success: true });
+  } catch (err) { sendPaymentError(res, err, 'Could not record the card payment failure.', 'stripe/report-payment-failure'); }
+});
+
+router.post('/paypal/report-payment-failure', async (req, res) => {
+  try {
+    const { registrationId, orderID, reason } = req.body || {};
+    const Registration = mongoose.model('Registration');
+    const reg = await Registration.findOne({ _id: registrationId, paypalOrderId: orderID, paymentMethod: 'PAYPAL', paymentStatus: { $ne: 'SUCCESS' } });
+    if (!reg) return res.status(404).json({ success: false, message: 'Matching PayPal attempt was not found.' });
+    await markPaymentFailed({ registrationId, gateway: 'PAYPAL', failureKey: `paypal-client-${orderID}`, reason: reason || 'PayPal could not complete the payment.', auditEvent: 'PAYPAL_CLIENT_FAILED' });
+    res.json({ success: true });
+  } catch (err) { sendPaymentError(res, err, 'Could not record the PayPal payment failure.', 'paypal/report-payment-failure'); }
 });
 
 router.post('/stripe/finalize-registration', async (req, res) => {
@@ -1687,6 +1726,7 @@ router.post('/parent/purchases/:id/retry-payment/start', parentAuth, async (req,
       if (!order.id) return res.status(502).json({ success: false, message: 'Could not start the PayPal payment.' });
       registration.paypalOrderId = order.id;
       registration.paymentStatus = 'PENDING';
+      registration.status = 'PENDING';
       registration.paymentAuditLog.push({ event: 'PAYMENT_RETRY_STARTED', note: `PAYPAL ${order.id}` });
       await registration.save();
       return res.json({ success: true, gateway: 'PAYPAL', orderID: order.id, amount: registration.totalAmount, currency: 'USD' });
@@ -1713,6 +1753,7 @@ router.post('/parent/purchases/:id/retry-payment/start', parentAuth, async (req,
       registration.transactionId = intent.id;
     }
     registration.paymentStatus = 'PENDING';
+    registration.status = 'PENDING';
     registration.paymentAuditLog.push({ event: 'PAYMENT_RETRY_STARTED', note: `STRIPE ${intent.id}` });
     await registration.save();
     return res.json({
@@ -1741,7 +1782,10 @@ router.post('/parent/purchases/:id/retry-payment/paypal/capture', parentAuth, as
     });
     if (!registration) return res.status(404).json({ success: false, message: 'Matching pending PayPal payment was not found.' });
     const capturedOrder = await captureOrder(req.body.orderID);
-    if (capturedOrder.status !== 'COMPLETED') return res.status(400).json({ success: false, message: 'Payment was not completed.' });
+    if (capturedOrder.status !== 'COMPLETED') {
+      await markPaymentFailed({ registrationId: registration._id, gateway: 'PAYPAL', failureKey: `paypal-retry-${req.body.orderID}-${capturedOrder.status || 'failed'}`, reason: 'PayPal did not complete the payment retry.', auditEvent: 'PAYPAL_RETRY_FAILED' });
+      return res.status(400).json({ success: false, message: 'Payment was not completed.' });
+    }
     const captureId = capturedOrder.purchase_units?.[0]?.payments?.captures?.[0]?.id;
     if (!captureId) return res.status(502).json({ success: false, message: 'PayPal did not return a capture ID.' });
     const capture = await getCaptureDetails(captureId);

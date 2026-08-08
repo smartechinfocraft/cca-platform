@@ -229,7 +229,7 @@ export default function Reports() {
           <FormField label="Status">
             <Select value={customFilters.status} onChange={e => setCustomFilters(p => ({ ...p, status: e.target.value }))}>
               <option value="">All Statuses</option>
-              {['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','REFUNDED'].map(s =>
+              {['PENDING','AWAITING_PAYMENT','PAYMENT_FAILED','PAID','CONFIRMED','CANCELLED','REFUNDED'].map(s =>
                 <option key={s} value={s}>{s}</option>
               )}
             </Select>

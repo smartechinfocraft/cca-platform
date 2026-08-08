@@ -77,7 +77,19 @@ function storageKeyFor(parentId: string | null | undefined): string {
 function loadCart(key: string): CartItem[] {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    const parsed: CartItem[] = raw ? JSON.parse(raw) : [];
+    return parsed.map((item) => {
+      const selectedDayCount = String(item.selectedDays || "")
+        .split(/\s*(?:\+|\||\n)\s*/)
+        .map((part) => part.trim())
+        .filter(Boolean).length || 1;
+      const monthPrice = Number(item.selectedMonthOption?.price);
+      return {
+        ...item,
+        sessionsPerWeek: selectedDayCount,
+        fee: monthPrice > 0 ? monthPrice * selectedDayCount : item.fee,
+      };
+    });
   } catch {
     return [];
   }

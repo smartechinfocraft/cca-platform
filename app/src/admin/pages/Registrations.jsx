@@ -8,7 +8,7 @@ import { useAdminAuth } from '../context/AuthContext';
 import { PageHeader, DataTable, Modal, Btn, Badge, FormField, Select, Textarea, SearchInput } from '../components/common/UI';
 import toast from 'react-hot-toast';
 
-const STATUSES = ['PENDING','AWAITING_PAYMENT','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'];
+const STATUSES = ['PENDING','AWAITING_PAYMENT','PAYMENT_FAILED','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'];
 
 const money = (value) => `$${(Number(value) || 0).toFixed(2)}`;
 const ACADEMY_NAME = 'California Cricket Academy';

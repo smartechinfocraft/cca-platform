@@ -24,7 +24,7 @@ function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string 
 
 function splitSelectedDays(days?: string): string[] {
   return (days ?? "")
-    .split(/\s*(?:\+|\||,|\n)\s*/)
+    .split(/\s*(?:\+|\||\n)\s*/)
     .map((day) => day.trim())
     .filter(Boolean);
 }

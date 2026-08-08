@@ -33,7 +33,7 @@ export interface StudentRef {
 }
 
 export type RegistrationStatus =
-  | "PENDING" | "AWAITING_PAYMENT" | "PAID" | "CONFIRMED"
+  | "PENDING" | "AWAITING_PAYMENT" | "PAYMENT_FAILED" | "PAID" | "CONFIRMED"
   | "CANCELLED" | "REFUNDED" | "WAITLISTED";
 
 export type PaymentStatus = "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED";

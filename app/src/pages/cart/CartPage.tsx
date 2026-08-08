@@ -23,7 +23,7 @@ const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
 
 function splitScheduleItems(selectedDays?: string): string[] {
   return (selectedDays ?? "")
-    .split(/\s*(?:\+|\||,|\n)\s*/)
+    .split(/\s*(?:\+|\||\n)\s*/)
     .map((day) => day.trim())
     .filter(Boolean);
 }
@@ -64,6 +64,7 @@ export default function CartPage() {
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalLoaded = useRef(false);
   const paypalRegistrationRef = useRef<string | null>(null);
+  const paypalOrderRef = useRef<string | null>(null);
   const paymentCartItems = useMemo(() => items.map((item) => {
     const effectiveSessionsPerWeek = Math.max(item.sessionsPerWeek || 1, splitScheduleItems(item.selectedDays).length || 1);
     return {
@@ -233,6 +234,7 @@ export default function CartPage() {
           paypalRegistrationRef.current = prepared.registrationId;
           const res = await api.post("/public/paypal/create-order", { registrationId: prepared.registrationId });
           if (!res.data.success) throw new Error(res.data.message || "PayPal order creation failed");
+          paypalOrderRef.current = res.data.orderID;
           return res.data.orderID;
         },
         onApprove: async (data: { orderID: string }) => {
@@ -252,10 +254,20 @@ export default function CartPage() {
           }
         },
         onError: (err: unknown) => {
+          if (paypalRegistrationRef.current && paypalOrderRef.current) {
+            api.post("/public/paypal/report-payment-failure", {
+              registrationId: paypalRegistrationRef.current,
+              orderID: paypalOrderRef.current,
+              reason: "PayPal checkout reported an unsuccessful payment attempt.",
+            }).catch(() => undefined);
+          }
           console.error("PayPal error:", err);
           setPayError("PayPal encountered an error. Please try again.");
         },
-        onCancel: () => { setPayError("Payment cancelled."); },
+        onCancel: () => {
+          if (paypalRegistrationRef.current && paypalOrderRef.current) api.post("/public/paypal/report-payment-failure", { registrationId: paypalRegistrationRef.current, orderID: paypalOrderRef.current, reason: "PayPal checkout was cancelled before completion." }).catch(() => undefined);
+          setPayError("PayPal checkout was cancelled. You can try again.");
+        },
       }).render(paypalRef.current!);
     };
 

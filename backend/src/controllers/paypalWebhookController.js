@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { verifyWebhookSignature } = require('../services/paypalService');
 const { confirmPayPalRegistration } = require('../services/paypalRegistrationService');
+const { markPaymentFailed } = require('../services/paymentFailureService');
 const { logWebhookFailure, logReplayAttack } = require('../utils/paymentLogger');
 
 exports.handlePayPalWebhook = async (req, res) => {
@@ -29,6 +30,21 @@ exports.handlePayPalWebhook = async (req, res) => {
         capture,
         auditEvent: 'PAYPAL_WEBHOOK_SUCCESS',
         auditNote: `event ${event.id}`,
+      });
+    } else if (['PAYMENT.CAPTURE.DENIED', 'CHECKOUT.PAYMENT-APPROVAL.REVERSED'].includes(event.event_type)) {
+      const resource = event.resource || {};
+      const Registration = mongoose.model('Registration');
+      const orderId = resource?.supplementary_data?.related_ids?.order_id || resource?.id;
+      const registrationId = resource?.custom_id;
+      const reg = registrationId
+        ? await Registration.findOne({ _id: registrationId, paymentMethod: 'PAYPAL' })
+        : await Registration.findOne({ paypalOrderId: orderId, paymentMethod: 'PAYPAL' });
+      if (reg) await markPaymentFailed({
+        registrationId: reg._id,
+        gateway: 'PAYPAL',
+        failureKey: event.id,
+        reason: resource?.status_details?.reason || 'PayPal denied or reversed the payment attempt.',
+        auditEvent: 'PAYPAL_WEBHOOK_FAILED',
       });
     }
 

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { verifyStripeWebhookSignature } = require('../services/stripeService');
 const { confirmStripeRegistration } = require('../services/stripeRegistrationService');
+const { markPaymentFailed } = require('../services/paymentFailureService');
 const {
   logPaymentFailure,
   logWebhookFailure,
@@ -56,15 +57,12 @@ exports.handleStripeWebhook = async (req, res) => {
         auditNote: `event ${event.id}`,
       });
     } else if (event.type === 'payment_intent.payment_failed') {
-      if (reg.paymentStatus === 'PENDING') {
-        reg.paymentStatus = 'FAILED';
-        reg.paymentAuditLog.push({ event: 'STRIPE_WEBHOOK_FAILED', note: `event ${event.id}` });
-        await reg.save();
-      }
-      logPaymentFailure({
+      await markPaymentFailed({
+        registrationId: reg._id,
         gateway: 'STRIPE',
-        paymentIntentId: intent.id,
-        registrationNumber: reg.registrationNumber,
+        failureKey: event.id,
+        reason: intent.last_payment_error?.message || intent.last_payment_error?.decline_code || 'Card payment was declined or could not be completed.',
+        auditEvent: 'STRIPE_WEBHOOK_FAILED',
       });
     }
 

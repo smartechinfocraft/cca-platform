@@ -12,6 +12,7 @@ const STATUS_STYLES: Record<string, string> = {
 
   PENDING: "bg-amber-100 text-amber-700",
   AWAITING_PAYMENT: "bg-amber-100 text-amber-700",
+  PAYMENT_FAILED: "bg-red-100 text-red-700",
   WAITLISTED: "bg-amber-100 text-amber-700",
   LATE: "bg-amber-100 text-amber-700",
 
@@ -25,6 +26,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   AWAITING_PAYMENT: "Awaiting Payment",
+  PAYMENT_FAILED: "Payment Failed",
 };
 
 function StatusBadge({ status }: { status: string }) {

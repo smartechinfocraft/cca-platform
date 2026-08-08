@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { HiOutlineArrowLeft, HiOutlineLockClosed } from "react-icons/hi2";
 import toast from "react-hot-toast";
+import api from "../../api/axios";
 import { useAuth } from "../../context/AuthContext";
 import StripePaymentBox from "../../components/payments/StripePaymentBox";
 import {
@@ -28,6 +29,7 @@ export default function RetryPayment() {
   const navigate = useNavigate();
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalRendered = useRef(false);
+  const paypalOrderRef = useRef<string | null>(null);
   const [registration, setRegistration] = useState<Registration | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -54,6 +56,7 @@ export default function RetryPayment() {
       window.paypal.Buttons({
         createOrder: async () => {
           const started = await startPurchasePaymentRetry(token, registration._id);
+          paypalOrderRef.current = started.orderID;
           return started.orderID;
         },
         onApprove: async (data) => {
@@ -61,8 +64,19 @@ export default function RetryPayment() {
           complete();
         },
         onError: (err) => {
+          if (paypalOrderRef.current) {
+            api.post("/public/paypal/report-payment-failure", {
+              registrationId: registration._id,
+              orderID: paypalOrderRef.current,
+              reason: "PayPal checkout reported an unsuccessful payment attempt.",
+            }).catch(() => undefined);
+          }
           paypalRendered.current = false;
           setError(errorMessage(err));
+        },
+        onCancel: () => {
+          if (paypalOrderRef.current) api.post("/public/paypal/report-payment-failure", { registrationId: registration._id, orderID: paypalOrderRef.current, reason: "PayPal checkout was cancelled before completion." }).catch(() => undefined);
+          setError("PayPal checkout was cancelled. You can try again.");
         },
       }).render(paypalRef.current);
     };

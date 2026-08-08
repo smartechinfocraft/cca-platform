@@ -114,7 +114,7 @@ exports.updateStatus = async (req, res) => {
   try {
     const { status, adminNote } = req.body;
 
-    const validStatuses = ['PENDING', 'AWAITING_PAYMENT', 'PAID', 'CONFIRMED', 'CANCELLED', 'REFUNDED', 'WAITLISTED'];
+    const validStatuses = ['PENDING', 'AWAITING_PAYMENT', 'PAYMENT_FAILED', 'PAID', 'CONFIRMED', 'CANCELLED', 'REFUNDED', 'WAITLISTED'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid status value' });
     }

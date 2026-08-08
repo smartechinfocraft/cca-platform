@@ -103,6 +103,7 @@ const STATUS_COLORS = {
   CONFIRMED: '#22c55e', PAID: '#3b82f6', PENDING: '#A33B2B',
   CANCELLED: '#ef4444', REFUNDED: '#8b5cf6', WAITLISTED: '#6b7280',
   AWAITING_PAYMENT: '#eab308',
+  PAYMENT_FAILED: '#ef4444',
 };
 
 const Badge = ({ status }) => (

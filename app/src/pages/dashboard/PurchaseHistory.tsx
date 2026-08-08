@@ -114,6 +114,7 @@ function PurchaseHistory() {
           <option value="CONFIRMED">Confirmed</option>
           <option value="PAID">Paid</option>
           <option value="AWAITING_PAYMENT">Awaiting Payment</option>
+          <option value="PAYMENT_FAILED">Payment Failed</option>
           <option value="PENDING">Pending</option>
           <option value="CANCELLED">Cancelled</option>
           <option value="REFUNDED">Refunded</option>
