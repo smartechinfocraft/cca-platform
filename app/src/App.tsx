@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
-import ChatbotWidget from "./components/chatbot/ChatbotWidget";
 import MaintenancePage from "./pages/MaintenancePage";
 
 type SiteStatus = { maintenanceEnabled: boolean; maintenanceTitle: string; maintenanceMessage: string; maintenanceContactEmail?: string };
@@ -19,22 +18,31 @@ function App() {
   }, [location.pathname]);
 
   const bypassMaintenance = location.pathname === "/login" || location.pathname.startsWith("/admin");
+  const isPortalRoute = ["/dashboard", "/admin", "/coach"].some(
+    route => location.pathname === route || location.pathname.startsWith(`${route}/`)
+  );
+  const showChatbotWidget = !isPortalRoute;
   if (!siteStatus) return <div className="flex min-h-screen items-center justify-center bg-[#0b1d12] text-[#f5d97a]">Loading...</div>;
   if (siteStatus.maintenanceEnabled && !bypassMaintenance) return <MaintenancePage title={siteStatus.maintenanceTitle} message={siteStatus.maintenanceMessage} contactEmail={siteStatus.maintenanceContactEmail} />;
 
   return (
     <>
       <AppRoutes />
-      {/* <ChatbotWidget /> */}
-
-      <div className="chatbot-widget fixed bottom-4 left-1 z-50">
-  <span className="brand-img fixed bottom-24 left-1 w-42 flex text-xs gap-2 items-center"> Powered by 
-<a href="https://elevenlabs.io/agents" target="_blank"><img  src="https://11labs-nonprd-15f22c1d.s3.eu-west-3.amazonaws.com/0b9cd3e1-9fad-4a5b-b3a0-c96b0a1f1d2b/elevenlabs-logo-black.svg" alt="CCA Chatbot" style={{ width: 'auto', height: '10px', cursor: 'pointer' }}    /></a>
-</span>
-</div>
-      <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
-      {/* @ts-ignore */}
-      <elevenlabs-convai agent-id="agent_8601kfmaszkkepbv9nfwqm99814v"></elevenlabs-convai>
+      {showChatbotWidget && (
+        <>
+          <div className="chatbot-widget fixed bottom-4 left-1 z-50">
+            <span className="brand-img fixed bottom-24 left-1 w-42 flex text-xs gap-2 items-center">
+              Powered by
+              <a href="https://elevenlabs.io/agents" target="_blank" rel="noreferrer">
+                <img src="https://11labs-nonprd-15f22c1d.s3.eu-west-3.amazonaws.com/0b9cd3e1-9fad-4a5b-b3a0-c96b0a1f1d2b/elevenlabs-logo-black.svg" alt="ElevenLabs" style={{ width: "auto", height: "10px", cursor: "pointer" }} />
+              </a>
+            </span>
+          </div>
+          <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
+          {/* @ts-ignore */}
+          <elevenlabs-convai agent-id="agent_8601kfmaszkkepbv9nfwqm99814v"></elevenlabs-convai>
+        </>
+      )}
     </>
   );
 }

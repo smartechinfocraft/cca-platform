@@ -120,7 +120,7 @@ function Footer() {
               <h4 className="font-semibold text-white text-sm mb-4">{heading}</h4>
               <ul className="space-y-2.5">
                 {items.length === 0 ? (
-                  <li className="text-sm text-white/30">—</li>
+                  <li className="text-sm text-white/30 align-start">—</li>
                 ) : (
                   items.map((item) => (
                     <li key={item.label}>
@@ -137,7 +137,7 @@ function Footer() {
                             navigate(item.href);
                           }
                         }}
-                        className="text-sm text-white/50 hover:text-white transition"
+                        className="text-sm text-white/50 hover:text-white transition align-start"
                       >
                         {item.label}
                       </button>
