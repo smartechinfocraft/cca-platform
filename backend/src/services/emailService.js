@@ -244,8 +244,23 @@ async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber,
   }
 }
 
-async function sendPaymentFailedEmail({ to, parentName, registrationNumber, programName, paymentMethod, totalAmount, reason }) {
+async function sendPaymentFailedEmail({ to, parentName, registrationNumber, programName, paymentMethod, subtotal, discountAmount, totalAmount, studentName, orderItems = [], retryUrl, retryFromCart = false, reason }) {
   const subject = `CCA Payment Unsuccessful — ${registrationNumber}`;
+  const itemRows = Array.isArray(orderItems) && orderItems.length
+    ? orderItems.map(item => {
+      const students = Array.isArray(item.students) ? item.students : [];
+      const names = students.map(student => `${student.firstName || ''} ${student.lastName || ''}`.trim()).filter(Boolean).join(', ');
+      const month = item.selectedMonthLabel || item.selectedMonth?.label || '';
+      const itemTotal = Number(item.itemTotal) || (Number(item.feePerStudent) || 0) * (Number(item.studentCount) || students.length || 1);
+      return `<tr><td style="padding:12px;border-bottom:1px solid #e2e8f0;">
+        <strong style="color:#0F172A;">${escapeHtml(item.programTitle || programName)}</strong>
+        ${item.batchName ? `<div style="font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</div>` : ''}
+        ${month ? `<div style="font-size:12px;color:#64748b;">Month: ${escapeHtml(month)}</div>` : ''}
+        ${item.selectedDays ? `<div style="font-size:12px;color:#64748b;">Schedule: ${escapeHtml(item.selectedDays)}</div>` : ''}
+        <div style="font-size:12px;color:#334155;margin-top:4px;">Student${students.length === 1 ? '' : 's'}: ${escapeHtml(names || studentName || `${item.studentCount || 1} student(s)`)}</div>
+      </td><td style="padding:12px;text-align:right;border-bottom:1px solid #e2e8f0;font-weight:bold;">${money(itemTotal)}</td></tr>`;
+    }).join('')
+    : `<tr><td style="padding:12px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(programName)}</strong>${studentName ? `<div style="font-size:12px;color:#64748b;">Student: ${escapeHtml(studentName)}</div>` : ''}</td><td style="padding:12px;text-align:right;border-bottom:1px solid #e2e8f0;font-weight:bold;">${money(totalAmount)}</td></tr>`;
   const html = `<!DOCTYPE html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;">
     <tr><td style="background:#0F172A;padding:26px 30px;"><h1 style="margin:0;color:#A33B2B;font-size:21px;">CALIFORNIA CRICKET ACADEMY</h1><p style="margin:5px 0 0;color:#cbd5e1;">Payment attempt unsuccessful</p></td></tr>
@@ -253,11 +268,16 @@ async function sendPaymentFailedEmail({ to, parentName, registrationNumber, prog
       <p>Hi ${escapeHtml(parentName || 'Parent')},</p>
       <p>Your ${escapeHtml(paymentMethod)} payment attempt for registration <strong>${escapeHtml(registrationNumber)}</strong> was not completed.</p>
       <table width="100%" style="border-collapse:collapse;background:#f8fafc;margin:18px 0;">
-        <tr><td style="padding:10px;">Program</td><td style="padding:10px;font-weight:bold;">${escapeHtml(programName)}</td></tr>
-        <tr><td style="padding:10px;">Amount</td><td style="padding:10px;font-weight:bold;">${money(totalAmount)}</td></tr>
-        <tr><td style="padding:10px;">Reason</td><td style="padding:10px;font-weight:bold;">${escapeHtml(reason || 'The payment provider could not complete the transaction.')}</td></tr>
+        <tr><th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;">REGISTRATION DETAILS</th><th style="padding:10px 12px;text-align:right;color:#64748b;font-size:12px;">AMOUNT</th></tr>
+        ${itemRows}
+        <tr><td style="padding:8px 12px;text-align:right;color:#64748b;">Subtotal</td><td style="padding:8px 12px;text-align:right;font-weight:bold;">${money(subtotal || totalAmount)}</td></tr>
+        ${Number(discountAmount) > 0 ? `<tr><td style="padding:8px 12px;text-align:right;color:#16a34a;">Discount</td><td style="padding:8px 12px;text-align:right;font-weight:bold;color:#16a34a;">-${money(discountAmount)}</td></tr>` : ''}
+        <tr><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;">Amount due</td><td style="padding:12px;text-align:right;font-size:18px;font-weight:bold;color:#A33B2B;">${money(totalAmount)}</td></tr>
       </table>
-      <p>No successful payment has been recorded. You can sign in to your parent dashboard and use <strong>Finish Payment</strong> to retry without changing the registration.</p>
+      <div style="padding:12px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;margin:16px 0;"><strong>Reason:</strong> ${escapeHtml(reason || 'The payment provider could not complete the transaction.')}</div>
+      <p>No successful payment has been recorded. ${retryFromCart ? 'Your previously selected program may still be available in the cart.' : 'Retrying payment will not allow changes to the program, batch, students, or amount.'}</p>
+      <p style="text-align:center;margin:24px 0;"><a href="${escapeHtml(retryUrl)}" style="display:inline-block;background:#A33B2B;color:#fff;text-decoration:none;padding:13px 26px;border-radius:999px;font-weight:bold;">${retryFromCart ? 'Return to Cart' : 'Finish Payment Securely'}</a></p>
+      <p style="font-size:12px;color:#64748b;text-align:center;">${retryFromCart ? 'The cart is stored in the browser used during registration. If it is no longer available, the cart will appear empty.' : 'If prompted, sign in to your parent account. You will return directly to this registration.'}</p>
       <p style="font-size:12px;color:#64748b;">Do not email card numbers or security codes. Contact the academy if you need assistance.</p>
     </td></tr>
   </table></body></html>`;

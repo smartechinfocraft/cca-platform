@@ -3,6 +3,7 @@ const { sendPaymentFailedEmail } = require('./emailService');
 const { logPaymentFailure } = require('../utils/paymentLogger');
 
 async function markPaymentFailed({ registrationId, gateway, failureKey, reason, auditEvent = 'PAYMENT_FAILED' }) {
+  if (!failureKey) throw new Error('A payment failure key is required.');
   const Registration = mongoose.model('Registration');
   const reg = await Registration.findOneAndUpdate(
     {
@@ -17,13 +18,14 @@ async function markPaymentFailed({ registrationId, gateway, failureKey, reason, 
       $push: { paymentAuditLog: { event: auditEvent, note: String(reason || 'Payment attempt unsuccessful').slice(0, 1000) } },
     },
     { new: true }
-  ).populate('parentId', 'firstName lastName email').populate('programId', 'title');
+  ).populate('parentId', 'firstName lastName email').populate('programId', 'title').populate('students', 'firstName lastName');
 
   if (!reg) return null;
   logPaymentFailure({ gateway, registrationNumber: reg.registrationNumber, reason });
   const parent = reg.parentId || {};
   try {
     if (parent.email) {
+      const frontendUrl = String(process.env.FRONTEND_URL || 'https://calcricket.org').replace(/\/+$/, '');
       await sendPaymentFailedEmail({
         to: parent.email,
         parentName: `${parent.firstName || ''} ${parent.lastName || ''}`.trim() || 'Parent',
@@ -31,6 +33,14 @@ async function markPaymentFailed({ registrationId, gateway, failureKey, reason, 
         programName: reg.programId?.title || reg.orderItems?.[0]?.programTitle || 'CCA Program',
         paymentMethod: gateway === 'STRIPE' ? 'Stripe/card' : 'PayPal',
         totalAmount: reg.totalAmount,
+        subtotal: reg.subtotal,
+        discountAmount: reg.discountAmount,
+        orderItems: reg.orderItems || [],
+        studentName: (reg.students || []).map(student => `${student.firstName || ''} ${student.lastName || ''}`.trim()).filter(Boolean).join(', '),
+        retryUrl: reg.registrationMode === 'REGISTERED'
+          ? `${frontendUrl}/dashboard/purchases/${reg._id}/pay`
+          : `${frontendUrl}/cart`,
+        retryFromCart: reg.registrationMode !== 'REGISTERED',
         reason,
       });
       await Registration.updateOne({ _id: reg._id, lastPaymentFailureKey: failureKey }, { $set: { paymentFailureNotifiedAt: new Date() } });

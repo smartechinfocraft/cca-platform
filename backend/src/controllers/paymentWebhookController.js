@@ -60,7 +60,7 @@ exports.handleStripeWebhook = async (req, res) => {
       await markPaymentFailed({
         registrationId: reg._id,
         gateway: 'STRIPE',
-        failureKey: event.id,
+        failureKey: `stripe-${intent.id}-${intent.last_payment_error?.code || intent.status}`,
         reason: intent.last_payment_error?.message || intent.last_payment_error?.decline_code || 'Card payment was declined or could not be completed.',
         auditEvent: 'STRIPE_WEBHOOK_FAILED',
       });

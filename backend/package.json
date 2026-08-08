@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "test": "node --test",
     "seed": "node src/config/seed.js",
+    "audit:historical-pricing": "node src/config/auditHistoricalPricing.js",
     "migrate:payment-failed-status": "node src/config/migratePaymentFailedStatus.js"
   },
   "dependencies": {

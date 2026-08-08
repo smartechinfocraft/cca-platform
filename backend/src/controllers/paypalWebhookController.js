@@ -42,7 +42,7 @@ exports.handlePayPalWebhook = async (req, res) => {
       if (reg) await markPaymentFailed({
         registrationId: reg._id,
         gateway: 'PAYPAL',
-        failureKey: event.id,
+        failureKey: `paypal-${orderId || resource.id}`,
         reason: resource?.status_details?.reason || 'PayPal denied or reversed the payment attempt.',
         auditEvent: 'PAYPAL_WEBHOOK_FAILED',
       });
