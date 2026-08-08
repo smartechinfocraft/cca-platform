@@ -34,7 +34,7 @@ function money(value) {
 }
 
 async function sendRegistrationEmail({ to, registrationNumber, studentName, programName,
-  batchInfo, parentName, paymentMethod, totalAmount, transactionId, orderItems = [] }) {
+  batchInfo, parentName, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
   const subject = `CCA Registration Confirmed — ${registrationNumber}`;
 
   // Generate barcode SVG
@@ -74,6 +74,12 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
     }).join('')
     : `<tr><td style="padding:12px;border-bottom:1px solid #f1f5f9;"><p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(programName)}</p><p style="margin:2px 0 0;font-size:12px;color:#64748b;">Student: ${escapeHtml(studentName)}</p>${batchInfo ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(batchInfo)}</p>` : ''}</td><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(totalAmount)}</td></tr>`;
 
+  const calculatedSubtotal = Array.isArray(orderItems) && orderItems.length
+    ? orderItems.reduce((sum, item) => sum + (Number(item.itemTotal) || ((Number(item.feePerStudent) || 0) * (Number(item.studentCount) || item.students?.length || 1))), 0)
+    : Number(totalAmount) || 0;
+  const originalPrice = Number(subtotal) || calculatedSubtotal;
+  const appliedDiscount = Number(discountAmount) || Math.max(0, originalPrice - (Number(totalAmount) || 0));
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:30px auto;">
   <tr><td style="background:#0F172A;padding:28px 32px;border-radius:12px 12px 0 0;">
@@ -89,7 +95,9 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
     <table width="100%" style="border-collapse:collapse;">
       <tr style="background:#f8fafc;"><th style="text-align:left;font-size:12px;color:#64748b;padding:10px 12px;border-bottom:1px solid #e2e8f0;">Description</th><th style="text-align:right;font-size:12px;color:#64748b;padding:10px 12px;border-bottom:1px solid #e2e8f0;">Amount</th></tr>
       ${itemRows}
-      <tr style="background:#FEF4E6;"><td style="padding:12px;font-weight:bold;color:#0F172A;">Total</td><td style="padding:12px;text-align:right;font-weight:bold;color:#A33B2B;font-size:18px;">${money(totalAmount)}</td></tr>
+      <tr><td style="padding:10px 12px;text-align:right;color:#64748b;">Original Price</td><td style="padding:10px 12px;text-align:right;font-weight:bold;">${money(originalPrice)}</td></tr>
+      ${appliedDiscount > 0 ? `<tr><td style="padding:10px 12px;text-align:right;color:#16a34a;">Discount${couponCode ? ` (${escapeHtml(couponCode)})` : ''}</td><td style="padding:10px 12px;text-align:right;font-weight:bold;color:#16a34a;">-${money(appliedDiscount)}</td></tr>` : ''}
+      <tr style="background:#FEF4E6;"><td style="padding:12px;font-weight:bold;color:#0F172A;">Transaction Amount</td><td style="padding:12px;text-align:right;font-weight:bold;color:#A33B2B;font-size:18px;">${money(totalAmount)}</td></tr>
     </table>
     <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Payment: <strong>${paymentMethod}</strong>${transactionId ? ` — Txn: ${transactionId}` : ''}</p>
   </td></tr>

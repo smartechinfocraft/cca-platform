@@ -195,6 +195,7 @@ export function buildInvoicePdf(registration: Registration, parent: ParentProfil
   const totalsX = pageWidth - marginX - 200;
   const rows: [string, string][] = [["Subtotal", money(registration.subtotal)]];
   if (registration.discountAmount) rows.push(["Discount", `-${money(registration.discountAmount)}`]);
+  rows.push(["Transaction Amount", money(registration.totalAmount)]);
 
   rows.forEach(([label, value]) => {
     doc.setFont("helvetica", "normal");

@@ -10,6 +10,11 @@ interface SuccessData {
   programName?: string;
   paymentMethod?: string;
   totalAmount?: number;
+  subtotal?: number;
+  discount?: number;
+  discountAmount?: number;
+  couponCode?: string;
+  transactionId?: string;
   email?: string;
   orderItems?: OrderItem[];
 }
@@ -61,6 +66,9 @@ function SuccessPage() {
   const paymentMethod = response?.paymentMethod ?? "—";
   const totalAmount = response?.totalAmount ?? 0;
   const orderItems = response?.orderItems ?? [];
+  const calculatedOriginalPrice = orderItems.reduce((sum, item) => sum + Number(item.itemTotal ?? ((item.feePerStudent || 0) * (item.studentCount || item.students?.length || 1))), 0);
+  const subtotal = Number(response?.subtotal ?? calculatedOriginalPrice) || totalAmount;
+  const discountAmount = Number(response?.discountAmount ?? response?.discount ?? Math.max(0, subtotal - totalAmount)) || 0;
 
   const handleDownloadReceipt = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -266,16 +274,28 @@ function SuccessPage() {
     y += 32 + 30;
     }
 
-    // Total
-    ensureSpace(84);
+    // Payment breakdown
+    ensureSpace(112);
     const totalsX = pageWidth - marginX - 200;
     doc.setDrawColor(INK_LIGHT);
     doc.line(totalsX, y, pageWidth - marginX, y);
     y += 20;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(OUTFIELD);
+    doc.text("Original Price", totalsX, y);
+    doc.text(money(subtotal), pageWidth - marginX, y, { align: "right" });
+    y += 18;
+    if (discountAmount > 0) {
+      doc.setTextColor(GRASS);
+      doc.text(`Discount${response?.couponCode ? ` (${response.couponCode})` : ""}`, totalsX, y);
+      doc.text(`-${money(discountAmount)}`, pageWidth - marginX, y, { align: "right" });
+      y += 20;
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.setTextColor(OUTFIELD);
-    doc.text("Total Paid", totalsX, y);
+    doc.text("Transaction Amount", totalsX, y);
     doc.setTextColor(LEATHER);
     doc.text(money(totalAmount), pageWidth - marginX, y, { align: "right" });
     y += 44;
@@ -406,6 +426,17 @@ function SuccessPage() {
                   })}
                 </div>
               )}
+
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Payment Summary</p>
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="flex justify-between gap-4"><span className="text-slate-600">Original price</span><span className="font-semibold">{money(subtotal)}</span></div>
+                  {discountAmount > 0 && <div className="flex justify-between gap-4 text-green-700"><span>Discount{response?.couponCode ? ` (${response.couponCode})` : ""}</span><span className="font-semibold">-{money(discountAmount)}</span></div>}
+                  <div className="flex justify-between gap-4 border-t border-slate-200 pt-3 text-base"><span className="font-bold">Transaction amount</span><span className="font-bold text-[#A33B2B]">{money(totalAmount)}</span></div>
+                  <div className="flex justify-between gap-4 text-xs text-slate-500"><span>Payment method</span><span>{paymentMethod}</span></div>
+                  {response?.transactionId && <div className="flex justify-between gap-4 text-xs text-slate-500"><span>Transaction ID</span><span className="break-all text-right">{response.transactionId}</span></div>}
+                </div>
+              </div>
 
               {/* Notification confirmation */}
               <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-5">
