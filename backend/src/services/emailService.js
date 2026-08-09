@@ -10,7 +10,7 @@ const REGISTRATION_ADMIN_TO = (process.env.REGISTRATION_ADMIN_TO || process.env.
   .split(',')
   .map(email => email.trim()) 
   .filter(Boolean);
-const REGISTRATION_ADMIN_CC = (process.env.REGISTRATION_ADMIN_CC || 'buchhemant@yahoo.com')
+const REGISTRATION_ADMIN_CC = (process.env.REGISTRATION_ADMIN_CC || '')
   .split(',')
   .map(email => email.trim())
   .filter(Boolean);
@@ -273,7 +273,7 @@ async function sendRegistrationUpdateEmail({ to, parentName, registrationNumber,
   }
 }
 
-async function sendPaymentFailedEmail({ to, parentName, registrationNumber, programName, paymentMethod, subtotal, discountAmount, totalAmount, studentName, orderItems = [], retryUrl, retryFromCart = false, reason }) {
+async function sendPaymentFailedEmail({ to, parentName, parentEmail, parentPhone, registrationNumber, programName, paymentMethod, subtotal, discountAmount, totalAmount, studentName, orderItems = [], retryUrl, retryFromCart = false, reason }) {
   const subject = `CCA Payment Unsuccessful — ${registrationNumber}`;
   const itemRows = Array.isArray(orderItems) && orderItems.length
     ? orderItems.map(item => {
@@ -297,6 +297,12 @@ async function sendPaymentFailedEmail({ to, parentName, registrationNumber, prog
     <tr><td style="padding:28px 30px;color:#334155;font-size:14px;line-height:1.6;">
       <p>Hi ${escapeHtml(parentName || 'Parent')},</p>
       <p>Your ${escapeHtml(paymentMethod)} payment attempt for registration <strong>${escapeHtml(registrationNumber)}</strong> was not completed.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;background:#ffffff;">
+        <tr><td colspan="2" style="padding:10px 12px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;">Parent Contact</td></tr>
+        <tr><td style="width:90px;padding:7px 12px;color:#64748b;font-size:12px;">Name</td><td style="padding:7px 12px;color:#0F172A;font-size:13px;font-weight:bold;">${escapeHtml(parentName || 'Parent')}</td></tr>
+        <tr><td style="padding:7px 12px;color:#64748b;font-size:12px;">Email</td><td style="padding:7px 12px;color:#0F172A;font-size:13px;">${escapeHtml(parentEmail || to || '—')}</td></tr>
+        <tr><td style="padding:7px 12px;color:#64748b;font-size:12px;">Phone</td><td style="padding:7px 12px;color:#0F172A;font-size:13px;">${escapeHtml(parentPhone || '—')}</td></tr>
+      </table>
       <table width="100%" style="border-collapse:collapse;background:#f8fafc;margin:18px 0;">
         <tr><th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;">REGISTRATION DETAILS</th><th style="padding:10px 12px;text-align:right;color:#64748b;font-size:12px;">AMOUNT</th></tr>
         ${itemRows}
