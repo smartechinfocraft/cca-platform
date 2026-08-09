@@ -54,7 +54,7 @@ function isRegularWithoutMonth(item) {
 }
 
 async function sendRegistrationEmail({ to, registrationNumber, studentName, programName,
-  batchInfo, parentName, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
+  batchInfo, parentName, parentEmail, parentPhone, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
   const subject = `CCA Registration Confirmed — ${registrationNumber}`;
 
   // Generate barcode SVG
@@ -109,7 +109,12 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
   </td></tr>
   <tr><td style="background:#fff;padding:28px 32px;">
     <table width="100%"><tr>
-      <td><p style="margin:0;font-size:12px;color:#64748b;text-transform:uppercase;">Invoice To</p><p style="margin:4px 0 0;font-weight:bold;color:#0F172A;">${parentName}</p></td>
+      <td>
+        <p style="margin:0;font-size:12px;color:#64748b;text-transform:uppercase;">Invoice To</p>
+        <p style="margin:4px 0 0;font-weight:bold;color:#0F172A;">${escapeHtml(parentName || 'Parent')}</p>
+        <p style="margin:3px 0 0;font-size:12px;color:#64748b;">${escapeHtml(parentEmail || to || '—')}</p>
+        <p style="margin:3px 0 0;font-size:12px;color:#64748b;">${escapeHtml(parentPhone || '—')}</p>
+      </td>
       <td style="text-align:right;"><p style="margin:0;font-size:12px;color:#64748b;text-transform:uppercase;">Invoice No</p><p style="margin:4px 0 0;font-weight:bold;color:#0F172A;">${registrationNumber}</p><p style="margin:4px 0 0;font-size:12px;color:#64748b;">${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p></td>
     </tr></table>
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;"/>

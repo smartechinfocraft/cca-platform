@@ -15,6 +15,8 @@ function registrationEmailPayload(reg) {
     programName: program.title || 'CCA Program',
     batchInfo: batches.map(b => b.title || b.name).filter(Boolean).join(', '),
     parentName: `${parent.firstName || ''} ${parent.lastName || ''}`.trim() || parent.email,
+    parentEmail: parent.email,
+    parentPhone: parent.phone,
     paymentMethod: 'Stripe',
     subtotal: reg.subtotal,
     discountAmount: reg.discountAmount,
@@ -42,7 +44,7 @@ async function sendStripeConfirmationOnce(registrationId) {
     { $set: { confirmationEmailSendingAt: new Date() }, $unset: { confirmationEmailError: 1 } },
     { new: true }
   )
-    .populate('parentId', 'firstName lastName email')
+    .populate('parentId', 'firstName lastName email phone')
     .populate('programId', 'title')
     .populate('students', 'firstName lastName')
     .populate('batches', 'title');

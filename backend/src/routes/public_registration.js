@@ -1476,6 +1476,8 @@ async function handleRegistration(req, res) {
       programName: selectedProgram.title || 'CCA Program',
       batchInfo: batchTitle,
       parentName: parentInfo.parentName || parentInfo.email,
+      parentEmail: parentInfo.email,
+      parentPhone: parentInfo.phone,
       paymentMethod,
       subtotal: priced.subtotal,
       discountAmount: priced.discount,
