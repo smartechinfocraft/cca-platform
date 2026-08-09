@@ -15,7 +15,7 @@ export default function MaintenancePage({ title, message, contactEmail }: Props)
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#f5d97a]" /> Upgrade in progress
         </div>
         {contactEmail && <p className="mt-8 text-sm text-white/55">Need assistance? <a className="font-semibold text-[#f5d97a] underline underline-offset-4" href={`mailto:${contactEmail}`}>{contactEmail}</a></p>}
-        <a href="/login" className="mt-5 inline-block text-xs font-semibold text-white/35 transition hover:text-white/65">Staff login</a>
+        <a href="/staff-login" className="mt-5 inline-block text-xs font-semibold text-white/35 transition hover:text-white/65">Staff login</a>
       </section>
     </main>
   );

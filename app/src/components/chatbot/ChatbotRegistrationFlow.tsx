@@ -629,6 +629,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
       programId: selectedProgram._id,
       programTitle: selectedProgram.title,
       programImage: selectedProgram.coverImageUrl,
+      batchType: selectedProgram.batchType,
       batchId: selectedBatch._id,
       batchName: selectedBatch.title || selectedBatch.name || "Batch",
       selectedMonth: selectedMonth?.label || "",

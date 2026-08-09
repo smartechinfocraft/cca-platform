@@ -31,6 +31,7 @@ export interface CartItem {
   programId: string;
   programTitle: string;
   programImage?: string;
+  batchType?: string;
   batchId: string;
   batchName: string;
   selectedMonth: string;    // month label e.g. "July 2025"
@@ -61,6 +62,7 @@ export interface AppliedCartCoupon {
 
 interface CartContextValue {
   items: CartItem[];
+  loading: boolean;
   coupon: AppliedCartCoupon | null;
   couponDiscount: number;
   addItem: (item: Omit<CartItem, "cartId">) => void;
@@ -140,6 +142,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const storageKey = storageKeyFor(user?.id);
 
   const [items, setItems] = useState<CartItem[]>([]);
+  const [hydratedKey, setHydratedKey] = useState<string | null>(null);
   const [coupon, setCouponState] = useState<AppliedCartCoupon | null>(null);
   const [couponDiscount, setCouponDiscountState] = useState(0);
 
@@ -165,11 +168,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       persistCart(storageKey, merged);
       localStorage.removeItem(previousKey);
       setItems(merged);
+      setHydratedKey(storageKey);
       // Keep the coupon selected during this checkout. The backend revalidates
       // it against the now-authenticated parent before any payment is created.
       return;
     }
     setItems(loadCart(storageKey));
+    setHydratedKey(storageKey);
     setCouponState(null);
     setCouponDiscountState(0);
   }, [authLoading, storageKey]);
@@ -257,11 +262,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const subtotal = items.reduce((sum, i) => sum + i.fee * i.students.length, 0);
   const grandTotal = Math.max(0, subtotal - couponDiscount);
   const itemCount = items.reduce((n, i) => n + i.students.length, 0);
+  const loading = authLoading || hydratedKey !== storageKey;
 
   return (
     <CartContext.Provider
       value={{
-        items, coupon, couponDiscount,
+        items, loading, coupon, couponDiscount,
         addItem, upsertItem, replaceItem, removeItem, clearCart, updateStudents,
         setCoupon, setCouponDiscount,
         itemCount, subtotal, grandTotal,

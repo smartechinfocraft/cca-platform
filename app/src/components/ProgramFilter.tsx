@@ -219,7 +219,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
         <div className="space-y-2" ref={seasonRef}>
           <label className="text-xs uppercase tracking-[0.24em] text-slate-500 flex items-center gap-2">
             <HiOutlineCalendar className="h-4 w-4 text-[#A33B2B]" />
-            Season
+            Category
           </label>
           <div className="relative">
             <button
@@ -230,7 +230,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
               }`}
             >
               <span className={filters.season ? "text-slate-900" : "text-slate-500"}>
-                {filters.season || "All Seasons"}
+                {filters.season || "All Categories"}
               </span>
               <HiChevronDown
                 className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${seasonOpen ? "rotate-180" : ""}`}
@@ -248,7 +248,7 @@ function ProgramFilter({ filters, onChange, onSearch }: Props) {
                       : "text-slate-700 hover:bg-orange-50 hover:text-[#A33B2B]"
                   }`}
                 >
-                  All Seasons
+                  All Categories
                 </button>
 
                 {!ready && (

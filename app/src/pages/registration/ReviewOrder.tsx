@@ -40,6 +40,13 @@ function getEffectiveBatchFee(batch: any, fallbackPrice = 0): number {
   return Number(batch.fee ?? fallbackPrice) || 0;
 }
 
+function isRegularWithoutMonth(item: { batchType?: string; batchName?: string; selectedMonth?: string; selectedMonthLabel?: string }) {
+  if (item.batchType === "REGULAR_WITHOUT_MONTH") return true;
+  const batch = String(item.batchName || "").trim().toLowerCase();
+  const month = String(item.selectedMonthLabel || item.selectedMonth || "").trim().toLowerCase();
+  return Boolean(batch && month && batch === month);
+}
+
 function ReviewOrder() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -66,7 +73,7 @@ function ReviewOrder() {
     setCouponDiscount,
   } = useRegistration();
   const { user, acceptSession } = useAuth();
-  const { items, upsertItem, removeItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
+  const { items, loading: cartLoading, upsertItem, removeItem, setCoupon: setCartCoupon, setCouponDiscount: setCartCouponDiscount } = useCart();
   const cartSyncedRef = useRef(false);
 
   const [editingBilling, setEditingBilling] = useState(validateBillingOnEntry);
@@ -108,7 +115,7 @@ function ReviewOrder() {
   }, []);
 
   useEffect(() => {
-    if (!shouldSyncRegistrationDraft || cartSyncedRef.current || !selectedProgram || !selectedBatch) return;
+    if (cartLoading || !shouldSyncRegistrationDraft || cartSyncedRef.current || !selectedProgram || !selectedBatch) return;
 
     const cartStudents = students
       .filter((student) => student.firstName.trim() && student.lastName.trim())
@@ -132,6 +139,7 @@ function ReviewOrder() {
       programId: selectedProgram._id,
       programTitle: selectedProgram.title,
       programImage: (selectedProgram as any).coverImageUrl,
+      batchType: selectedProgram.batchType,
       batchId,
       batchName: selectedBatch.name,
       selectedMonth,
@@ -147,7 +155,7 @@ function ReviewOrder() {
     // Consume the one-time draft flag. Revisiting review-order from the cart
     // icon or browser history must never recreate a deleted cart item.
     navigate("/review-order", { replace: true, state: null });
-  }, [navigate, selectedBatch, selectedProgram, shouldSyncRegistrationDraft, students, upsertItem]);
+  }, [cartLoading, navigate, selectedBatch, selectedProgram, shouldSyncRegistrationDraft, students, upsertItem]);
 
   useEffect(() => {
     if (user) {
@@ -186,6 +194,7 @@ function ReviewOrder() {
     return items.map((item) => ({
       programId: item.programId,
       programTitle: item.programTitle,
+      batchType: item.batchType,
       batchId: item.batchId,
       batchName: item.batchName,
       studentCount: item.students.length || 1,
@@ -450,7 +459,7 @@ function ReviewOrder() {
     <>
       <Navbar />
       <div className="h-20" />
-      <main className="min-h-screen bg-[#f8fafc] text-[#0F172A]">
+      <main className="min-h-screen bg-[#f8fafc] pb-28 text-[#0F172A]">
         {/* Header */}
         <section className="max-w-7xl mx-auto px-6 py-10 sm:py-14">
           <button
@@ -482,7 +491,12 @@ function ReviewOrder() {
         </section>
 
         <section className="max-w-7xl mx-auto px-6 pb-16">
-          {items.length === 0 ? (
+          {cartLoading ? (
+            <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-16 text-center shadow-lg" role="status" aria-live="polite">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[var(--gold)]/25 border-t-[var(--gold)]" />
+              <p className="mt-4 text-sm font-semibold text-slate-600">Restoring your cart...</p>
+            </div>
+          ) : items.length === 0 ? (
             <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-14 text-center shadow-lg">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--gold)]/10 text-2xl">🛒</div>
               <h2 className="mt-5 text-2xl font-bold text-[#0F172A]">Your cart is empty</h2>
@@ -525,6 +539,7 @@ function ReviewOrder() {
                 </div>
                 {item.batchId && (
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    {!isRegularWithoutMonth(item) && <>
                     <p className="text-xs uppercase tracking-widest text-slate-500">Selected Batch</p>
                     <p className="mt-1 text-base font-bold text-[#0F172A]">{item.batchName}</p>
                     {(() => {
@@ -538,6 +553,7 @@ function ReviewOrder() {
                         </p>
                       );
                     })()}
+                    </>}
                     <p className="mt-1 text-sm text-slate-500">
                       <ul className="mt-1 space-y-1 list-none">
                         {(item.selectedDays || "")
@@ -603,6 +619,7 @@ function ReviewOrder() {
                             <p className="text-sm text-slate-500">School: {s.schoolName}</p>
                           )}
                           {s.selectedBatch && (
+                            !isRegularWithoutMonth({ batchName: s.selectedBatch.name, selectedMonthLabel: (s.selectedBatch as any).selectedMonth?.label }) &&
                             <p className="mt-1 text-xs font-medium text-[var(--gold)]">
                               Batch: {s.selectedBatch.name}
                               {(() => {
@@ -963,6 +980,28 @@ function ReviewOrder() {
           )}
         </section>
       </main>
+      {!cartLoading && items.length > 0 && !loginModalOpen && (
+        <div className="fixed inset-x-0 bottom-0 z-[9999] border-t-2 border-[var(--gold)]/40 bg-white/95 px-4 py-5 shadow-[0_-14px_40px_rgba(15,23,42,0.2)] backdrop-blur-md">
+          <div className="mx-auto flex max-w-4xl gap-4">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="inline-flex min-h-14 min-w-0 flex-1 items-center justify-center rounded-full border-2 border-slate-300 bg-white px-6 py-4 text-base font-bold text-slate-700 transition hover:border-[var(--gold)]"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={handleProceedToPayment}
+              disabled={checkingParentEmail}
+              className="inline-flex min-h-14 min-w-0 flex-[1.5] items-center justify-center gap-2 rounded-full bg-[var(--gold)] px-6 py-4 text-base font-bold text-[var(--outfield)] shadow-lg transition hover:bg-[var(--gold-light)] disabled:cursor-wait disabled:opacity-60"
+            >
+              {checkingParentEmail ? "Checking email..." : "Proceed to Payment"}
+              <HiOutlineArrowRight className="h-4 w-4 shrink-0" />
+            </button>
+          </div>
+        </div>
+      )}
       {loginModalOpen && !user && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="existing-parent-login-title">
           <div className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl sm:p-8">
@@ -985,7 +1024,7 @@ function ReviewOrder() {
               </div>
               {loginError && <p className="text-sm font-semibold text-red-600">{loginError}</p>}
               <button type="submit" disabled={loginSubmitting} className="w-full rounded-full bg-[#0F172A] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">{loginSubmitting ? "Signing in..." : "Sign in and continue"}</button>
-              <button type="button" onClick={() => navigate("/login", { state: { from: "/review-order", mode: "parent-login", prefill: { email: parentDetails.email } } })} className="w-full text-sm font-semibold text-slate-600 underline">Forgot password?</button>
+              <button type="button" onClick={() => navigate("/login", { state: { backgroundLocation: location, from: "/review-order", mode: "parent-login", prefill: { email: parentDetails.email } } })} className="w-full text-sm font-semibold text-slate-600 underline">Forgot password?</button>
             </form>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, type Location as RouterLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAdminAuth } from "../admin/context/AuthContext";
 import { useCoachAuth } from "../coach/context/AuthContext";
@@ -17,6 +17,7 @@ import ReviewOrder from "../pages/registration/ReviewOrder";
 import PaymentPage from "../pages/registration/PaymentPage";
 import SuccessPage from "../pages/registration/SuccessPage";
 import LoginPage from "../pages/LoginPage";
+import StaffLoginPage from "../pages/StaffLoginPage";
 import CartPage from "../pages/cart/CartPage";
 
 // ── Parent dashboard ────────────────────────────────────────
@@ -92,7 +93,7 @@ function AdminProtectedRoute({ children, superOnly = false }: { children: React.
     );
   }
   if (!user) {
-    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />;
+    return <Navigate to="/staff-login" state={{ from: `${location.pathname}${location.search}` }} replace />;
   }
   if (superOnly && !isSuperAdmin) {
     return <Navigate to="/admin/dashboard" replace />;
@@ -113,14 +114,19 @@ function CoachProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!coach) {
-    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />;
+    return <Navigate to="/staff-login" state={{ from: `${location.pathname}${location.search}` }} replace />;
   }
   return <>{children}</>;
 }
 
 function AppRoutes() {
+  const location = useLocation();
+  const routeState = location.state as { backgroundLocation?: RouterLocation } | null;
+  const backgroundLocation = routeState?.backgroundLocation;
+
   return (
-    <Routes>
+    <>
+    <Routes location={backgroundLocation || location}>
       {/* ───────────── Public site ───────────── */}
       <Route path="/" element={<Home />} />
       <Route path="/programs" element={<Programs />} />
@@ -130,8 +136,9 @@ function AppRoutes() {
       <Route path="/media" element={<MediaPage />} />
       <Route path="/faq" element={<FAQPage />} />
 
-      {/* One shared login for parent / coach / admin */}
+      {/* Parent and staff authentication intentionally use separate entry points. */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/staff-login" element={<StaffLoginPage />} />
       <Route path="/cart" element={<CartPage />} />
 
       {/* ───────────── Registration flow — guest or parent account ───────────── */}
@@ -218,6 +225,8 @@ function AppRoutes() {
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    {backgroundLocation && location.pathname === "/login" && <LoginPage modal />}
+    </>
   );
 }
 

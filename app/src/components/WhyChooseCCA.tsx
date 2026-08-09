@@ -59,10 +59,22 @@ function WhyChooseCCA() {
                 Enrollment is open. Browse programs and find the right fit for your child's age and skill level.
               </p>
               <button
-                onClick={() => document.querySelector("#programs")?.scrollIntoView({ behavior: "smooth" })}
-                className="mt-5 bg-[var(--gold)] text-[var(--outfield)] px-6 py-3 rounded-full text-sm font-semibold hover:bg-[var(--gold-light)] transition"
+                onClick={() => window.location.href = "/programs"}
+                className="mt-5 bg-[var(--gold)] text-[var(--outfield)] px-6 py-3 rounded-full text-sm font-semibold hover:bg-[var(--gold-light)] transition inline-flex items-center gap-2"
               >
-                Browse Programs -&gt;
+                Browse Programs
+                <svg
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10.293 15.707a1 1 0 010-1.414L13.586 11H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
               </button>
             </div>
           </div>

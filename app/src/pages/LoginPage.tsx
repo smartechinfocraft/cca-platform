@@ -1,24 +1,20 @@
 // ============================================================
-//  LoginPage — ONE login screen for Parents, Coaches, and Admins.
-//  + Forgot Password flow for all three roles
+//  Parent portal login and registration.
 // ============================================================
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
-import { useAdminAuth } from "../admin/context/AuthContext";
-import { useCoachAuth } from "../coach/context/AuthContext";
 import axios from "axios";
 import toast from "react-hot-toast";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
-type Mode = "parent-login" | "parent-register" | "staff";
+type Mode = "parent-login" | "parent-register";
 
-function LoginPage() {
+function LoginPage({ modal = false }: { modal?: boolean }) {
+  const modalRef = useRef<HTMLElement>(null);
   const { login: parentLogin, register: parentRegister, loading: parentLoading } = useAuth();
-  const { login: adminLogin } = useAdminAuth();
-  const { login: coachLogin } = useCoachAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const navState = location.state as {
@@ -28,9 +24,42 @@ function LoginPage() {
   } | null;
   const from = navState?.from;
 
-  const [mode, setMode] = useState<Mode>(navState?.mode || "parent-login");
+  const closeModal = () => navigate(-1);
+
+  useEffect(() => {
+    if (!modal) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusableSelector = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusable = Array.from(modalRef.current?.querySelectorAll<HTMLElement>(focusableSelector) || []);
+    focusable[0]?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeModal();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const currentFocusable = Array.from(modalRef.current?.querySelectorAll<HTMLElement>(focusableSelector) || []);
+      if (!currentFocusable.length) return;
+      const first = currentFocusable[0];
+      const last = currentFocusable[currentFocusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [modal]);
+
+  const [mode, setMode] = useState<Mode>(navState?.mode === "parent-register" ? "parent-register" : "parent-login");
   const [error, setError] = useState("");
-  const [staffSubmitting, setStaffSubmitting] = useState(false);
 
   // Parent login state
   const [loginEmail, setLoginEmail] = useState(navState?.prefill?.email || "");
@@ -48,19 +77,13 @@ function LoginPage() {
     state: "", zip: "",
   });
 
-  // Staff (coach/admin) login state
-  const [staffUsername, setStaffUsername] = useState("");
-  const [staffPassword, setStaffPassword] = useState("");
-
   // ── Forgot Password state ────────────────────────────────────
   const [showForgot, setShowForgot]      = useState(false);
   const [forgotEmail, setForgotEmail]    = useState("");
-  const [forgotRole, setForgotRole]      = useState<"parent" | "staff">("parent");
   const [forgotLoading, setForgotLoad]   = useState(false);
   const [forgotSent, setForgotSent]      = useState(false);
 
-  const openForgot = (role: "parent" | "staff") => {
-    setForgotRole(role);
+  const openForgot = () => {
     setForgotEmail("");
     setForgotSent(false);
     setShowForgot(true);
@@ -77,16 +100,7 @@ function LoginPage() {
     if (!forgotEmail) return;
     setForgotLoad(true);
     try {
-      if (forgotRole === "parent") {
-        await axios.post(`${API_BASE}/public/auth/forgot-password`, { email: forgotEmail });
-      } else {
-        // For staff, try admin first then coach — both will silently succeed
-        // We send to both endpoints; the one where email matches will send the email
-        await Promise.allSettled([
-          axios.post(`${API_BASE}/auth/forgot-password`, { email: forgotEmail }),
-          axios.post(`${API_BASE}/coach-auth/forgot-password`, { email: forgotEmail }),
-        ]);
-      }
+      await axios.post(`${API_BASE}/public/auth/forgot-password`, { email: forgotEmail });
     } catch {
       // Silent — always show success
     } finally {
@@ -123,33 +137,20 @@ function LoginPage() {
     }
   };
 
-  const handleStaffLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setStaffSubmitting(true);
-    try {
-      try {
-        await adminLogin(staffUsername, staffPassword);
-        navigate(from || "/admin", { replace: true });
-        return;
-      } catch {
-        // Not an admin account — fall through and try coach login.
-      }
-      await coachLogin(staffUsername, staffPassword);
-      navigate(from || "/coach", { replace: true });
-    } catch {
-      setError("Invalid staff username or password.");
-    } finally {
-      setStaffSubmitting(false);
-    }
-  };
-
   const inputCls = "w-full rounded-2xl border border-[var(--pitch-deep)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold)]/20 transition";
   const labelCls = "block text-sm font-semibold text-[var(--outfield)] mb-1";
 
   return (
-    <main className="min-h-screen relative flex items-center justify-center px-4 py-16 overflow-hidden" style={{ background: "var(--pitch)" }}>
-      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+    <main
+      ref={modalRef}
+      className={`${modal ? "fixed inset-0 z-[10000] overflow-y-auto bg-white/85 backdrop-blur-md" : "relative min-h-screen overflow-hidden"} flex items-center justify-center px-4 py-16`}
+      style={modal ? undefined : { background: "var(--pitch)" }}
+      role={modal ? "dialog" : undefined}
+      aria-modal={modal || undefined}
+      aria-label={modal ? "Parent sign in or registration" : undefined}
+      onMouseDown={modal ? closeModal : undefined}
+    >
+      <div className={`${modal ? "hidden" : ""} absolute inset-0 pointer-events-none`} aria-hidden="true">
         <div className="absolute inset-0" style={{
           background: "repeating-linear-gradient(115deg, rgba(63,125,79,0.05) 0px, rgba(63,125,79,0.05) 80px, transparent 80px, transparent 160px)",
         }} />
@@ -167,11 +168,23 @@ function LoginPage() {
         />
       </div>
 
+      {modal && (
+        <button
+          type="button"
+          onClick={closeModal}
+          className="fixed right-5 top-5 z-[10001] flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold text-[var(--outfield)] shadow-lg ring-1 ring-black/10 transition hover:scale-105 hover:bg-slate-50"
+          aria-label="Close parent login"
+        >
+          ×
+        </button>
+      )}
+
       <motion.div
         className="w-full max-w-md relative z-10"
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
+        onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex mx-auto mb-4">
@@ -190,14 +203,11 @@ function LoginPage() {
           <h1 className="font-display mt-4 text-[28px] font-semibold text-[var(--outfield)]">California Cricket Academy</h1>
          */}
          <div className="flex justify-center mt-2">
-            <span className="scoreboard-label">
-              {mode === "staff" ? "Coach & Admin Sign In" : "Parent Portal"}
-            </span>
+            <span className="scoreboard-label">Parent Portal</span>
           </div>
         </div>
 
-        {mode !== "staff" && (
-          <div className="flex rounded-2xl p-1 mb-6" style={{ background: "var(--pitch-soft)" }}>
+        <div className="flex rounded-2xl p-1 mb-6" style={{ background: "var(--pitch-soft)" }}>
             {(["parent-login", "parent-register"] as const).map((t) => (
               <button
                 key={t}
@@ -209,8 +219,7 @@ function LoginPage() {
                 {t === "parent-login" ? "Sign In" : "Create Account"}
               </button>
             ))}
-          </div>
-        )}
+        </div>
 
         <motion.div
           className="bg-white rounded-[28px] shadow-xl p-8"
@@ -244,7 +253,7 @@ function LoginPage() {
               <div className="text-right -mt-2">
                 <button
                   type="button"
-                  onClick={() => openForgot("parent")}
+                  onClick={openForgot}
                   className="text-sm font-semibold hover:underline"
                   style={{ color: "var(--grass)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                 >
@@ -287,10 +296,6 @@ function LoginPage() {
                 <label className={labelCls}>Email <span style={{ color: "var(--leather)" }}>*</span></label>
                 <input type="email" className={inputCls} value={reg.email} onChange={(e) => setReg((p) => ({ ...p, email: e.target.value }))} required placeholder="parent@email.com" />
               </div>
-              <div>
-                <label className={labelCls}>Phone <span style={{ color: "var(--leather)" }}>*</span></label>
-                <input type="tel" className={inputCls} value={reg.phone} onChange={(e) => setReg((p) => ({ ...p, phone: e.target.value }))} required placeholder="(555) 000-0000" />
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Password <span style={{ color: "var(--leather)" }}>*</span></label>
@@ -300,6 +305,10 @@ function LoginPage() {
                   <label className={labelCls}>Confirm Password <span style={{ color: "var(--leather)" }}>*</span></label>
                   <input type="password" className={inputCls} value={reg.confirmPassword} onChange={(e) => setReg((p) => ({ ...p, confirmPassword: e.target.value }))} required placeholder="Repeat" />
                 </div>
+              </div>
+              <div>
+                <label className={labelCls}>Phone <span style={{ color: "var(--leather)" }}>*</span></label>
+                <input type="tel" className={inputCls} value={reg.phone} onChange={(e) => setReg((p) => ({ ...p, phone: e.target.value }))} required placeholder="(555) 000-0000" />
               </div>
               <div>
                 <label className={labelCls}>Address</label>
@@ -331,45 +340,16 @@ function LoginPage() {
             </form>
           )}
 
-          {mode === "staff" && (
-            <form onSubmit={handleStaffLogin} className="space-y-4">
-              <div>
-                <label className={labelCls}>Username or ID</label>
-                <input type="text" className={inputCls} value={staffUsername} onChange={(e) => setStaffUsername(e.target.value)} placeholder="coach.username or admin username" required autoFocus />
-              </div>
-              <div>
-                <label className={labelCls}>Password</label>
-                <input type="password" className={inputCls} value={staffPassword} onChange={(e) => setStaffPassword(e.target.value)} placeholder="••••••••" required />
-              </div>
-              {/* Forgot password link for staff */}
-              <div className="text-right -mt-2">
-                <button
-                  type="button"
-                  onClick={() => openForgot("staff")}
-                  className="text-sm font-semibold hover:underline"
-                  style={{ color: "var(--grass)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <button type="submit" disabled={staffSubmitting} className="w-full rounded-full py-3 font-semibold text-sm disabled:opacity-50 transition mt-2 hover:scale-[1.02] active:scale-[0.98]" style={{ background: "var(--outfield)", color: "var(--pitch)" }}>
-                {staffSubmitting ? "Signing in..." : "Sign In"}
-              </button>
-            </form>
-          )}
-
-          <div className="text-center mt-6 pt-4" style={{ borderTop: "1px solid var(--pitch-soft)" }}>
-            {mode === "staff" ? (
-              <button type="button" onClick={() => { setMode("parent-login"); setError(""); }} className="text-xs font-semibold text-[var(--ink-500)] hover:text-[var(--outfield)] hover:underline">
-                ← Back to Parent Sign In
-              </button>
-            ) : (
-              <button type="button" onClick={() => { setMode("staff"); setError(""); }} className="text-xs font-semibold text-[var(--ink-500)] hover:text-[var(--outfield)] hover:underline">
-                Coach or Admin? Sign in here
-              </button>
-            )}
-          </div>
         </motion.div>
+
+        {!modal && (
+          <Link
+            to="/"
+            className="mt-6 flex w-full items-center justify-center rounded-full border-2 border-[var(--outfield)] px-5 py-3 text-sm font-bold text-[var(--outfield)] transition hover:bg-[var(--outfield)] hover:text-white"
+          >
+            ← Back to CCA Website
+          </Link>
+        )}
 
         <div className="seam-divider mt-8" />
       </motion.div>
@@ -432,11 +412,6 @@ function LoginPage() {
                   </h2>
                   <p className="text-sm text-center mb-6" style={{ color: "var(--ink-500)", lineHeight: "1.5" }}>
                     Enter your registered email address and we'll send a temporary password.
-                    {forgotRole === "staff" && (
-                      <span className="block mt-1 text-xs" style={{ color: "var(--ink-500)" }}>
-                        Works for both Coach and Admin accounts.
-                      </span>
-                    )}
                   </p>
                   <form onSubmit={handleForgotPassword} className="space-y-4">
                     <div>

@@ -28,6 +28,13 @@ function splitScheduleItems(selectedDays?: string): string[] {
     .filter(Boolean);
 }
 
+function isRegularWithoutMonth(item: { batchType?: string; batchName?: string; selectedMonth?: string }) {
+  if (item.batchType === "REGULAR_WITHOUT_MONTH") return true;
+  const batch = String(item.batchName || "").trim().toLowerCase();
+  const month = String(item.selectedMonth || "").trim().toLowerCase();
+  return Boolean(batch && month && batch === month);
+}
+
 type PaymentMethod = "PayPal" | "Stripe" | "Check" | "";
 
 // ── CartPage ──────────────────────────────────────────────────────────────────
@@ -72,6 +79,7 @@ export default function CartPage() {
     return {
       programId: item.programId,
       programTitle: item.programTitle,
+      batchType: item.batchType,
       batchId: item.batchId,
       batchName: item.batchName,
       studentCount: item.students.length || 1,
@@ -606,14 +614,14 @@ export default function CartPage() {
 
                         {/* Batch details */}
                         <div className="mt-3 flex items-center gap-3 flex-wrap">
-                          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                          {!isRegularWithoutMonth(item) && <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Batch</p>
                             <p className="mt-0.5 text-xs font-bold text-[#0F172A]">{item.batchName}</p>
-                          </div>
-                          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                          </div>}
+                          {!isRegularWithoutMonth(item) && <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Month</p>
                             <p className="mt-0.5 text-xs font-bold text-[#0F172A]">{item.selectedMonth}</p>
-                          </div>
+                          </div>}
                           <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Schedule</p>
                             <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs font-bold text-[#0F172A] leading-tight">

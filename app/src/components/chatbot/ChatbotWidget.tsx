@@ -164,7 +164,7 @@ function ChatbotWidget() {
         break;
       case "go-login":
         setOpen(false);
-        navigate("/login");
+        navigate("/login", { state: { backgroundLocation: location, from: `${location.pathname}${location.search}` } });
         break;
       default:
         break;

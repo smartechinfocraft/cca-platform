@@ -112,6 +112,7 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
           || priced?.lineItems?.[index]?.program?.title
           || selectedProgram?.title
           || 'CCA Program',
+        batchType: priced?.lineItems?.[index]?.program?.batchType || '',
         batchId: item.batchId ? String(item.batchId) : '',
         batchName: item.batchName
           || item.batchTitle
@@ -136,6 +137,7 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
   return [{
     programId: selectedProgram?._id ? String(selectedProgram._id) : '',
     programTitle: selectedProgram?.title || 'CCA Program',
+    batchType: selectedProgram?.batchType || '',
     batchId: selectedBatch?._id ? String(selectedBatch._id) : '',
     batchName: selectedBatch?.title || selectedBatch?.name || '',
     selectedMonth: normalizeOrderMonth(selectedMonth),

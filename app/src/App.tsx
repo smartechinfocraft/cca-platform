@@ -17,7 +17,7 @@ function App() {
       .catch(() => setSiteStatus({ maintenanceEnabled: false, maintenanceTitle: "", maintenanceMessage: "" }));
   }, [location.pathname]);
 
-  const bypassMaintenance = location.pathname === "/login" || location.pathname.startsWith("/admin");
+  const bypassMaintenance = location.pathname === "/login" || location.pathname === "/staff-login" || location.pathname.startsWith("/admin");
   const isPortalRoute = ["/dashboard", "/admin", "/coach"].some(
     route => location.pathname === route || location.pathname.startsWith(`${route}/`)
   );

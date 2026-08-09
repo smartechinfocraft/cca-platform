@@ -33,6 +33,7 @@ interface OrderStudent {
 
 interface OrderItem {
   programTitle?: string;
+  batchType?: string;
   batchName?: string;
   selectedMonth?: { label?: string };
   selectedMonthLabel?: string;
@@ -47,9 +48,16 @@ const money = (value?: number) => `$${(Number(value) || 0).toFixed(2)}`;
 
 const splitScheduleItems = (value?: string) =>
   String(value || "")
-    .split(/\s*(?:\n|;|\s+\|\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
+    .split(/\s*(?:\n|;|\+|\||,\s*(?=[A-Z][a-z]+day\b))\s*/i)
     .map((part) => part.trim())
     .filter(Boolean);
+
+const isRegularWithoutMonth = (item: OrderItem) => {
+  if (item.batchType === "REGULAR_WITHOUT_MONTH") return true;
+  const batch = String(item.batchName || "").trim().toLowerCase();
+  const month = String(item.selectedMonthLabel || item.selectedMonth?.label || "").trim().toLowerCase();
+  return Boolean(batch && month && batch === month);
+};
 
 function SuccessPage() {
   const location = useLocation();
@@ -224,10 +232,11 @@ function SuccessPage() {
       orderItems.forEach((item, index) => {
         const students = item.students ?? [];
         const schedule = splitScheduleItems(item.selectedDays);
+        const hideBatchAndMonth = isRegularWithoutMonth(item);
         const studentCount = item.studentCount || students.length || 1;
         const itemTotal = item.itemTotal ?? ((item.feePerStudent || 0) * studentCount);
         const titleHeight = estimateWrappedHeight(item.programTitle || programName, pageWidth - marginX * 2 - 125, 13);
-        const blockHeight = 88 + titleHeight + Math.max(1, schedule.length) * 12 + Math.max(1, students.length) * 18;
+        const blockHeight = (hideBatchAndMonth ? 56 : 88) + titleHeight + Math.max(1, schedule.length) * 12 + Math.max(1, students.length) * 18;
         ensureSpace(blockHeight);
 
         const blockTop = y;
@@ -244,18 +253,20 @@ function SuccessPage() {
         doc.text(money(itemTotal), pageWidth - marginX - 14, blockTop + 24, { align: "right" });
         y += titleHeight + 6;
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
-        doc.setTextColor(GOLD);
-        doc.text("BATCH", marginX + 14, y);
-        doc.text("MONTH", marginX + 230, y);
-        y += 12;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(INK);
-        doc.text(item.batchName || "-", marginX + 14, y, { maxWidth: 195 });
-        doc.text(item.selectedMonthLabel || item.selectedMonth?.label || "-", marginX + 230, y, { maxWidth: 165 });
-        y += 20;
+        if (!hideBatchAndMonth) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(GOLD);
+          doc.text("BATCH", marginX + 14, y);
+          doc.text("MONTH", marginX + 230, y);
+          y += 12;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(INK);
+          doc.text(item.batchName || "-", marginX + 14, y, { maxWidth: 195 });
+          doc.text(item.selectedMonthLabel || item.selectedMonth?.label || "-", marginX + 230, y, { maxWidth: 165 });
+          y += 20;
+        }
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
@@ -426,6 +437,7 @@ function SuccessPage() {
                   {orderItems.map((item, index) => {
                     const students = item.students ?? [];
                     const schedule = splitScheduleItems(item.selectedDays);
+                    const hideBatchAndMonth = isRegularWithoutMonth(item);
                     const itemTotal = item.itemTotal ?? ((item.feePerStudent || 0) * (item.studentCount || students.length || 1));
                     return (
                       <div key={`${item.programTitle || "program"}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -441,14 +453,14 @@ function SuccessPage() {
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-3">
-                          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                          {!hideBatchAndMonth && <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Batch</p>
                             <p className="mt-0.5 text-xs font-bold text-[#0F172A]">{item.batchName || "—"}</p>
-                          </div>
-                          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                          </div>}
+                          {!hideBatchAndMonth && <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Month</p>
                             <p className="mt-0.5 text-xs font-bold text-[#0F172A]">{item.selectedMonthLabel || item.selectedMonth?.label || "—"}</p>
-                          </div>
+                          </div>}
                           <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Schedule</p>
                             <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs font-bold text-[#0F172A]">

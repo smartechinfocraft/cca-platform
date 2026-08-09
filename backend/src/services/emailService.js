@@ -33,6 +33,26 @@ function money(value) {
   return `$${amount.toFixed(2)}`;
 }
 
+function splitScheduleItems(value) {
+  return String(value || '')
+    .split(/\s*(?:\n|;|\+|\||,\s*(?=[A-Z][a-z]+day\b))\s*/i)
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function scheduleListHtml(value) {
+  const schedules = splitScheduleItems(value);
+  if (!schedules.length) return '';
+  return `<div style="margin:5px 0 0;font-size:12px;color:#64748b;"><div style="margin-bottom:3px;font-weight:bold;">Schedule:</div><ul style="margin:0;padding-left:18px;line-height:1.55;">${schedules.map(schedule => `<li style="margin:1px 0;padding-left:1px;">${escapeHtml(schedule)}</li>`).join('')}</ul></div>`;
+}
+
+function isRegularWithoutMonth(item) {
+  if (item?.batchType === 'REGULAR_WITHOUT_MONTH') return true;
+  const batch = String(item?.batchName || '').trim().toLowerCase();
+  const month = String(item?.selectedMonthLabel || item?.selectedMonth?.label || '').trim().toLowerCase();
+  return Boolean(batch && month && batch === month);
+}
+
 async function sendRegistrationEmail({ to, registrationNumber, studentName, programName,
   batchInfo, parentName, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
   const subject = `CCA Registration Confirmed — ${registrationNumber}`;
@@ -58,14 +78,15 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
         ? students.map(s => `${escapeHtml(`${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Student')}${s.dob ? ` <span style="color:#94a3b8;">DOB: ${escapeHtml(s.dob)}</span>` : ''}${s.gender ? ` <span style="color:#94a3b8;">${escapeHtml(s.gender)}</span>` : ''}`).join('<br/>')
         : `${Number(item.studentCount) || 1} student(s)`;
       const monthLabel = item.selectedMonthLabel || item.selectedMonth?.label || '';
+      const hideBatchAndMonth = isRegularWithoutMonth(item);
       const itemTotal = item.itemTotal || ((Number(item.feePerStudent) || 0) * (Number(item.studentCount) || 1));
       return `
       <tr>
         <td style="padding:12px;border-bottom:1px solid #f1f5f9;">
           <p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(item.programTitle || programName)}</p>
-          ${item.batchName ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</p>` : ''}
-          ${monthLabel ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Month: ${escapeHtml(monthLabel)}</p>` : ''}
-          ${item.selectedDays ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Schedule: ${escapeHtml(item.selectedDays)}</p>` : ''}
+          ${!hideBatchAndMonth && item.batchName ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</p>` : ''}
+          ${!hideBatchAndMonth && monthLabel ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Month: ${escapeHtml(monthLabel)}</p>` : ''}
+          ${scheduleListHtml(item.selectedDays)}
           <p style="margin:6px 0 0;font-size:12px;color:#334155;line-height:1.5;">${studentLines}</p>
           <p style="margin:6px 0 0;font-size:12px;color:#64748b;">${money(item.feePerStudent)} x ${Number(item.studentCount) || students.length || 1} student(s)</p>
         </td>
@@ -259,12 +280,13 @@ async function sendPaymentFailedEmail({ to, parentName, registrationNumber, prog
       const students = Array.isArray(item.students) ? item.students : [];
       const names = students.map(student => `${student.firstName || ''} ${student.lastName || ''}`.trim()).filter(Boolean).join(', ');
       const month = item.selectedMonthLabel || item.selectedMonth?.label || '';
+      const hideBatchAndMonth = isRegularWithoutMonth(item);
       const itemTotal = Number(item.itemTotal) || (Number(item.feePerStudent) || 0) * (Number(item.studentCount) || students.length || 1);
       return `<tr><td style="padding:12px;border-bottom:1px solid #e2e8f0;">
         <strong style="color:#0F172A;">${escapeHtml(item.programTitle || programName)}</strong>
-        ${item.batchName ? `<div style="font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</div>` : ''}
-        ${month ? `<div style="font-size:12px;color:#64748b;">Month: ${escapeHtml(month)}</div>` : ''}
-        ${item.selectedDays ? `<div style="font-size:12px;color:#64748b;">Schedule: ${escapeHtml(item.selectedDays)}</div>` : ''}
+        ${!hideBatchAndMonth && item.batchName ? `<div style="font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</div>` : ''}
+        ${!hideBatchAndMonth && month ? `<div style="font-size:12px;color:#64748b;">Month: ${escapeHtml(month)}</div>` : ''}
+        ${scheduleListHtml(item.selectedDays)}
         <div style="font-size:12px;color:#334155;margin-top:4px;">Student${students.length === 1 ? '' : 's'}: ${escapeHtml(names || studentName || `${item.studentCount || 1} student(s)`)}</div>
       </td><td style="padding:12px;text-align:right;border-bottom:1px solid #e2e8f0;font-weight:bold;">${money(itemTotal)}</td></tr>`;
     }).join('')

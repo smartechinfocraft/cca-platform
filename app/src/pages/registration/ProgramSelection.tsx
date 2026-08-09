@@ -382,6 +382,7 @@ export default function ProgramSelection() {
         programId: program._id,
         programTitle: program.title,
         programImage: (program as any).coverImageUrl,
+        batchType: program.batchType,
         batchId: batch._id ?? batch.name ?? program._id,
         batchName: batch.name,
         selectedMonth: (batch as any).selectedMonth?.label ?? "",

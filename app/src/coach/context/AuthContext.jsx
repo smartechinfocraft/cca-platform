@@ -48,7 +48,7 @@ export function CoachAuthProvider({ children }) {
     setAccessToken(null);
     localStorage.removeItem('cca_coach_user');
     setCoach(null);
-    window.location.href = '/login';
+    window.location.href = '/staff-login';
   };
 
   const refreshCoach = async () => {

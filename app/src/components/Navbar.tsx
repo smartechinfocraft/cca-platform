@@ -281,7 +281,7 @@ function Navbar() {
                 </div>
               </div>
             ) : (
-              <button onClick={() => navigate("/login")} className="text-sm font-medium text-[var(--ink-500)] hover:text-[var(--outfield)] px-4 py-2 transition rounded-full" style={{ border: "1px solid var(--pitch-deep)" }}>
+              <button onClick={() => navigate("/login", { state: { backgroundLocation: location, from: `${location.pathname}${location.search}` } })} className="text-sm font-medium text-[var(--ink-500)] hover:text-[var(--outfield)] px-4 py-2 transition rounded-full" style={{ border: "1px solid var(--pitch-deep)" }}>
                 Sign In / Register
               </button>
             )}
@@ -366,7 +366,7 @@ function Navbar() {
                 <button onClick={() => { logout(); setOpen(false); }} className="w-full py-3 rounded-full text-sm font-semibold text-[var(--ink-600)]" style={{ border: "1px solid var(--pitch-deep)" }}>Sign Out</button>
               </>
             ) : (
-              <button onClick={() => { navigate("/login"); setOpen(false); }} className="w-full py-3 rounded-full text-sm font-semibold text-[var(--ink-600)]" style={{ border: "1px solid var(--pitch-deep)" }}>Sign In / Register</button>
+              <button onClick={() => { navigate("/login", { state: { backgroundLocation: location, from: `${location.pathname}${location.search}` } }); setOpen(false); }} className="w-full py-3 rounded-full text-sm font-semibold text-[var(--ink-600)]" style={{ border: "1px solid var(--pitch-deep)" }}>Sign In / Register</button>
             )}
             <button onClick={() => { handleNav("#programs"); }} className="w-full py-3 rounded-full text-sm font-semibold" style={{ background: "var(--gold)", color: "var(--outfield)" }}>Register Now</button>
           </div>

@@ -41,7 +41,7 @@ export default function AdminLayout() {
   const handleLogout = () => {
     logout();
     toast.success('Logged out');
-    navigate('/login');
+    navigate('/staff-login');
   };
 
   const visibleNav = NAV_ITEMS.filter(item => !item.superOnly || isSuperAdmin);

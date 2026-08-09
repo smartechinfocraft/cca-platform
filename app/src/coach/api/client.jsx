@@ -65,8 +65,8 @@ client.interceptors.response.use(
 
       setAccessToken(null);
       localStorage.removeItem('cca_coach_user');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      if (window.location.pathname !== '/staff-login') {
+        window.location.href = '/staff-login';
       }
     }
     return Promise.reject(error);
