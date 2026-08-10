@@ -28,6 +28,7 @@ require('./models/Attendance');
 require('./models/index'); // Batch, Category, Location, Coupon, Coach, Registration
 require('./models/MessageThread');
 require('./models/SiteSetting');
+require('./models/Feedback');
 
 const app  = express();
 const PORT = process.env.PORT || 5001;
@@ -80,6 +81,11 @@ app.use('/api/auth/login',           rateLimit(loginLimiter));
 app.use('/api/coach-auth/login',     rateLimit(loginLimiter));
 app.use('/api/public/auth/login',    rateLimit(loginLimiter));
 app.use('/api/public/auth/register', rateLimit(loginLimiter));
+app.use('/api/public/feedback', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Too many feedback attempts. Please try again later.' },
+}));
 // Refresh-token rotation endpoints get their own (slightly higher) limit —
 // a legitimate SPA calls these more often than a human types a password.
 app.use(['/api/auth/refresh', '/api/coach-auth/refresh', '/api/public/auth/refresh'], rateLimit({

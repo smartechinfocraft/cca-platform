@@ -273,16 +273,16 @@ export default function Hero() {
         <div className="marquee-track">
           {[
             "🏏 20+ Years of Excellence",
-            "⚡ ICC Certified Coaches",
+            // "⚡ ICC Certified Coaches",
             "🏆 3,000+ Players Trained",
             "📍 10+ Locations Across California",
-            "🇺🇸 100+ USA Cricket Representatives",
+            "100+ USA Cricket Representatives",
             "🌟 California's #1 Youth Cricket Academy",
             "🏏 20+ Years of Excellence",
-            "⚡ ICC Certified Coaches",
+            // "⚡ ICC Certified Coaches",
             "🏆 3,000+ Players Trained",
             "📍 10+ Locations Across California",
-            "&#x1f1fa;&#x1f1f8; 100+ USA Cricket Representatives",
+            "100+ USA Cricket Representatives",
             "🌟 California's #1 Youth Cricket Academy",
           ].map((item, i) => (
             <span key={i} className="mx-8 text-lg font-semibold text-white/90 whitespace-nowrap tracking-wide">

@@ -3,7 +3,7 @@ import Footer from "../../components/Footer";
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
-import { HiOutlineCheckCircle, HiOutlineArrowDownTray, HiOutlineHome } from "react-icons/hi2";
+import { HiOutlineCheckCircle, HiOutlineArrowDownTray, HiOutlineHome, HiOutlineXMark, HiStar } from "react-icons/hi2";
 import api from "../../api/axios";
 
 interface SuccessData {
@@ -77,6 +77,11 @@ function SuccessPage() {
   const [receiptError, setReceiptError] = useState(hasReceiptCredentials
     ? ""
     : "This receipt link is incomplete. Please open the invoice from your dashboard or confirmation email.");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState<number | null>(null);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
 
   useEffect(() => {
     const registrationId = receiptCredentials?.registrationId;
@@ -99,6 +104,28 @@ function SuccessPage() {
     return () => { active = false; };
   }, [receiptCredentials?.registrationId, receiptCredentials?.receiptToken]);
 
+  useEffect(() => {
+    if (!response?.registrationId) return;
+    const storageKey = `cca:feedback-prompt:${response.registrationId}`;
+    if (sessionStorage.getItem(storageKey)) return;
+    const timer = window.setTimeout(() => setFeedbackOpen(true), 700);
+    return () => window.clearTimeout(timer);
+  }, [response?.registrationId]);
+
+  useEffect(() => {
+    if (!feedbackOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !feedbackSaving) setFeedbackOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [feedbackOpen, feedbackSaving]);
+
   const registrationNumber = response?.registrationNumber ?? "";
   const studentName = response?.studentName ?? "—";
   const programName = response?.programName ?? "—";
@@ -109,6 +136,39 @@ function SuccessPage() {
   const subtotal = Number(response?.subtotal ?? calculatedOriginalPrice) || totalAmount;
   const discountAmount = Number(response?.discountAmount ?? response?.discount ?? Math.max(0, subtotal - totalAmount)) || 0;
   const paymentConfirmed = response?.paymentStatus === "SUCCESS";
+
+  const closeFeedback = () => {
+    if (feedbackSaving) return;
+    if (response?.registrationId) sessionStorage.setItem(`cca:feedback-prompt:${response.registrationId}`, "dismissed");
+    setFeedbackOpen(false);
+  };
+
+  const submitFeedback = async () => {
+    if (!response?.registrationId || !response.receiptToken || (!feedbackRating && !feedbackText.trim())) {
+      setFeedbackError("Choose a rating or enter a comment, or select Not now.");
+      return;
+    }
+    setFeedbackSaving(true);
+    setFeedbackError("");
+    try {
+      await api.post(
+        `/public/feedback/${response.registrationId}`,
+        { rating: feedbackRating, feedback: feedbackText.trim() || undefined },
+        { headers: { "X-Receipt-Token": response.receiptToken } },
+      );
+      sessionStorage.setItem(`cca:feedback-prompt:${response.registrationId}`, "submitted");
+      setFeedbackOpen(false);
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        sessionStorage.setItem(`cca:feedback-prompt:${response.registrationId}`, "submitted");
+        setFeedbackOpen(false);
+      } else {
+        setFeedbackError(error.response?.data?.message || "We could not save your feedback. Please try again.");
+      }
+    } finally {
+      setFeedbackSaving(false);
+    }
+  };
 
   if (receiptLoading || receiptError || !response) {
     return (
@@ -568,6 +628,70 @@ function SuccessPage() {
       </section>
     </main>
       <Footer />
+      {feedbackOpen && (
+        <div
+          className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-white/80 p-4 backdrop-blur-md"
+          role="presentation"
+          onMouseDown={(event) => event.target === event.currentTarget && closeFeedback()}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="feedback-title"
+            className="relative w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <button
+              type="button"
+              onClick={closeFeedback}
+              aria-label="Close feedback"
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:text-[#A33B2B]"
+            >
+              <HiOutlineXMark className="h-6 w-6" />
+            </button>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#A33B2B]">Quick feedback</p>
+            <h2 id="feedback-title" className="mt-2 pr-12 text-2xl font-bold text-[#0F172A]">How was your registration experience?</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Share a rating, a comment, or both. You can also choose Not now.</p>
+
+            <fieldset className="mt-6">
+              <legend className="text-sm font-semibold text-[#0F172A]">Overall experience</legend>
+              <div className="mt-3 flex gap-2" aria-label="Overall experience rating">
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    onClick={() => { setFeedbackRating(rating); setFeedbackError(""); }}
+                    aria-label={`${rating} out of 5 stars`}
+                    aria-pressed={feedbackRating === rating}
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-full border transition ${rating <= (feedbackRating || 0) ? "border-[#C9A227] bg-[#FEF4E6] text-[#C9A227]" : "border-slate-200 bg-white text-slate-300 hover:border-[#C9A227]"}`}
+                  >
+                    <HiStar className="h-6 w-6" />
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <label className="mt-6 block text-sm font-semibold text-[#0F172A]" htmlFor="registration-feedback">Anything else you would like us to know?</label>
+            <textarea
+              id="registration-feedback"
+              value={feedbackText}
+              onChange={(event) => { setFeedbackText(event.target.value); setFeedbackError(""); }}
+              maxLength={2000}
+              rows={5}
+              placeholder="Share your feedback (optional)"
+              className="mt-2 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-[#0F172A] outline-none transition focus:border-[#C9A227] focus:ring-2 focus:ring-[#C9A227]/20"
+            />
+            <div className="mt-1 text-right text-xs text-slate-400">{feedbackText.length}/2000</div>
+            {feedbackError && <p role="alert" className="mt-2 text-sm text-red-600">{feedbackError}</p>}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={closeFeedback} disabled={feedbackSaving} className="rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50">Not now</button>
+              <button type="button" onClick={submitFeedback} disabled={feedbackSaving} className="rounded-full bg-[#A33B2B] px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-[#A33B2B]/20 disabled:cursor-not-allowed disabled:opacity-60">
+                {feedbackSaving ? "Sending…" : "Submit feedback"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }

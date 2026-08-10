@@ -23,6 +23,7 @@ const reportCtrl  = require('../controllers/reportController');
 const coachCtrl       = require('../controllers/coachController');
 const coachAuthCtrl   = require('../controllers/coachAuthController');
 const coachPortalCtrl = require('../controllers/coachPortalController');
+const feedbackCtrl    = require('../controllers/feedbackController');
 
 // Import auth middleware
 const { protect, superAdminOnly, adminOrSuperAdmin } = require('../middleware/auth');
@@ -59,6 +60,11 @@ router.get('/public/site-status', async (req, res) => {
     res.status(500).json({ success: false, message: 'Could not load site status.' });
   }
 });
+
+// Parent/order identity is resolved from the signed receipt, never accepted
+// from the browser payload.
+router.post('/public/feedback/:registrationId', feedbackCtrl.submit);
+router.get('/feedback', protect, adminOrSuperAdmin, feedbackCtrl.list);
 
 router.get('/site-settings', protect, superAdminOnly, async (req, res) => {
   try {

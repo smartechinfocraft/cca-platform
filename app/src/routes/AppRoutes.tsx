@@ -50,6 +50,7 @@ import AdminMessages from "../admin/pages/Messages";
 import PaymentStudents from "../admin/pages/PaymentStudents";
 import StripeRecovery from "../admin/pages/StripeRecovery";
 import AdminSiteSettings from "../admin/pages/SiteSettings";
+import AdminFeedback from "../admin/pages/Feedback";
 
 // ── Coach portal ─────────────────────────────────────────────
 import CoachLayout from "../coach/components/CoachLayout";
@@ -203,6 +204,7 @@ function AppRoutes() {
         <Route path="content" element={<AdminContent />} />
         <Route path="coupons" element={<AdminCoupons />} />
         <Route path="messages" element={<AdminMessages />} />
+        <Route path="feedback" element={<AdminFeedback />} />
       </Route>
 
       {/* ───────────── Coach portal ───────────── */}

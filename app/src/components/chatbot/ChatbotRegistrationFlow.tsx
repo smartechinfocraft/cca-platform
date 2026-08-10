@@ -625,7 +625,7 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
   // this button is hidden for them in the Review step below.
   const handleAddToCart = () => {
     if (!selectedProgram || !selectedBatch || isWeeklyProgram) return;
-    addItem({
+    const result = addItem({
       programId: selectedProgram._id,
       programTitle: selectedProgram.title,
       programImage: selectedProgram.coverImageUrl,
@@ -642,6 +642,10 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
         gender: student.gender, schoolName: student.schoolName, medicalNotes: "",
       }],
     });
+    if (!result.ok) {
+      pushMessage(`${result.duplicateStudentNames.join(", ")} is already in your cart for this program and batch/day.`);
+      return;
+    }
     pushMessage(`Added "${selectedProgram.title}" to your cart for ${student.firstName}. You can check out anytime from the cart icon, or come back here to pay now.`);
     onClose();
   };

@@ -65,9 +65,9 @@ interface CartContextValue {
   loading: boolean;
   coupon: AppliedCartCoupon | null;
   couponDiscount: number;
-  addItem: (item: Omit<CartItem, "cartId">) => void;
+  addItem: (item: Omit<CartItem, "cartId">) => CartMutationResult;
   upsertItem: (item: Omit<CartItem, "cartId">) => void;
-  replaceItem: (cartId: string, item: Omit<CartItem, "cartId">) => void;
+  replaceItem: (cartId: string, item: Omit<CartItem, "cartId">) => CartMutationResult;
   removeItem: (cartId: string) => void;
   clearCart: () => void;
   updateStudents: (cartId: string, students: CartStudent[]) => void;
@@ -107,6 +107,11 @@ function loadCart(key: string): CartItem[] {
   }
 }
 
+export interface CartMutationResult {
+  ok: boolean;
+  duplicateStudentNames: string[];
+}
+
 function persistCart(key: string, next: CartItem[]) {
   try {
     localStorage.setItem(key, JSON.stringify(next));
@@ -120,6 +125,49 @@ function cartItemIdentity(item: CartItem): string {
   // same enrollment copied between guest and parent carts.
   return [item.programId, item.batchId, item.selectedMonth, item.selectedDays,
     item.students.map(student => `${student.firstName}|${student.lastName}|${student.dob}`).join(";")].join("::");
+}
+
+const normalized = (value: unknown) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+const scheduleIdentities = (value: string) => String(value || "")
+  .split(/\s*(?:\+|\||\n)\s*/)
+  .map(normalized)
+  .filter(Boolean)
+  .sort();
+const studentIdentity = (student: CartStudent) =>
+  [student.firstName, student.lastName, student.dob].map(normalized).join("|");
+
+function duplicateStudentNames(
+  existingItems: CartItem[],
+  candidate: Omit<CartItem, "cartId">,
+  ignoredCartId?: string,
+): string[] {
+  const candidateStudents = new Map<string, CartStudent>();
+  const duplicateKeys = new Set<string>();
+  candidate.students.forEach(student => {
+    const key = studentIdentity(student);
+    if (candidateStudents.has(key)) duplicateKeys.add(key);
+    candidateStudents.set(key, student);
+  });
+  existingItems.forEach(existing => {
+    if (existing.cartId === ignoredCartId) return;
+    const existingSchedules = scheduleIdentities(existing.selectedDays);
+    const candidateSchedules = scheduleIdentities(candidate.selectedDays);
+    const schedulesOverlap = existingSchedules.length === 0 && candidateSchedules.length === 0
+      ? true
+      : existingSchedules.some(schedule => candidateSchedules.includes(schedule));
+    const sameSelection = normalized(existing.programId) === normalized(candidate.programId)
+      && normalized(existing.batchId) === normalized(candidate.batchId)
+      && schedulesOverlap;
+    if (!sameSelection) return;
+    existing.students.forEach(student => {
+      const key = studentIdentity(student);
+      if (candidateStudents.has(key)) duplicateKeys.add(key);
+    });
+  });
+  return [...duplicateKeys].map(key => {
+    const student = candidateStudents.get(key);
+    return `${student?.firstName || ""} ${student?.lastName || ""}`.trim() || "This student";
+  });
 }
 
 // The cart assembled during signed-out registration must survive authentication.
@@ -151,6 +199,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // the "switch buckets on login/logout" effect further down).
   const activeKeyRef = useRef(storageKey);
   const previousKeyRef = useRef(storageKey);
+  const itemsRef = useRef<CartItem[]>([]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   // (Re)load the correct bucket once we know who's signed in, and again
   // any time the signed-in account changes (login, logout, or switching
@@ -168,24 +221,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
       persistCart(storageKey, merged);
       localStorage.removeItem(previousKey);
       setItems(merged);
+      itemsRef.current = merged;
       setHydratedKey(storageKey);
       // Keep the coupon selected during this checkout. The backend revalidates
       // it against the now-authenticated parent before any payment is created.
       return;
     }
-    setItems(loadCart(storageKey));
+    const storedItems = loadCart(storageKey);
+    setItems(storedItems);
+    itemsRef.current = storedItems;
     setHydratedKey(storageKey);
     setCouponState(null);
     setCouponDiscountState(0);
   }, [authLoading, storageKey]);
 
   const addItem = (item: Omit<CartItem, "cartId">) => {
+    const duplicates = duplicateStudentNames(itemsRef.current, item);
+    if (duplicates.length) return { ok: false, duplicateStudentNames: duplicates };
     const cartId = `${item.programId}-${item.batchId}-${Date.now()}`;
     setItems((prev) => {
       const next = [...prev, { ...item, cartId }];
+      itemsRef.current = next;
       persistCart(activeKeyRef.current, next);
       return next;
     });
+    return { ok: true, duplicateStudentNames: [] };
   };
 
   const upsertItem = (item: Omit<CartItem, "cartId">) => {
@@ -212,6 +272,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         existingIndex >= 0
           ? prev.map((existing, index) => (index === existingIndex ? { ...existing, ...item } : existing))
           : [...prev, { ...item, cartId: `${item.programId}-${item.batchId}-${Date.now()}` }];
+      itemsRef.current = next;
       persistCart(activeKeyRef.current, next);
       return next;
     });
@@ -220,6 +281,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const removeItem = (cartId: string) => {
     setItems((prev) => {
       const next = prev.filter((i) => i.cartId !== cartId);
+      itemsRef.current = next;
       persistCart(activeKeyRef.current, next);
       if (next.length === 0) {
         setCouponState(null);
@@ -230,15 +292,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const replaceItem = (cartId: string, item: Omit<CartItem, "cartId">) => {
+    const duplicates = duplicateStudentNames(itemsRef.current, item, cartId);
+    if (duplicates.length) return { ok: false, duplicateStudentNames: duplicates };
     setItems((prev) => {
       const next = prev.map((existing) => existing.cartId === cartId ? { ...item, cartId } : existing);
+      itemsRef.current = next;
       persistCart(activeKeyRef.current, next);
       return next;
     });
+    return { ok: true, duplicateStudentNames: [] };
   };
 
   const clearCart = () => {
     setItems([]);
+    itemsRef.current = [];
     setCouponState(null);
     setCouponDiscountState(0);
     localStorage.removeItem(activeKeyRef.current);
@@ -247,6 +314,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateStudents = (cartId: string, students: CartStudent[]) => {
     setItems((prev) => {
       const next = prev.map((i) => (i.cartId === cartId ? { ...i, students } : i));
+      itemsRef.current = next;
       persistCart(activeKeyRef.current, next);
       return next;
     });

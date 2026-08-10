@@ -42,6 +42,46 @@ test('cart pricing rejects a cart line without its own billable students', async
   });
 });
 
+test('cart pricing rejects the same student in the same program and batch/day twice', async () => {
+  await withPricingModels(async () => {
+    const duplicateLine = {
+      programId: 'program-1', batchId: 'program-1', fee: 430,
+      selectedDays: 'Friday - 4:30 PM - 6:00 PM - Cupertino', sessionsPerWeek: 1,
+      students: [{ firstName: ' Dhairya ', lastName: 'Mistry', dob: '2015-05-01' }],
+    };
+    await assert.rejects(
+      computeCartTotal({ cartItems: [duplicateLine, {
+        ...duplicateLine,
+        selectedDays: 'friday   - 4:30 PM - 6:00 PM - Cupertino',
+        students: [{ firstName: 'dhairya', lastName: 'mistry ', dob: '2015-05-01' }],
+      }] }),
+      error => error.code === 'DUPLICATE_CART_ENROLLMENT' && error.status === 409
+    );
+  });
+});
+
+test('cart pricing permits the same student for a different selected day', async () => {
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({ cartItems: [
+      { programId: 'program-1', batchId: 'program-1', fee: 430, selectedDays: 'Friday', students: [{ firstName: 'Dhairya', lastName: 'Mistry', dob: '2015-05-01' }] },
+      { programId: 'program-1', batchId: 'program-1', fee: 430, selectedDays: 'Sunday', students: [{ firstName: 'Dhairya', lastName: 'Mistry', dob: '2015-05-01' }] },
+    ] });
+    assert.equal(result.subtotal, 860);
+  });
+});
+
+test('cart pricing rejects overlapping day selections for the same student', async () => {
+  await withPricingModels(async () => {
+    await assert.rejects(
+      computeCartTotal({ cartItems: [
+        { programId: 'program-1', batchId: 'program-1', fee: 430, selectedDays: 'Friday', students: [{ firstName: 'Dhairya', lastName: 'Mistry', dob: '2015-05-01' }] },
+        { programId: 'program-1', batchId: 'program-1', fee: 860, selectedDays: 'Sunday + Friday', sessionsPerWeek: 2, students: [{ firstName: 'Dhairya', lastName: 'Mistry', dob: '2015-05-01' }] },
+      ] }),
+      error => error.code === 'DUPLICATE_CART_ENROLLMENT'
+    );
+  });
+});
+
 test('pricing rejects a non-synthetic batch that does not belong to the program', async () => {
   await withPricingModels(async () => {
     await assert.rejects(

@@ -383,6 +383,38 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
     throw err;
   }
 
+  // Reject duplicate enrollments across cart lines. Parent/order identity is
+  // irrelevant here: the enrollment key is program + batch + selected day(s)
+  // + normalized student name/DOB. This protects every checkout endpoint even
+  // when a client bypasses the React cart.
+  const normalized = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const scheduleIdentities = value => {
+    const parts = scheduleParts(value).map(normalized).filter(Boolean);
+    return parts.length ? parts : [''];
+  };
+  const seenEnrollments = new Set();
+  for (const item of cartItems) {
+    for (const student of Array.isArray(item?.students) ? item.students : []) {
+      const studentParts = [student?.firstName, student?.lastName, student?.dob].map(normalized);
+      // Some internal price-only calls use anonymous placeholder students.
+      // They represent a count, not an identity, so only identifiable students
+      // participate in duplicate-enrollment detection.
+      if (!studentParts.some(Boolean)) continue;
+      const studentKey = studentParts.join('|');
+      for (const schedule of scheduleIdentities(item?.selectedDays)) {
+        const selectionKey = [item?.programId, item?.batchId, schedule].map(normalized).join('::');
+        const enrollmentKey = `${selectionKey}::${studentKey}`;
+        if (seenEnrollments.has(enrollmentKey)) {
+          const err = new Error('The same student cannot be added more than once for the same program and batch/day.');
+          err.status = 409;
+          err.code = 'DUPLICATE_CART_ENROLLMENT';
+          throw err;
+        }
+        seenEnrollments.add(enrollmentKey);
+      }
+    }
+  }
+
   const lineItems = await Promise.all(cartItems.map(async (item) => {
     const weeklyBatchIds = Array.isArray(item.weeklyBatchIds)
       ? item.weeklyBatchIds

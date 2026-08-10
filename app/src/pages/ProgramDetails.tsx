@@ -19,6 +19,7 @@ import SavedStudentPicker from "../components/registration/SavedStudentPicker";
 import WeeklyBatchSelector from "../components/registration/WeeklyBatchSelector";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
+import toast from "react-hot-toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface TimeSlot { startTime: string; endTime: string; }
@@ -256,7 +257,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
         medicalNotes: s.medicalNotes,
       }));
     if (cartStudents.length === 0) return;
-    addItem({
+    const result = addItem({
       programId,
       programTitle,
       programImage,
@@ -271,6 +272,10 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
       fee: batchCtx.fee,
       students: cartStudents,
     });
+    if (!result.ok) {
+      toast.error(`${result.duplicateStudentNames.join(", ")} is already in the cart for this program and batch/day.`);
+      return;
+    }
     setCartSuccess(true);
     setTimeout(() => setCartSuccess(false), 3000);
   };

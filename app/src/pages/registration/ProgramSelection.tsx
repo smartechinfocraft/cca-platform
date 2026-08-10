@@ -11,6 +11,7 @@ import GenderSelect from "../../components/registration/GenderSelect";
 import WeeklyBatchSelector from "../../components/registration/WeeklyBatchSelector";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../../utils/monthOptions";
+import toast from "react-hot-toast";
 
 // ─── DOB validator (same logic as StudentDetails) ─────────────────────────────
 function getDobError(value: string): string {
@@ -378,7 +379,7 @@ export default function ProgramSelection() {
     if (editCartId && program) {
       const batch = buildBatchContext();
       if (!batch) return;
-      replaceItem(editCartId, {
+      const result = replaceItem(editCartId, {
         programId: program._id,
         programTitle: program.title,
         programImage: (program as any).coverImageUrl,
@@ -392,6 +393,10 @@ export default function ProgramSelection() {
         fee: Number(batch.fee ?? program.basePrice ?? 0),
         students: students.map(({ selectedBatch: _selectedBatch, ...student }) => student),
       });
+      if (!result.ok) {
+        toast.error(`${result.duplicateStudentNames.join(", ")} is already in the cart for this program and batch/day.`);
+        return;
+      }
     }
     navigate("/review-order", { state: isEditingProgram ? null : { syncRegistrationDraft: true } });
   };

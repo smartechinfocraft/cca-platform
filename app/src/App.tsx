@@ -30,13 +30,13 @@ function App() {
       <AppRoutes />
       {showChatbotWidget && (
         <>
-          <div className="chatbot-widget fixed bottom-4 left-1 z-50">
-            <span className="brand-img fixed bottom-24 left-1 w-42 flex text-xs gap-2 items-center">
+          <div className="chatbot-widget fixed bottom-4 left-0 z-50">
+            {/* <span className="brand-img fixed bottom-24 left-1 w-42 flex text-xs gap-2 items-center">
               Powered by
               <a href="https://elevenlabs.io/agents" target="_blank" rel="noreferrer">
                 <img src="https://11labs-nonprd-15f22c1d.s3.eu-west-3.amazonaws.com/0b9cd3e1-9fad-4a5b-b3a0-c96b0a1f1d2b/elevenlabs-logo-black.svg" alt="ElevenLabs" style={{ width: "auto", height: "10px", cursor: "pointer" }} />
               </a>
-            </span>
+            </span> */}
           </div>
           <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
           {/* @ts-ignore */}

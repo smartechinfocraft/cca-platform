@@ -101,6 +101,10 @@ export const siteSettingsAPI = {
   update: (data) => client.put('/site-settings', data),
 };
 
+export const feedbackAPI = {
+  getAll: (params) => client.get('/feedback', { params }),
+};
+
 // ISSUE 4 & 5: create/update accept FormData (with coverImage file)
 export const programsAPI = {
   getAll:  (params)   => client.get('/programs', { params }),
