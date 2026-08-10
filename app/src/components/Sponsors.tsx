@@ -20,7 +20,7 @@ function Sponsors() {
   }, []);
 
   const display = sponsors.length > 0 ? sponsors : FALLBACK_SPONSORS;
-  const logoUrlFor = (s: any) => resolveUploadUrl(s.coverImagePath || s.coverImageUrl);
+  const logoUrlFor = (s: any) => resolveUploadUrl(s.coverImageUrl || s.coverImagePath);
 
   return (
     <section id="sponsors" className="py-20 bg-white border-t border-slate-100">

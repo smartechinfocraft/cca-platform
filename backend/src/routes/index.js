@@ -29,22 +29,8 @@ const { protect, superAdminOnly, adminOrSuperAdmin } = require('../middleware/au
 const coachAuth = require('../middleware/coachAuth');
 
 // ISSUE 4, 5, 6, 7: File upload middleware (multer)
-const { uploadCoverImage, uploadGallery, uploadMediaWithPdf, fileUrl } = require('../middleware/upload');
-
-// Multer's file.path is an absolute disk path (e.g. on Windows:
-// "D:/CCA 4/cca-platform-main/backend/uploads/media/x.pdf"). Several
-// places below were saving that raw absolute path straight into the DB
-// as "filePath"/"coverImagePath"/gallery "path" fields — fine on the
-// same machine, but broken once served to the browser (which then tried
-// to request a URL containing the server's own local disk path). This
-// strips everything before "uploads/" so only the relative, servable
-// portion is stored — matching what the schema comments always said
-// these fields should look like.
-function toRelativeUploadPath(absPath) {
-  const clean = String(absPath).replace(/\\/g, '/');
-  const idx = clean.indexOf('uploads/');
-  return idx === -1 ? clean : clean.slice(idx);
-}
+const { uploadCoverImage, uploadGallery, uploadMediaWithPdf } = require('../middleware/upload');
+const { storeContentUpload, contentFileUrl, streamContentFile } = require('../services/contentFileStorage');
 
 // Generic CRUD helpers for models that don't need complex logic
 const mongoose = require('mongoose');
@@ -437,6 +423,11 @@ router.get('/public/content/media', async (req, res) => {
       .sort({ sortOrder: 1, publishDate: -1 });
     res.json({ success: true, data });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.get('/public/content/files/:id', async (req, res) => {
+  try { await streamContentFile(req, res); }
+  catch (e) { if (!res.headersSent) res.status(500).json({ success: false, message: 'File unavailable' }); }
 });
 
 // GET /api/public/coupons
@@ -912,10 +903,13 @@ const mediaSchema = new mongoose.Schema({
   type:         { type: String, enum: ['MAGAZINE', 'GALLERY', 'NEWSLETTER'], required: true },
   // Cover image — stored as uploaded file path (not URL)
   imagePath:    { type: String }, // e.g. "uploads/media/abc123.jpg"
+  coverImagePath: { type: String },
+  coverImageUrl:  { type: String },
   // Gallery can hold up to 100 images
   galleryImages:[{ path: String, url: String, isCover: Boolean }],
   // PDF file path for magazine / newsletter
   filePath:     { type: String }, // e.g. "uploads/media/issue12.pdf"
+  fileUrl:      { type: String },
   album:        { type: String },
   description:  { type: String },
   publishDate:  { type: Date },
@@ -959,25 +953,25 @@ router.post('/content/media', protect, adminOrSuperAdmin, (req, res, next) => {
     body.createdBy = req.user._id;
     // Cover image (single)
     if (req.files?.coverImage?.[0]) {
-      body.coverImagePath = toRelativeUploadPath(req.files.coverImage[0].path);
-      body.coverImageUrl  = fileUrl(req, req.files.coverImage[0].path);
+      const stored = await storeContentUpload(req.files.coverImage[0]);
+      body.coverImagePath = stored.path;
+      body.coverImageUrl = contentFileUrl(req, stored.id);
     }
     // PDF file (magazine / newsletter)
     if (req.files?.pdfFile?.[0]) {
-      body.filePath = toRelativeUploadPath(req.files.pdfFile[0].path);
-      body.fileUrl  = fileUrl(req, req.files.pdfFile[0].path);
+      const stored = await storeContentUpload(req.files.pdfFile[0]);
+      body.filePath = stored.path;
+      body.fileUrl = contentFileUrl(req, stored.id);
     }
     // Gallery images (up to 100)
     if (req.files?.galleryImages) {
       const coverIdx = parseInt(req.body.galleryCoverIndex) || 0;
-      body.galleryImages = req.files.galleryImages.map((f, i) => ({
-        path:    toRelativeUploadPath(f.path),
-        url:     fileUrl(req, f.path),
-        isCover: i === coverIdx,
-      }));
+      const storedImages = await Promise.all(req.files.galleryImages.map(storeContentUpload));
+      body.galleryImages = storedImages.map((stored, i) => ({ path: stored.path, url: contentFileUrl(req, stored.id), isCover: i === coverIdx }));
       // Also set coverImageUrl to the selected cover for easy access
       if (req.files.galleryImages[coverIdx]) {
-        body.coverImageUrl = fileUrl(req, req.files.galleryImages[coverIdx].path);
+        body.coverImagePath = storedImages[coverIdx].path;
+        body.coverImageUrl = contentFileUrl(req, storedImages[coverIdx].id);
       }
     }
     const doc = new (mongoose.model('Media'))(body);
@@ -997,23 +991,23 @@ router.put('/content/media/:id', protect, adminOrSuperAdmin, (req, res, next) =>
     if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
     Object.assign(doc, pickAllowedFields(req.body, MEDIA_ALLOWED_FIELDS));
     if (req.files?.coverImage?.[0]) {
-      doc.coverImagePath = toRelativeUploadPath(req.files.coverImage[0].path);
-      doc.coverImageUrl  = fileUrl(req, req.files.coverImage[0].path);
+      const stored = await storeContentUpload(req.files.coverImage[0]);
+      doc.coverImagePath = stored.path;
+      doc.coverImageUrl = contentFileUrl(req, stored.id);
     }
     if (req.files?.pdfFile?.[0]) {
-      doc.filePath = toRelativeUploadPath(req.files.pdfFile[0].path);
-      doc.fileUrl  = fileUrl(req, req.files.pdfFile[0].path);
+      const stored = await storeContentUpload(req.files.pdfFile[0]);
+      doc.filePath = stored.path;
+      doc.fileUrl = contentFileUrl(req, stored.id);
     }
     if (req.files?.galleryImages) {
       // New images uploaded — replace gallery
       const coverIdx = parseInt(req.body.galleryCoverIndex) || 0;
-      doc.galleryImages = req.files.galleryImages.map((f, i) => ({
-        path:    toRelativeUploadPath(f.path),
-        url:     fileUrl(req, f.path),
-        isCover: i === coverIdx,
-      }));
+      const storedImages = await Promise.all(req.files.galleryImages.map(storeContentUpload));
+      doc.galleryImages = storedImages.map((stored, i) => ({ path: stored.path, url: contentFileUrl(req, stored.id), isCover: i === coverIdx }));
       if (req.files.galleryImages[coverIdx]) {
-        doc.coverImageUrl = fileUrl(req, req.files.galleryImages[coverIdx].path);
+        doc.coverImagePath = storedImages[coverIdx].path;
+        doc.coverImageUrl = contentFileUrl(req, storedImages[coverIdx].id);
       }
     } else if (req.body.existingCoverIndex !== undefined && doc.galleryImages?.length) {
       // No new images — just update which existing image is the cover
@@ -1064,8 +1058,9 @@ router.post(  '/content/sponsors',     protect, adminOrSuperAdmin, uploadCoverIm
     const body = pickAllowedFields(req.body, SPONSOR_ALLOWED_FIELDS);
     body.createdBy = req.user._id;
     if (req.file) {
-      body.coverImagePath = toRelativeUploadPath(req.file.path);
-      body.coverImageUrl  = fileUrl(req, req.file.path);
+      const stored = await storeContentUpload(req.file);
+      body.coverImagePath = stored.path;
+      body.coverImageUrl = contentFileUrl(req, stored.id);
     }
     const doc = new (mongoose.model('Sponsor'))(body);
     await doc.save();
@@ -1078,8 +1073,9 @@ router.put(   '/content/sponsors/:id', protect, adminOrSuperAdmin, uploadCoverIm
     if (!doc) return res.status(404).json({ success: false, message: 'Not found' });
     Object.assign(doc, pickAllowedFields(req.body, SPONSOR_ALLOWED_FIELDS));
     if (req.file) {
-      doc.coverImagePath = toRelativeUploadPath(req.file.path);
-      doc.coverImageUrl  = fileUrl(req, req.file.path);
+      const stored = await storeContentUpload(req.file);
+      doc.coverImagePath = stored.path;
+      doc.coverImageUrl = contentFileUrl(req, stored.id);
     }
     await doc.save();
     res.json({ success: true, data: doc });
