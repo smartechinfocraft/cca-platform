@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -173,6 +174,10 @@ function LegalPage({ kind }: { kind: "privacy" | "terms" }) {
   const isPrivacy = kind === "privacy";
   const sections = isPrivacy ? privacySections : termsSections;
   const title = isPrivacy ? "Privacy Policy" : "Terms & Conditions";
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [kind]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
