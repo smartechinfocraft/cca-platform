@@ -27,8 +27,8 @@ const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
 const presetAmounts = [25, 50, 100, 250];
 
 const projectLineItems = [
-  { label: "Santa Clara Facility Build", desc: "New central pitch, artificial mat, shade structure, and landscaping at a brand-new Santa Clara ground.", cost: 35000 },
-  { label: "Dilworth Field Upgrade", desc: "Irrigation and reseeding work on the existing Dilworth school facility in San Jose / Cupertino.", cost: 30000 },
+  { label: "Santa Clara Facility Build", desc: "Build a central pitch, install an artificial mat, procure a shade, and upgrade landscaping at a new Santa Clara facility in September 2024.", cost: 35000 },
+  { label: "Dilworth School Facility Upgrade", desc: "Upgrade the Dilworth school facility with new irrigation and seeding.", cost: 30000 },
 ];
 
 const fundUses = [
@@ -59,10 +59,6 @@ function DonatePage() {
 
   const paypalRef = useRef<HTMLDivElement>(null);
   const paypalInstance = useRef<PayPalButtonsInstance | null>(null);
-
-  const goal = projectLineItems.reduce((sum, l) => sum + l.cost, 0);
-  const raisedSoFar = 18250; // placeholder progress — wire to a real backend total when available
-  const progressPct = Math.min(100, Math.round((raisedSoFar / goal) * 100));
 
   const effectiveAmount = isCustom ? parseFloat(customAmount) || 0 : amount;
 
@@ -149,34 +145,8 @@ function DonatePage() {
               Help Us Build the Next Cricket Ground
             </h1>
             <p className="text-white/70 text-lg mt-6 leading-8 max-w-2xl mx-auto">
-              We're raising <strong className="text-white">${goal.toLocaleString()}</strong> for our school
-              cricket initiative — a brand-new facility in Santa Clara and an upgrade to the existing Dilworth
-              school ground in San Jose / Cupertino. Every donation goes directly toward the fields our players
-              train and compete on.
+              We need your generous support for our new school cricket initiative. We are raising <strong className="text-white">$65,000</strong> to build a new cricket facility in Santa Clara and upgrade the existing Dilworth school facility in San Jose/Cupertino.
             </p>
-          </motion.div>
-
-          {/* Progress bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="mt-10 max-w-xl mx-auto"
-          >
-            <div className="flex justify-between text-sm text-white/70 mb-2">
-              <span>${raisedSoFar.toLocaleString()} raised</span>
-              <span>Goal: ${goal.toLocaleString()}</span>
-            </div>
-            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPct}%` }}
-                transition={{ duration: 1.1, ease: "easeOut", delay: 0.3 }}
-                className="h-full rounded-full"
-                style={{ background: "linear-gradient(90deg, var(--gold), var(--gold-light))" }}
-              />
-            </div>
-            <p className="text-xs text-white/50 mt-2">{progressPct}% of the way to a new ground</p>
           </motion.div>
         </div>
       </section>
@@ -214,9 +184,9 @@ function DonatePage() {
                     {i + 1}
                   </span>
                   <div className="flex-1">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="font-display font-semibold text-[var(--outfield)] text-base">{item.label}</h3>
-                      <span className="text-sm font-semibold" style={{ color: "var(--leather)" }}>${item.cost.toLocaleString()}</span>
+                      <span className="text-sm font-semibold" style={{ color: "var(--leather)" }}>Cost ${item.cost.toLocaleString()}</span>
                     </div>
                     <p className="text-[var(--ink-500)] text-sm mt-1.5 leading-6">{item.desc}</p>
                   </div>

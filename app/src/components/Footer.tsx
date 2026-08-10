@@ -151,7 +151,9 @@ function Footer() {
 
         <div className="mt-14 pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-white/40">© {year} California Cricket Academy. All rights reserved.</p>
-          <div className="flex items-center gap-6 text-xs text-white/40">
+          <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-white/40">
+            <button onClick={() => navigate("/terms")} className="transition hover:text-white hover:underline">Terms &amp; Conditions</button>
+            <button onClick={() => navigate("/privacy")} className="transition hover:text-white hover:underline">Privacy Policy</button>
             <span>calcricket_academy@yahoo.com</span>
 
             <a href="https://wa.me/+14082033594" className="text-white/40 font-semibold hover:underline">WhatsApp us at +1 (408) 203-3594</a>

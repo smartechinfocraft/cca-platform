@@ -18,6 +18,7 @@ import PaymentPage from "../pages/registration/PaymentPage";
 import SuccessPage from "../pages/registration/SuccessPage";
 import LoginPage from "../pages/LoginPage";
 import StaffLoginPage from "../pages/StaffLoginPage";
+import LegalPage from "../pages/LegalPage";
 import CartPage from "../pages/cart/CartPage";
 
 // ── Parent dashboard ────────────────────────────────────────
@@ -135,6 +136,8 @@ function AppRoutes() {
       <Route path="/donate" element={<DonatePage />} />
       <Route path="/media" element={<MediaPage />} />
       <Route path="/faq" element={<FAQPage />} />
+      <Route path="/privacy" element={<LegalPage kind="privacy" />} />
+      <Route path="/terms" element={<LegalPage kind="terms" />} />
 
       {/* Parent and staff authentication intentionally use separate entry points. */}
       <Route path="/login" element={<LoginPage />} />
