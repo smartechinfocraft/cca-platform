@@ -163,6 +163,7 @@ function Programs() {
     <>
       <Navbar />
       <div className="h-20" />
+      <main className="bg-slate-50 pb-24 lg:pb-0">
       <section className="relative overflow-visible bg-[#f8fafc] py-10 md:py-14">
         <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.18),transparent_48%)] pointer-events-none" />
         <div className="max-w-7xl mx-auto px-6">
@@ -177,12 +178,12 @@ function Programs() {
               Find the perfect cricket training program based on age, location and skill level.
             </p>
           </div>
-
-          <div className="mt-10">
-            <ProgramFilter filters={filters} onChange={handleChange} onSearch={() => setPage(1)} />
-          </div>
         </div>
       </section>
+
+      <div className="mx-auto max-w-7xl px-6 lg:sticky lg:top-[112px] lg:z-40 lg:-mt-4">
+        <ProgramFilter filters={filters} onChange={handleChange} />
+      </div>
 
       <section className="py-8 md:py-12 bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
@@ -248,6 +249,7 @@ function Programs() {
           )}
         </div>
       </section>
+      </main>
       <Footer />
     </>
   );
