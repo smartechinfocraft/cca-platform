@@ -619,7 +619,7 @@ function SuccessPage() {
                   Contact us if you need to update your registration or have questions.
                 </p>
                 <div className="mt-3 rounded-xl bg-[#A33B2B]/10 px-4 py-3 text-sm font-semibold text-[#A33B2B]">
-                  support@cca.example
+                  calcricket_academy@yahoo.com
                 </div>
               </div>
             </aside>
