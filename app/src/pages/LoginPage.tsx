@@ -35,6 +35,12 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
     focusable[0]?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (modalRef.current?.querySelector("[data-forgot-password-modal]")) {
+          setShowForgot(false);
+          setForgotEmail("");
+          setForgotSent(false);
+          return;
+        }
         closeModal();
         return;
       }
@@ -148,7 +154,11 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
       role={modal ? "dialog" : undefined}
       aria-modal={modal || undefined}
       aria-label={modal ? "Parent sign in or registration" : undefined}
-      onMouseDown={modal ? closeModal : undefined}
+      onMouseDown={modal ? (event) => {
+        // Close only when the actual login backdrop is pressed. Nested
+        // dialogs (such as Forgot Password) must never close this route.
+        if (event.target === event.currentTarget) closeModal();
+      } : undefined}
     >
       <div className={`${modal ? "hidden" : ""} absolute inset-0 pointer-events-none`} aria-hidden="true">
         <div className="absolute inset-0" style={{
@@ -358,6 +368,7 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
       <AnimatePresence>
         {showForgot && (
           <motion.div
+            data-forgot-password-modal
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -366,7 +377,10 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
               display: "flex", alignItems: "center", justifyContent: "center",
               zIndex: 200, padding: "24px",
             }}
-            onClick={closeForgot}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) closeForgot();
+            }}
           >
             <motion.div
               initial={{ scale: 0.92, opacity: 0, y: 16 }}
@@ -375,7 +389,8 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
               transition={{ duration: 0.25, ease: "easeOut" }}
               className="bg-white rounded-[28px] p-8 w-full"
               style={{ maxWidth: "400px", position: "relative", boxShadow: "0 40px 100px rgba(0,0,0,0.35)" }}
-              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
               <button
                 type="button"
