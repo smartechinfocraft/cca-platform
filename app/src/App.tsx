@@ -2,12 +2,22 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
 import MaintenancePage from "./pages/MaintenancePage";
+import { isQuickRegisterVisible, QUICK_REGISTER_VISIBILITY_EVENT } from "./utils/quickRegisterVisibility";
 
 type SiteStatus = { maintenanceEnabled: boolean; maintenanceTitle: string; maintenanceMessage: string; maintenanceContactEmail?: string };
 
 function App() {
   const location = useLocation();
   const [siteStatus, setSiteStatus] = useState<SiteStatus | null>(null);
+  const [quickRegisterOpen, setQuickRegisterOpen] = useState(isQuickRegisterVisible);
+
+  useEffect(() => {
+    const handleQuickRegisterVisibility = (event: Event) => {
+      setQuickRegisterOpen((event as CustomEvent<boolean>).detail);
+    };
+    window.addEventListener(QUICK_REGISTER_VISIBILITY_EVENT, handleQuickRegisterVisibility);
+    return () => window.removeEventListener(QUICK_REGISTER_VISIBILITY_EVENT, handleQuickRegisterVisibility);
+  }, []);
 
   useEffect(() => {
     const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5001/api";
@@ -21,7 +31,7 @@ function App() {
   const isPortalRoute = ["/dashboard", "/admin", "/coach"].some(
     route => location.pathname === route || location.pathname.startsWith(`${route}/`)
   );
-  const showChatbotWidget = !isPortalRoute;
+  const showChatbotWidget = !isPortalRoute && !quickRegisterOpen;
   if (!siteStatus) return <div className="flex min-h-screen items-center justify-center bg-[#0b1d12] text-[#f5d97a]">Loading...</div>;
   if (siteStatus.maintenanceEnabled && !bypassMaintenance) return <MaintenancePage title={siteStatus.maintenanceTitle} message={siteStatus.maintenanceMessage} contactEmail={siteStatus.maintenanceContactEmail} />;
 

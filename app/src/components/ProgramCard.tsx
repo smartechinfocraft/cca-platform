@@ -19,6 +19,7 @@ import WeeklyBatchSelector from "./registration/WeeklyBatchSelector";
 import SavedStudentPicker from "./registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, fmt12, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
+import { setQuickRegisterVisibility } from "../utils/quickRegisterVisibility";
 
 type ProgramCardProps = {
   program: {
@@ -576,9 +577,12 @@ function QuickRegisterDrawer({
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    setQuickRegisterVisibility(true);
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
+      setQuickRegisterVisibility(false);
     };
   }, [open]);
 
@@ -683,7 +687,7 @@ function QuickRegisterDrawer({
   };
 
   const drawer = (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[10001]">
       <button type="button" aria-label="Close quick registration" className="absolute inset-0 h-full w-full bg-slate-950/50" onClick={onClose} />
       <aside className="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5">

@@ -10,6 +10,7 @@ import {
   HiX,
 } from "react-icons/hi";
 import { getCategories, getPrograms } from "../services/programService";
+import { isQuickRegisterVisible, QUICK_REGISTER_VISIBILITY_EVENT } from "../utils/quickRegisterVisibility";
 
 export interface Filters {
   season: string;
@@ -214,6 +215,7 @@ function ProgramFilter({ filters, onChange }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileDraft, setMobileDraft] = useState<Filters>(filters);
   const [ready, setReady] = useState(false);
+  const [quickRegisterOpen, setQuickRegisterOpen] = useState(isQuickRegisterVisible);
   const seasonRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -301,6 +303,16 @@ function ProgramFilter({ filters, onChange }: Props) {
   const filteredSeasons = seasons.filter((season) => season.title.toLowerCase().includes(seasonQuery.trim().toLowerCase()));
   const activeFilterCount = Number(Boolean(filters.season)) + filters.cities.length + filters.levels.length + filters.ageGroups.length;
   const activeCategoryOptions = seasons.filter((season) => activeTitles.has(season.title)).map((season) => season.title);
+
+  useEffect(() => {
+    const handleQuickRegisterVisibility = (event: Event) => {
+      const open = (event as CustomEvent<boolean>).detail;
+      setQuickRegisterOpen(open);
+      if (open) setDrawerOpen(false);
+    };
+    window.addEventListener(QUICK_REGISTER_VISIBILITY_EVENT, handleQuickRegisterVisibility);
+    return () => window.removeEventListener(QUICK_REGISTER_VISIBILITY_EVENT, handleQuickRegisterVisibility);
+  }, []);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -461,7 +473,7 @@ function ProgramFilter({ filters, onChange }: Props) {
       </div>
     </div>
     {createPortal(<>
-      <div className={`fixed inset-x-0 bottom-0 z-[9999] border-t border-slate-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_30px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-transform duration-300 lg:hidden ${drawerOpen ? "translate-y-full" : "translate-y-0"}`}>
+      <div aria-hidden={quickRegisterOpen} className={`fixed inset-x-0 bottom-0 z-[9999] border-t border-slate-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_30px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-transform duration-300 lg:hidden ${drawerOpen || quickRegisterOpen ? "translate-y-full pointer-events-none" : "translate-y-0"}`}>
         <div className="mx-auto flex max-w-lg gap-3">
           <button type="button" onClick={openMobileDrawer} className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-[#A33B2B] px-5 text-sm font-bold text-white shadow-md">
             <HiSearch className="h-4 w-4" /> Filter Programs
