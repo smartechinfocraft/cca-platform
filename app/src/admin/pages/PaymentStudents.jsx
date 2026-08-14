@@ -54,6 +54,29 @@ function batchLabel(b) {
   return [line1, locStr, monthStr].filter(Boolean).join(' | ') || '—';
 }
 
+function splitScheduleItems(value) {
+  return String(value || '')
+    .split(/\s*(?:\n|;|\s+\|\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function selectedBatchLabels(row) {
+  if (row._orderItem) {
+    const schedules = splitScheduleItems(row._orderItem.selectedDays);
+    if (schedules.length) return schedules;
+    if (row._orderItem.batchName) return [row._orderItem.batchName];
+  }
+  return (row.batches || []).map(batchLabel).filter(label => label && label !== '—');
+}
+
+function sameStudent(left, right) {
+  const leftName = `${left?.firstName || ''} ${left?.lastName || ''}`.trim().toLowerCase();
+  const rightName = `${right?.firstName || ''} ${right?.lastName || ''}`.trim().toLowerCase();
+  return Boolean(leftName && leftName === rightName)
+    && (!left?.dob || !right?.dob || String(left.dob).slice(0, 10) === String(right.dob).slice(0, 10));
+}
+
 /**
  * Parse students from customerNote fallback.
  * Format: "John Smith | DOB: 2018-05-10 | Gender: Male; Jane Smith | DOB: N/A | Gender: Female"
@@ -255,16 +278,22 @@ async function buildPDF(filtered, { filterMethod, filterProgram, filterLocation,
     const students = resolveStudents(r);
     const displayStudents = students.length ? students : [{}];
 
-    const batches = r.batches || [];
-    const batchText = batches.length
-      ? batches.map(b => batchLabel(b)).join('\n')
-      : '—';
-
     const parentName = r.parentId
       ? `${r.parentId.firstName || ''} ${r.parentId.lastName || ''}`.trim() || '—'
       : '—';
 
     displayStudents.forEach(s => {
+      const orderItem = (r.orderItems || []).find(item =>
+        (item.students || []).some(itemStudent => sameStudent(itemStudent, s))
+      ) || ((r.orderItems || []).length === 1 ? r.orderItems[0] : null);
+      const itemSchedules = orderItem ? splitScheduleItems(orderItem.selectedDays) : [];
+      const batchText = itemSchedules.length
+        ? itemSchedules.join('\n')
+        : orderItem?.batchName
+          ? orderItem.batchName
+          : (r.batches || []).length
+            ? r.batches.map(b => batchLabel(b)).join('\n')
+            : '—';
       const name = studentName(s);
       const dob = s.dob ? new Date(s.dob).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '—';
       const age = s.dob ? studentAge(s.dob) : null;
@@ -279,7 +308,7 @@ async function buildPDF(filtered, { filterMethod, filterProgram, filterLocation,
           s.gender || '—',
           parentName,
           r.parentId?.email || '—',
-          r.programId?.title || '—',
+          orderItem?.programTitle || r.programId?.title || '—',
           batchText,
           `$${(r.totalAmount || 0).toLocaleString()}`,
           r.paymentMethod || '—',
@@ -456,24 +485,37 @@ export default function PaymentStudents() {
   // ── Client-side filters ──────────────────────────────────────
   const filtered = rows.filter(r => {
     if (filterMethod  && r.paymentMethod !== filterMethod) return false;
-    if (filterProgram && r.programId?._id !== filterProgram) return false;
+    if (filterProgram) {
+      const hasProgram = r.programId?._id === filterProgram
+        || (r.orderItems || []).some(item => String(item.programId) === filterProgram);
+      if (!hasProgram) return false;
+    }
 
     if (filterCategory) {
       const categoryId = r.programId?.category?._id || r.programId?.category;
-      if (categoryId !== filterCategory) return false;
+      const hasOrderCategory = (r.orderItems || []).some(item => {
+        const program = programs.find(candidate => String(candidate._id) === String(item.programId));
+        return (program?.category?._id || program?.category) === filterCategory;
+      });
+      if (categoryId !== filterCategory && !hasOrderCategory) return false;
     }
 
     if (filterLocation) {
       const hasLoc = (r.batches || []).some(b =>
         (b.location?._id || b.location) === filterLocation
-      );
+      ) || (r.orderItems || []).some(item => {
+        const program = programs.find(candidate => String(candidate._id) === String(item.programId));
+        return (program?.location?._id || program?.location) === filterLocation;
+      });
       if (!hasLoc) return false;
     }
 
     if (filterBatch) {
-      const hasBatch = (r.batches || []).some(b =>
-        batchLabel(b).toLowerCase().includes(filterBatch.toLowerCase())
-      );
+      const query = filterBatch.toLowerCase();
+      const hasBatch = (r.batches || []).some(b => batchLabel(b).toLowerCase().includes(query))
+        || (r.orderItems || []).some(item =>
+          `${item.batchName || ''} ${item.selectedDays || ''}`.toLowerCase().includes(query)
+        );
       if (!hasBatch) return false;
     }
 
@@ -498,6 +540,9 @@ export default function PaymentStudents() {
         !r.parentId?.email?.toLowerCase().includes(q) &&
         !studentNames.includes(q) &&
         !r.programId?.title?.toLowerCase().includes(q) &&
+        !(r.orderItems || []).some(item =>
+          `${item.programTitle || ''} ${item.batchName || ''} ${item.selectedDays || ''}`.toLowerCase().includes(q)
+        ) &&
         !(r.customerNote || '').toLowerCase().includes(q)
       ) return false;
     }
@@ -507,8 +552,30 @@ export default function PaymentStudents() {
 
   // Repeat registration-level information so every student has a complete row.
   const studentRows = filtered.flatMap(registration => {
-    const students = resolveStudents(registration);
-    return (students.length ? students : [{}]).map((student, index) => ({
+    const registeredStudents = resolveStudents(registration);
+    const orderItems = (registration.orderItems || []).filter(item =>
+      (item.students || []).length || item.selectedDays || item.batchName
+    );
+
+    if (orderItems.length) {
+      return orderItems.flatMap((item, itemIndex) => {
+        const itemStudents = (item.students || []).length ? item.students : registeredStudents;
+        return (itemStudents.length ? itemStudents : [{}]).map((snapshot, studentIndex) => {
+          const storedStudent = registeredStudents.find(student => sameStudent(student, snapshot));
+          const student = { ...(snapshot || {}), ...(storedStudent || {}) };
+          const itemProgram = programs.find(program => String(program._id) === String(item.programId));
+          return {
+            ...registration,
+            _id: `${registration._id || registration.registrationNumber || 'registration'}-${itemIndex}-${student._id || student.studentCode || studentIndex}`,
+            student,
+            _orderItem: item,
+            _itemProgram: itemProgram,
+          };
+        });
+      });
+    }
+
+    return (registeredStudents.length ? registeredStudents : [{}]).map((student, index) => ({
       ...registration,
       _id: `${registration._id || registration.registrationNumber || 'registration'}-${student._id || student.studentCode || index}`,
       student,
@@ -539,9 +606,11 @@ export default function PaymentStudents() {
           'Gender': row.student?.gender || '',
           'Parent': parentName,
           'Email': row.parentId?.email || '',
-          'Program': row.programId?.title || '',
-          'Batches': (row.batches || []).map(batchLabel).join(' | '),
-          'Location': [...new Set((row.batches || []).map(b => b.location?.title || '').filter(Boolean))].join(', '),
+          'Program': row._orderItem?.programTitle || row.programId?.title || '',
+          'Batch (Day / Time / Location)': selectedBatchLabels(row).join(' | '),
+          'Location': row._orderItem
+            ? (row._itemProgram?.location?.title || row._itemProgram?.location?.city || row.programId?.location?.title || '')
+            : [...new Set((row.batches || []).map(b => b.location?.title || '').filter(Boolean))].join(', '),
           'Amount': Number(row.totalAmount) || 0,
           'Payment Method': row.paymentMethod || '',
           'Check #': row.checkNumber || '',
@@ -626,11 +695,23 @@ export default function PaymentStudents() {
     },
     {
       key: 'programTitle', label: 'Program',
-      render: (_, row) => row.programId?.title || '—',
+      render: (_, row) => row._orderItem?.programTitle || row.programId?.title || '—',
     },
     {
       key: 'batchTitles', label: 'Batch(es)',
       render: (_, row) => {
+        const selectedLabels = selectedBatchLabels(row);
+        if (row._orderItem && selectedLabels.length) {
+          return (
+            <div style={{ lineHeight: '1.5', fontSize: '12px' }}>
+              {selectedLabels.map((label, index) => (
+                <div key={index} style={{ marginBottom: index < selectedLabels.length - 1 ? 4 : 0 }}>
+                  {label}
+                </div>
+              ))}
+            </div>
+          );
+        }
         const batches = row.batches || [];
         if (!batches.length) return '—';
         return (
@@ -662,6 +743,12 @@ export default function PaymentStudents() {
     {
       key: 'batchLocation', label: 'Location',
       render: (_, row) => {
+        if (row._orderItem) {
+          return row._itemProgram?.location?.title
+            || row._itemProgram?.location?.city
+            || row.programId?.location?.title
+            || 'Included in batch';
+        }
         const locs = [...new Set((row.batches || []).map(b => b.location?.title || '').filter(Boolean))];
         return locs.length ? locs.join(', ') : '—';
       },
