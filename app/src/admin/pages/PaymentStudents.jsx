@@ -8,6 +8,17 @@ import toast from 'react-hot-toast';
 
 const ACADEMY_NAME = 'California Cricket Academy';
 
+async function loadXLSX() {
+  if (window.XLSX) return window.XLSX;
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = () => reject(new Error('Unable to load the Excel export library'));
+    document.head.appendChild(script);
+  });
+}
+
 // ── Helpers ─────────────────────────────────────────────────
 
 /** Format "HH:mm" → "5:00 PM" */
@@ -400,6 +411,7 @@ async function buildPDF(filtered, { filterMethod, filterProgram, filterLocation,
 export default function PaymentStudents() {
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   const [search, setSearch]                 = useState('');
   const [filterMethod, setFilterMethod]     = useState('');
@@ -446,6 +458,11 @@ export default function PaymentStudents() {
     if (filterMethod  && r.paymentMethod !== filterMethod) return false;
     if (filterProgram && r.programId?._id !== filterProgram) return false;
 
+    if (filterCategory) {
+      const categoryId = r.programId?.category?._id || r.programId?.category;
+      if (categoryId !== filterCategory) return false;
+    }
+
     if (filterLocation) {
       const hasLoc = (r.batches || []).some(b =>
         (b.location?._id || b.location) === filterLocation
@@ -488,6 +505,68 @@ export default function PaymentStudents() {
     return true;
   });
 
+  // Repeat registration-level information so every student has a complete row.
+  const studentRows = filtered.flatMap(registration => {
+    const students = resolveStudents(registration);
+    return (students.length ? students : [{}]).map((student, index) => ({
+      ...registration,
+      _id: `${registration._id || registration.registrationNumber || 'registration'}-${student._id || student.studentCode || index}`,
+      student,
+    }));
+  });
+
+  const downloadExcel = async () => {
+    if (!studentRows.length) {
+      toast.error('No rows to export');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const XLSX = await loadXLSX();
+      const exportRows = studentRows.map(row => {
+        const age = studentAge(row.student?.dob);
+        const parentName = row.parentId
+          ? `${row.parentId.firstName || ''} ${row.parentId.lastName || ''}`.trim()
+          : '';
+
+        return {
+          'Registration #': row.registrationNumber || '',
+          'Student Name': studentName(row.student) === '—' ? '' : studentName(row.student),
+          'Student ID': row.student?.studentCode || '',
+          'DOB': row.student?.dob ? new Date(row.student.dob).toLocaleDateString() : '',
+          'Age': age ?? '',
+          'Gender': row.student?.gender || '',
+          'Parent': parentName,
+          'Email': row.parentId?.email || '',
+          'Program': row.programId?.title || '',
+          'Batches': (row.batches || []).map(batchLabel).join(' | '),
+          'Location': [...new Set((row.batches || []).map(b => b.location?.title || '').filter(Boolean))].join(', '),
+          'Amount': Number(row.totalAmount) || 0,
+          'Payment Method': row.paymentMethod || '',
+          'Check #': row.checkNumber || '',
+          'Transaction ID': row.transactionId || '',
+          'Status': row.status || '',
+          'Registration Date': row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '',
+        };
+      });
+
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      worksheet['!cols'] = [18, 24, 22, 14, 8, 12, 22, 30, 28, 52, 22, 14, 16, 16, 28, 16, 18]
+        .map(wch => ({ wch }));
+      worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Payment Students');
+      XLSX.writeFile(workbook, `CCA_Payment_Students_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`Exported ${studentRows.length} student rows`);
+    } catch (err) {
+      console.error('Excel export error:', err);
+      toast.error('Excel export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // ── PDF Download ─────────────────────────────────────────────
   const downloadPDF = async () => {
     if (filtered.length === 0) {
@@ -516,37 +595,24 @@ export default function PaymentStudents() {
   const columns = [
     { key: 'registrationNumber', label: 'Reg #' },
     {
-      key: 'studentNames', label: 'Student(s)',
-      render: (_, row) => {
-        const students = resolveStudents(row);
-        const names = students.map(s => studentName(s)).filter(n => n !== '—');
-        return names.length ? names.join(', ') : '—';
-      },
+      key: 'studentName', label: 'Student',
+      render: (_, row) => studentName(row.student),
     },
     {
-      key: 'studentIds', label: 'Student ID(s)',
-      render: (_, row) => {
-        const students = resolveStudents(row);
-        return students.map(s => s.studentCode || '—').join(', ') || '—';
-      },
+      key: 'studentId', label: 'Student ID',
+      render: (_, row) => row.student?.studentCode || '—',
     },
     {
       key: 'studentDob', label: 'DOB / Age',
       render: (_, row) => {
-        const students = resolveStudents(row);
-        return students.map(s => {
-          if (!s.dob) return '—';
-          const age = studentAge(s.dob);
-          return `${new Date(s.dob).toLocaleDateString()} ${age !== null ? `(${age}y)` : ''}`;
-        }).join(', ') || '—';
+        if (!row.student?.dob) return '—';
+        const age = studentAge(row.student.dob);
+        return `${new Date(row.student.dob).toLocaleDateString()} ${age !== null ? `(${age}y)` : ''}`;
       },
     },
     {
       key: 'studentGender', label: 'Gender',
-      render: (_, row) => {
-        const students = resolveStudents(row);
-        return students.map(s => s.gender || '—').join(', ') || '—';
-      },
+      render: (_, row) => row.student?.gender || '—',
     },
     {
       key: 'parentName', label: 'Parent',
@@ -657,6 +723,9 @@ export default function PaymentStudents() {
           style={{ width: '140px' }}
         />
         <Btn variant="ghost" onClick={load}>Refresh</Btn>
+        <Btn variant="success" onClick={downloadExcel} disabled={exporting || loading}>
+          {exporting ? 'Exporting...' : '⬇ Export Excel'}
+        </Btn>
         <Btn
           onClick={downloadPDF}
           style={{ marginLeft: 'auto', background: '#C9A227', color: '#1F2E1E', fontWeight: 700 }}
@@ -664,13 +733,13 @@ export default function PaymentStudents() {
           ⬇ Download PDF
         </Btn>
         <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
-          {filtered.length} records
+          {studentRows.length} student rows ({filtered.length} registrations)
         </span>
       </div>
 
       <DataTable
         columns={columns}
-        rows={filtered}
+        rows={studentRows}
         loading={loading}
         emptyMsg="No records found. Try changing filters or check if registrations exist with paymentMethod=CHECK, PAYPAL, or STRIPE."
       />
