@@ -56,7 +56,7 @@ function batchLabel(b) {
 
 function splitScheduleItems(value) {
   return String(value || '')
-    .split(/\s*(?:\n|;|\s+\|\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
+    .split(/\s*(?:\n|;|\s+\|\s+|\s+\+\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
     .map(item => item.trim())
     .filter(Boolean);
 }
@@ -607,7 +607,7 @@ export default function PaymentStudents() {
           'Parent': parentName,
           'Email': row.parentId?.email || '',
           'Program': row._orderItem?.programTitle || row.programId?.title || '',
-          'Batch (Day / Time / Location)': selectedBatchLabels(row).join(' | '),
+          'Batch (Day / Time / Location)': selectedBatchLabels(row).map(label => `• ${label}`).join('\n'),
           'Location': row._orderItem
             ? (row._itemProgram?.location?.title || row._itemProgram?.location?.city || row.programId?.location?.title || '')
             : [...new Set((row.batches || []).map(b => b.location?.title || '').filter(Boolean))].join(', '),
@@ -625,6 +625,11 @@ export default function PaymentStudents() {
       worksheet['!cols'] = [18, 24, 22, 14, 8, 12, 22, 30, 28, 52, 22, 14, 16, 16, 28, 16, 18]
         .map(wch => ({ wch }));
       worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
+      const worksheetRange = XLSX.utils.decode_range(worksheet['!ref']);
+      for (let rowIndex = 1; rowIndex <= worksheetRange.e.r; rowIndex++) {
+        const batchCell = worksheet[XLSX.utils.encode_cell({ r: rowIndex, c: 9 })];
+        if (batchCell) batchCell.s = { alignment: { vertical: 'top', wrapText: true } };
+      }
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Payment Students');
       XLSX.writeFile(workbook, `CCA_Payment_Students_${new Date().toISOString().slice(0, 10)}.xlsx`);
       toast.success(`Exported ${studentRows.length} student rows`);
@@ -703,21 +708,21 @@ export default function PaymentStudents() {
         const selectedLabels = selectedBatchLabels(row);
         if (row._orderItem && selectedLabels.length) {
           return (
-            <div style={{ lineHeight: '1.5', fontSize: '12px' }}>
+            <ul style={{ lineHeight: '1.5', fontSize: '12px', margin: 0, paddingLeft: '18px' }}>
               {selectedLabels.map((label, index) => (
-                <div key={index} style={{ marginBottom: index < selectedLabels.length - 1 ? 4 : 0 }}>
+                <li key={index} style={{ marginBottom: index < selectedLabels.length - 1 ? 4 : 0 }}>
                   {label}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           );
         }
         const batches = row.batches || [];
         if (!batches.length) return '—';
         return (
-          <div style={{ lineHeight: '1.5', fontSize: '12px' }}>
+          <ul style={{ lineHeight: '1.5', fontSize: '12px', margin: 0, paddingLeft: '18px' }}>
             {batches.map((b, i) => (
-              <div key={i} style={{ marginBottom: i < batches.length - 1 ? 4 : 0 }}>
+              <li key={i} style={{ marginBottom: i < batches.length - 1 ? 4 : 0 }}>
                 <div style={{ fontWeight: 600 }}>
                   {b.title || [
                     b.dayOfWeek === 'MULTI' && b.multiDays?.length
@@ -734,9 +739,9 @@ export default function PaymentStudents() {
                     📅 {b.monthOptions.map(m => m.label).join(' / ')}
                   </div>
                 )}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         );
       },
     },

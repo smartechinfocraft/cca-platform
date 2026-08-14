@@ -30,7 +30,7 @@ async function loadXLSX() {
 
 const splitScheduleItems = (value) =>
   String(value || '')
-    .split(/\s*(?:\n|;|\s+\|\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
+    .split(/\s*(?:\n|;|\s+\|\s+|\s+\+\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
     .map((part) => part.trim())
     .filter(Boolean);
 
@@ -85,7 +85,9 @@ const batchLabel = (batch) => {
   return [batch.title, day, time, location].filter(Boolean).join(' | ');
 };
 
-const scheduleText = (item) => splitScheduleItems(item?.selectedDays).join('; ');
+const scheduleText = (item) => splitScheduleItems(item?.selectedDays)
+  .map(schedule => `• ${schedule}`)
+  .join('\n');
 
 const monthText = (item) => {
   const month = item?.selectedMonth || {};
@@ -380,6 +382,10 @@ const buildPrintHtml = (rows) => {
     const items = registrationOrderItems(row);
     const itemHtml = items.map((item, index) => {
       const students = itemStudents(row, item);
+      const schedules = splitScheduleItems(item.selectedDays);
+      const scheduleHtml = schedules.length
+        ? `<ul class="schedule-list">${schedules.map(schedule => `<li>${escapeHtml(schedule)}</li>`).join('')}</ul>`
+        : '—';
       const studentRows = (students.length ? students : [{}]).map(student => `
         <tr>
           <td>${escapeHtml(fullName(student) || 'Student')}</td>
@@ -397,7 +403,7 @@ const buildPrintHtml = (rows) => {
           <div class="grid">
             <div><span>Batch</span>${escapeHtml(item.batchName || '')}</div>
             <div><span>Month</span>${escapeHtml(monthText(item))}</div>
-            <div><span>Schedule Days</span>${escapeHtml(scheduleText(item))}</div>
+            <div><span>Schedule Days</span>${scheduleHtml}</div>
             <div><span>Sessions / Week</span>${escapeHtml(item.sessionsPerWeek || '')}</div>
             <div><span>Students</span>${escapeHtml(item.studentCount || students.length || 0)}</div>
             <div><span>Line Total</span>${escapeHtml(money(item.itemTotal))}</div>
@@ -464,6 +470,8 @@ const buildPrintHtml = (rows) => {
           .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 14px; }
           .main { padding: 10px; background: #f7f7f1; border-radius: 6px; margin-bottom: 12px; }
           .grid div, .notes div { font-size: 12px; line-height: 1.35; }
+          .schedule-list { margin: 3px 0 0; padding-left: 18px; }
+          .schedule-list li { margin-bottom: 3px; }
           span { display: block; color: #6f766b; text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: .04em; margin-bottom: 2px; }
           .item { border-top: 1px solid #e4e7df; padding-top: 12px; margin-top: 12px; }
           table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
@@ -947,6 +955,11 @@ export default function Registrations() {
       detailSheet['!cols'] = [
         18, 14, 16, 16, 16, 14, 26, 22, 28, 16, 34, 10, 22, 28, 36, 14, 10, 24, 18, 12, 12, 24, 34, 16, 16, 14, 16, 14, 34, 34,
       ].map(wch => ({ wch }));
+      const detailRange = XLSX.utils.decode_range(detailSheet['!ref']);
+      for (let rowIndex = 1; rowIndex <= detailRange.e.r; rowIndex++) {
+        const scheduleCell = detailSheet[XLSX.utils.encode_cell({ r: rowIndex, c: 18 })];
+        if (scheduleCell) scheduleCell.s = { alignment: { vertical: 'top', wrapText: true } };
+      }
 
       XLSX.utils.book_append_sheet(wb, summarySheet, 'Registration Summary');
       XLSX.utils.book_append_sheet(wb, detailSheet, 'Student Schedule Details');
