@@ -181,7 +181,7 @@ function Programs() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-7xl px-6 lg:sticky lg:top-[112px] lg:z-40 lg:-mt-4">
+      <div className="mx-auto max-w-7xl px-6 lg:sticky lg:top-[70px] lg:z-40 lg:-mt-4">
         <ProgramFilter filters={filters} onChange={handleChange} />
       </div>
 
