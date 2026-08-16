@@ -60,9 +60,11 @@ function config() {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   const tabName = process.env.GOOGLE_SHEETS_TAB_NAME || 'Registrations';
   const jsonCredential = parseJsonCredential(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || jsonCredential?.client_email;
+  // A complete JSON credential is authoritative when supplied. This avoids a
+  // stale/malformed legacy key variable overriding the valid JSON secret.
+  const email = jsonCredential?.client_email || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKey = normalizePrivateKey(
-    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || jsonCredential?.private_key
+    jsonCredential?.private_key || process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
   );
   if (!spreadsheetId || !email || !privateKey) {
     throw new Error('Google Sheets credentials are incomplete. Check spreadsheet ID, service-account email, and private key.');
