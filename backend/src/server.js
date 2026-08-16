@@ -19,6 +19,7 @@ const routes    = require('./routes/index');
 const { handleStripeWebhook } = require('./controllers/paymentWebhookController');
 const { handlePayPalWebhook } = require('./controllers/paypalWebhookController');
 const { UPLOAD_BASE } = require('./middleware/upload');
+const { startRegistrationSheetSyncWorker } = require('./services/registrationSheetSyncWorker');
 
 require('./models/User');
 require('./models/Program');
@@ -176,6 +177,7 @@ app.use((err, req, res, next) => {
 // ─── Start ────────────────────────────────────────────────────
 const start = async () => {
   await connectDB();
+  startRegistrationSheetSyncWorker();
   app.listen(PORT, () => {
     console.log(`\n🚀 CCA Admin API  →  http://localhost:${PORT}`);
     console.log(`   Public API      →  http://localhost:${PORT}/api/public/*`);

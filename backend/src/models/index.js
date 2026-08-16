@@ -406,6 +406,22 @@ const registrationSchema = new mongoose.Schema(
     couponUsageRecordingAt: { type: Date },
     couponReservationExpiresAt: { type: Date, index: true },
 
+    // Durable Google Sheets delivery state. Only registrations that become
+    // eligible after this feature is deployed are queued automatically.
+    googleSheetSync: {
+      state: {
+        type: String,
+        enum: ['PENDING', 'PROCESSING', 'SYNCED', 'FAILED'],
+      },
+      requestedAt: { type: Date },
+      syncedAt: { type: Date },
+      lockedAt: { type: Date },
+      nextRetryAt: { type: Date },
+      attempts: { type: Number, default: 0 },
+      lastError: { type: String },
+      syncedKeys: [{ type: String }],
+    },
+
     // ── Check-payment workflow (never auto-approved) ─────────────────
     // Only meaningful when paymentMethod === 'CHECK'. Mirrors paymentStatus
     // (PENDING/SUCCESS/FAILED) but gives staff a finer-grained state machine
@@ -470,6 +486,29 @@ registrationSchema.pre('save', async function (next) {
   }
   next();
 });
+
+registrationSchema.pre('save', function (next) {
+  const eligible = this.status === 'CONFIRMED'
+    || (this.status === 'AWAITING_PAYMENT' && this.paymentMethod === 'CHECK');
+  const wasPreviouslySynced = Boolean(this.googleSheetSync?.syncedAt);
+  const sourceFields = [
+    'status', 'paymentStatus', 'paymentMethod', 'checkNumber', 'transactionId',
+    'students', 'parentId', 'programId', 'batches', 'orderItems', 'selectedMonth',
+    'subtotal', 'discountAmount', 'totalAmount', 'couponCode',
+  ];
+  const sourceChanged = this.isNew || sourceFields.some(field => this.isModified(field));
+  if (sourceChanged && (eligible || wasPreviouslySynced)) {
+    this.set('googleSheetSync.state', 'PENDING');
+    this.set('googleSheetSync.requestedAt', new Date());
+    this.set('googleSheetSync.attempts', 0);
+    this.set('googleSheetSync.lastError', undefined);
+    this.set('googleSheetSync.nextRetryAt', undefined);
+    this.set('googleSheetSync.lockedAt', undefined);
+  }
+  next();
+});
+
+registrationSchema.index({ 'googleSheetSync.state': 1, 'googleSheetSync.nextRetryAt': 1, 'googleSheetSync.requestedAt': 1 });
 
 mongoose.model('Registration', registrationSchema);
 
