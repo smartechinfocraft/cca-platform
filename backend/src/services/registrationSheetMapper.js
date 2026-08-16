@@ -11,6 +11,11 @@ function text(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+function sanitizeSheetName(value, fallback = 'Registrations') {
+  const sanitized = text(value).replace(/[\\/?*\[\]:]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100);
+  return sanitized || fallback;
+}
+
 function fullName(person) {
   return `${person?.firstName || ''} ${person?.lastName || ''}`.trim();
 }
@@ -73,12 +78,17 @@ function fallbackOrderItem(registration) {
   };
 }
 
-function mapRegistrationToSheetRows(registration, syncedAt = new Date()) {
+function mapRegistrationToSheetRows(registration, syncedAt = new Date(), programById = new Map()) {
   const registrationId = text(registration._id);
   const parent = registration.parentId || {};
   const items = registration.orderItems?.length ? registration.orderItems : [fallbackOrderItem(registration)];
 
   return items.flatMap((item, itemIndex) => {
+    const itemProgram = programById.get(String(item.programId || '')) || registration.programId || {};
+    const categoryName = sanitizeSheetName(
+      itemProgram.category?.title || registration.programId?.category?.title,
+      process.env.GOOGLE_SHEETS_TAB_NAME || 'Registrations'
+    );
     const students = item.students?.length ? item.students : topLevelStudents(registration);
     const displayStudents = students.length ? students : [{}];
     return displayStudents.map((student, studentIndex) => {
@@ -89,6 +99,7 @@ function mapRegistrationToSheetRows(registration, syncedAt = new Date()) {
         || '';
       return {
         key: syncKey,
+        sheetName: categoryName,
         values: [
           syncKey,
           registrationId,
@@ -108,7 +119,7 @@ function mapRegistrationToSheetRows(registration, syncedAt = new Date()) {
           fullName(parent),
           text(parent.email),
           text(parent.phone),
-          text(item.programTitle || registration.programId?.title),
+          text(item.programTitle || itemProgram.title || registration.programId?.title),
           text(item.batchName),
           scheduleText(item.selectedDays),
           monthText(item, registration),
@@ -129,4 +140,4 @@ function isSheetSyncEligible(registration) {
     || (registration.status === 'AWAITING_PAYMENT' && registration.paymentMethod === 'CHECK');
 }
 
-module.exports = { HEADERS, isSheetSyncEligible, mapRegistrationToSheetRows, splitSchedules };
+module.exports = { HEADERS, isSheetSyncEligible, mapRegistrationToSheetRows, sanitizeSheetName, splitSchedules };

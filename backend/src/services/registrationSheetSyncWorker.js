@@ -34,8 +34,11 @@ async function claimNextRegistration() {
     .populate('parentId', 'firstName lastName email phone')
     .populate({
       path: 'programId',
-      select: 'title location',
-      populate: { path: 'location', select: 'title city address' },
+      select: 'title location category',
+      populate: [
+        { path: 'location', select: 'title city address' },
+        { path: 'category', select: 'title' },
+      ],
     })
     .populate('students', 'firstName lastName studentCode dob gender')
     .populate({
@@ -52,7 +55,15 @@ async function processOne() {
   const Registration = mongoose.model('Registration');
   try {
     const syncedAt = new Date();
-    const rows = mapRegistrationToSheetRows(registration, syncedAt);
+    const itemProgramIds = [...new Set((registration.orderItems || []).map(item => String(item.programId || '')).filter(Boolean))];
+    const itemPrograms = itemProgramIds.length
+      ? await mongoose.model('Program').find({ _id: { $in: itemProgramIds } })
+        .select('title location category')
+        .populate('category', 'title')
+        .lean()
+      : [];
+    const programById = new Map(itemPrograms.map(program => [String(program._id), program]));
+    const rows = mapRegistrationToSheetRows(registration, syncedAt, programById);
     await syncRows(rows, registration.googleSheetSync?.syncedKeys || []);
     await Registration.updateOne(
       { _id: registration._id, 'googleSheetSync.state': 'PROCESSING' },
@@ -60,7 +71,7 @@ async function processOne() {
         $set: {
           'googleSheetSync.state': 'SYNCED',
           'googleSheetSync.syncedAt': syncedAt,
-          'googleSheetSync.syncedKeys': rows.map(row => row.key),
+          'googleSheetSync.syncedKeys': rows.map(row => `${row.sheetName}::${row.key}`),
           'googleSheetSync.attempts': 0,
         },
         $unset: {

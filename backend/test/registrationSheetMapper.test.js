@@ -4,6 +4,7 @@ const {
   HEADERS,
   isSheetSyncEligible,
   mapRegistrationToSheetRows,
+  sanitizeSheetName,
   splitSchedules,
 } = require('../src/services/registrationSheetMapper');
 
@@ -11,6 +12,27 @@ test('eligibility includes confirmed registrations and check awaiting payment on
   assert.equal(isSheetSyncEligible({ status: 'CONFIRMED', paymentMethod: 'STRIPE' }), true);
   assert.equal(isSheetSyncEligible({ status: 'AWAITING_PAYMENT', paymentMethod: 'CHECK' }), true);
   assert.equal(isSheetSyncEligible({ status: 'AWAITING_PAYMENT', paymentMethod: 'PAYPAL' }), false);
+});
+
+test('routes order items to sanitized category sheet names', () => {
+  const registration = {
+    _id: 'registration-id',
+    status: 'CONFIRMED',
+    paymentMethod: 'STRIPE',
+    parentId: {},
+    programId: { title: 'Fallback Program' },
+    orderItems: [
+      { programId: 'fall-program', programTitle: 'Fall Program', students: [{ firstName: 'Fall' }] },
+      { programId: 'winter-program', programTitle: 'Winter Program', students: [{ firstName: 'Winter' }] },
+    ],
+  };
+  const catalog = new Map([
+    ['fall-program', { category: { title: 'Fall 2026' } }],
+    ['winter-program', { category: { title: 'Winter/2027' } }],
+  ]);
+  const rows = mapRegistrationToSheetRows(registration, new Date(), catalog);
+  assert.deepEqual(rows.map(row => row.sheetName), ['Fall 2026', 'Winter-2027']);
+  assert.equal(sanitizeSheetName('Category: A/B?'), 'Category- A-B-');
 });
 
 test('multiple selected schedules are exported as separate bullet lines', () => {

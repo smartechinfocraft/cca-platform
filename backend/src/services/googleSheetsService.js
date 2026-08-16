@@ -86,8 +86,22 @@ async function client() {
   return { sheets: google.sheets({ version: 'v4', auth }), ...settings };
 }
 
-async function ensureHeaders(api) {
-  const range = `${quotedTab(api.tabName)}!A1:AB1`;
+async function ensureSheets(api, tabNames) {
+  const response = await api.sheets.spreadsheets.get({
+    spreadsheetId: api.spreadsheetId,
+    fields: 'sheets.properties.title',
+  });
+  const existing = new Set((response.data.sheets || []).map(sheet => sheet.properties?.title));
+  const missing = [...new Set(tabNames)].filter(tabName => !existing.has(tabName));
+  if (!missing.length) return;
+  await api.sheets.spreadsheets.batchUpdate({
+    spreadsheetId: api.spreadsheetId,
+    requestBody: { requests: missing.map(title => ({ addSheet: { properties: { title } } })) },
+  });
+}
+
+async function ensureHeaders(api, tabName) {
+  const range = `${quotedTab(tabName)}!A1:AB1`;
   const response = await api.sheets.spreadsheets.values.get({ spreadsheetId: api.spreadsheetId, range });
   const existing = response.data.values?.[0] || [];
   if (HEADERS.every((header, index) => existing[index] === header)) return;
@@ -101,49 +115,64 @@ async function ensureHeaders(api) {
 
 async function syncRows(rows, previousKeys = []) {
   const api = await client();
-  await ensureHeaders(api);
-  const keyRange = `${quotedTab(api.tabName)}!A2:A`;
-  const keyResponse = await api.sheets.spreadsheets.values.get({ spreadsheetId: api.spreadsheetId, range: keyRange });
-  const keyRows = keyResponse.data.values || [];
-  const rowByKey = new Map();
-  keyRows.forEach((row, index) => {
-    if (row[0]) rowByKey.set(String(row[0]), index + 2);
-  });
-
-  const updates = [];
-  const appends = [];
+  const rowsByTab = new Map();
   rows.forEach(row => {
-    const rowNumber = rowByKey.get(row.key);
-    if (rowNumber) {
-      updates.push({ range: `${quotedTab(api.tabName)}!A${rowNumber}:AB${rowNumber}`, values: [row.values] });
-    } else {
-      appends.push(row.values);
-    }
+    if (!rowsByTab.has(row.sheetName)) rowsByTab.set(row.sheetName, []);
+    rowsByTab.get(row.sheetName).push(row);
   });
+  const previous = previousKeys.map(identifier => {
+    const separator = identifier.indexOf('::');
+    return separator === -1
+      ? { tabName: api.tabName, key: identifier }
+      : { tabName: identifier.slice(0, separator), key: identifier.slice(separator + 2) };
+  });
+  const tabNames = [...new Set([...rowsByTab.keys(), ...previous.map(item => item.tabName)])];
+  await ensureSheets(api, tabNames);
 
-  if (updates.length) {
-    await api.sheets.spreadsheets.values.batchUpdate({
+  const currentIdentifiers = new Set(rows.map(row => `${row.sheetName}::${row.key}`));
+  const staleRanges = [];
+  for (const tabName of tabNames) {
+    await ensureHeaders(api, tabName);
+    const keyResponse = await api.sheets.spreadsheets.values.get({
       spreadsheetId: api.spreadsheetId,
-      requestBody: { valueInputOption: 'RAW', data: updates },
+      range: `${quotedTab(tabName)}!A2:A`,
     });
-  }
-  if (appends.length) {
-    await api.sheets.spreadsheets.values.append({
-      spreadsheetId: api.spreadsheetId,
-      range: `${quotedTab(api.tabName)}!A:AB`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: appends },
+    const rowByKey = new Map();
+    (keyResponse.data.values || []).forEach((row, index) => {
+      if (row[0]) rowByKey.set(String(row[0]), index + 2);
     });
+
+    const tabRows = rowsByTab.get(tabName) || [];
+    const updates = [];
+    const appends = [];
+    tabRows.forEach(row => {
+      const rowNumber = rowByKey.get(row.key);
+      if (rowNumber) updates.push({ range: `${quotedTab(tabName)}!A${rowNumber}:AB${rowNumber}`, values: [row.values] });
+      else appends.push(row.values);
+    });
+    if (updates.length) {
+      await api.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: api.spreadsheetId,
+        requestBody: { valueInputOption: 'RAW', data: updates },
+      });
+    }
+    if (appends.length) {
+      await api.sheets.spreadsheets.values.append({
+        spreadsheetId: api.spreadsheetId,
+        range: `${quotedTab(tabName)}!A:AB`,
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: appends },
+      });
+    }
+    previous
+      .filter(item => item.tabName === tabName && !currentIdentifiers.has(`${item.tabName}::${item.key}`) && rowByKey.has(item.key))
+      .forEach(item => {
+        const rowNumber = rowByKey.get(item.key);
+        staleRanges.push(`${quotedTab(tabName)}!A${rowNumber}:AB${rowNumber}`);
+      });
   }
 
-  const currentKeys = new Set(rows.map(row => row.key));
-  const staleRanges = previousKeys
-    .filter(key => !currentKeys.has(key) && rowByKey.has(key))
-    .map(key => {
-      const rowNumber = rowByKey.get(key);
-      return `${quotedTab(api.tabName)}!A${rowNumber}:AB${rowNumber}`;
-    });
   if (staleRanges.length) {
     await api.sheets.spreadsheets.values.batchClear({
       spreadsheetId: api.spreadsheetId,
@@ -154,7 +183,8 @@ async function syncRows(rows, previousKeys = []) {
 
 async function verifyConnection() {
   const api = await client();
-  await ensureHeaders(api);
+  await ensureSheets(api, [api.tabName]);
+  await ensureHeaders(api, api.tabName);
   return { spreadsheetId: api.spreadsheetId, tabName: api.tabName };
 }
 
