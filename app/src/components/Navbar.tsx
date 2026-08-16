@@ -104,11 +104,11 @@ function Navbar() {
         style={{ borderBottom: scrolled ? "1px solid var(--pitch-deep)" : "1px solid transparent" }}
       >
       {/* Pre-Header Announcement Banner */}
-      <div className="top-0 left-0 right-0 w-full bg-black text-white text-sm py-2 px-6 z-[60] text-center font-medium">
+      {/*  <div className="top-0 left-0 right-0 w-full bg-black text-white text-sm py-2 px-6 z-[60] text-center font-medium">
         <p>
       📢 Hurry!  Early Bird Fall 2026 discounts are ending soon... — use code <strong>EARLYBIRD</strong>
 
-           {/* 
+          
             &nbsp;&nbsp; | &nbsp;&nbsp; Registration for 
            <a
             href="https://legacy.calcricket.org/product_cat/week-long/"
@@ -123,9 +123,9 @@ function Navbar() {
             className="underline text-[var(--gold)] font-semibold hover:text-gray-300 transition-colors"
           >
             legacy.calcricket.org
-          </a> */}
+          </a> 
         </p>
-      </div>
+      </div>*/}
       <div className="max-w-7xl mx-auto px-6">
         <div className="h-20 flex items-center justify-between">
 
