@@ -12,7 +12,7 @@ const parentSchema = new mongoose.Schema({
   password:   { type: String, select: false },
   accountStatus: {
     type: String,
-    enum: ['GUEST', 'ACTIVE'],
+    enum: ['GUEST', 'PENDING_VERIFICATION', 'ACTIVE', 'DISABLED'],
     default: 'ACTIVE',
     index: true,
   },
@@ -23,6 +23,10 @@ const parentSchema = new mongoose.Schema({
   photoPath:  { type: String },
   photoUrl:   { type: String },
   isVerified: { type: Boolean, default: false },
+  emailVerificationTokenHash: { type: String, select: false, index: true },
+  emailVerificationExpiresAt: { type: Date, select: false, index: true },
+  emailVerificationSentAt: { type: Date },
+  emailVerifiedAt: { type: Date },
   isActive:   { type: Boolean, default: true },
 
   // SHA-256 hash of the current valid refresh token (rotate-on-use).

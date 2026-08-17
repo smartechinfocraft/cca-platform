@@ -386,4 +386,24 @@ async function sendForgotPasswordEmail({ to, firstName, tempPassword, role, logi
   });
 }
 
-module.exports = { sendRegistrationEmail, sendCoachWelcomeEmail, sendRegistrationUpdateEmail, sendPaymentFailedEmail, sendForgotPasswordEmail };
+async function sendParentVerificationEmail({ to, firstName, verificationUrl }) {
+  const subject = 'Verify your California Cricket Academy parent account';
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#0f172a;">
+      <div style="background:#0f3d22;padding:22px;color:#fff;border-bottom:4px solid #c9a227;">
+        <h1 style="margin:0;font-size:21px;">California Cricket Academy</h1>
+      </div>
+      <div style="padding:26px;border:1px solid #e2e8f0;border-top:0;">
+        <p>Hello ${escapeHtml(firstName || 'Parent')},</p>
+        <p>Your registration or account creation is complete. Verify your email to activate access to the parent portal.</p>
+        <p style="margin:26px 0;">
+          <a href="${escapeHtml(verificationUrl)}" style="display:inline-block;background:#c9a227;color:#0f2e1d;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:7px;">Verify Email</a>
+        </p>
+        <p style="font-size:13px;color:#64748b;">This link expires in 24 hours. Your registration and payment are not affected if you verify later.</p>
+        <p style="font-size:12px;color:#94a3b8;word-break:break-all;">If the button does not work, open: ${escapeHtml(verificationUrl)}</p>
+      </div>
+    </div>`;
+  return resend.emails.send({ from: FROM_ADDRESS, to, subject, html });
+}
+
+module.exports = { sendRegistrationEmail, sendCoachWelcomeEmail, sendRegistrationUpdateEmail, sendPaymentFailedEmail, sendForgotPasswordEmail, sendParentVerificationEmail };

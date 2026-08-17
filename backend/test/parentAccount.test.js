@@ -49,11 +49,12 @@ test('validateOptionalAccountPassword accepts valid account passwords', () => {
   });
 });
 
-test('isPortalAccount only treats active parents with a password as login accounts', () => {
+test('isPortalAccount recognizes active and pending-verification credential accounts', () => {
   assert.equal(isPortalAccount(null), false);
   assert.equal(isPortalAccount({ accountStatus: 'GUEST', password: 'hash' }), false);
   assert.equal(isPortalAccount({ accountStatus: 'ACTIVE' }), false);
   assert.equal(isPortalAccount({ accountStatus: 'ACTIVE', password: 'hash' }), true);
+  assert.equal(isPortalAccount({ accountStatus: 'PENDING_VERIFICATION', password: 'hash' }), true);
 });
 
 test('deriveRegistrationMode tracks guest versus registered checkout', () => {

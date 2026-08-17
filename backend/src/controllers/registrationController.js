@@ -53,7 +53,7 @@ exports.getAll = async (req, res) => {
             { path: 'location', select: 'title city address' },
           ],
         })
-        .populate('parentId', 'firstName lastName email phone')
+        .populate('parentId', 'firstName lastName email phone accountStatus isVerified emailVerificationSentAt emailVerifiedAt')
         // Populate students from the Student collection (handles both ref & embedded _id cases)
         .populate('students', 'firstName lastName studentCode dob gender photoUrl')
         // Populate batches with ALL fields + nested location
@@ -91,6 +91,7 @@ exports.getOne = async (req, res) => {
           { path: 'location', select: 'title city address' },
         ],
       })
+      .populate('parentId', 'firstName lastName email phone accountStatus isVerified emailVerificationSentAt emailVerifiedAt')
       .populate('students', 'firstName lastName studentCode dob gender photoUrl')
       .populate({
         path: 'batches',
@@ -560,5 +561,88 @@ exports.refundPayment = async (req, res) => {
   } catch (err) {
     console.error('Refund error:', err);
     res.status(err.status || 500).json({ success: false, message: 'Could not process this refund.' });
+  }
+};
+
+exports.updateParentEmailAndVerify = async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid parent email address.' });
+    }
+    const registration = await getReg().findById(req.params.id);
+    if (!registration) return res.status(404).json({ success: false, message: 'Registration not found.' });
+
+    const Parent = require('../models/Parent');
+    const parent = await Parent.findById(registration.parentId)
+      .select('+password +emailVerificationTokenHash +emailVerificationExpiresAt');
+    if (!parent) return res.status(404).json({ success: false, message: 'Parent record not found.' });
+
+    const duplicate = await Parent.exists({ email, _id: { $ne: parent._id } });
+    if (duplicate) {
+      return res.status(409).json({ success: false, message: 'Another parent record already uses this email.' });
+    }
+
+    const previousEmail = parent.email;
+    const emailChanged = previousEmail !== email;
+    if (emailChanged) parent.email = email;
+
+    let verificationEmailSent = false;
+    let verificationEmailError;
+    if (parent.password && (emailChanged || parent.accountStatus === 'PENDING_VERIFICATION')) {
+      const { sendParentVerification } = require('../services/parentEmailVerificationService');
+      try {
+        await sendParentVerification(parent);
+        verificationEmailSent = true;
+      } catch (error) {
+        verificationEmailError = error.message;
+        // Persist the corrected email and pending status even if the provider
+        // is temporarily unavailable; the admin can resend safely.
+        await parent.save({ validateBeforeSave: false });
+      }
+    } else if (emailChanged) {
+      await parent.save({ validateBeforeSave: false });
+    }
+
+    if (emailChanged) {
+      registration.paymentAuditLog.push({
+        event: 'PARENT_EMAIL_UPDATED',
+        performedBy: req.user._id,
+        note: `${previousEmail} → ${email}`,
+      });
+      await registration.save();
+      await getReg().updateMany(
+        {
+          parentId: parent._id,
+          _id: { $ne: registration._id },
+          $or: [
+            { 'googleSheetSync.syncedAt': { $exists: true } },
+            { status: 'CONFIRMED' },
+            { status: 'AWAITING_PAYMENT', paymentMethod: 'CHECK' },
+          ],
+        },
+        { $set: { 'googleSheetSync.state': 'PENDING', 'googleSheetSync.requestedAt': new Date() } }
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: parent.password
+        ? (verificationEmailSent
+          ? (emailChanged ? 'Parent email updated and verification link sent.' : 'Verification link sent.')
+          : (!emailChanged && parent.accountStatus === 'ACTIVE'
+            ? 'This parent email is already verified.'
+            : 'Parent email updated, but the verification email could not be sent.'))
+        : 'Guest parent email updated. No portal account exists to verify.',
+      email: parent.email,
+      accountStatus: parent.accountStatus,
+      isVerified: parent.isVerified,
+      verificationEmailSent,
+      verificationEmailError,
+    });
+  } catch (error) {
+    if (error?.code === 11000) return res.status(409).json({ success: false, message: 'Another parent record already uses this email.' });
+    console.error('Admin parent email update failed:', error);
+    return res.status(500).json({ success: false, message: 'Parent email could not be updated.' });
   }
 };

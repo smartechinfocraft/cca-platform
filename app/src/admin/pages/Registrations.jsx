@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { registrationsAPI, batchesAPI, programsAPI } from '../api/client';
 import { useAdminAuth } from '../context/AuthContext';
-import { PageHeader, DataTable, Modal, Btn, Badge, FormField, Select, Textarea, SearchInput } from '../components/common/UI';
+import { PageHeader, DataTable, Modal, Btn, Badge, FormField, Select, Textarea, SearchInput, Input } from '../components/common/UI';
 import toast from 'react-hot-toast';
 
 const STATUSES = ['PENDING','AWAITING_PAYMENT','PAYMENT_FAILED','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'];
@@ -605,6 +605,8 @@ export default function Registrations() {
   const [selectedBatchIds, setSelectedBatchIds] = useState([]);
   const [reassigning, setReassigning] = useState(false);
   const [sendingUpdateEmail, setSendingUpdateEmail] = useState(false);
+  const [parentEmail, setParentEmail] = useState('');
+  const [updatingParentEmail, setUpdatingParentEmail] = useState(false);
   const [lastEmailResult, setLastEmailResult] = useState(null);
   const [programCatalog, setProgramCatalog] = useState([]);
   const [orderProgramDetail, setOrderProgramDetail] = useState(null);
@@ -657,6 +659,7 @@ export default function Registrations() {
     const hydrated = tagRegistrationRow(row, programCatalog);
     setSelected(hydrated);
     setStatusForm({ status: hydrated.status, adminNote: hydrated.adminNote || '' });
+    setParentEmail(hydrated.parentId?.email || '');
     setSelectedBatchIds((hydrated.batches || []).map(b => (typeof b === 'string' ? b : b._id)));
     return hydrated;
   };
@@ -855,6 +858,23 @@ export default function Registrations() {
 
   const setFilterValue = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleParentEmailVerification = async () => {
+    setUpdatingParentEmail(true);
+    try {
+      const response = await registrationsAPI.updateParentEmail(selected._id, parentEmail);
+      response.data.verificationEmailSent
+        ? toast.success(response.data.message)
+        : toast(response.data.message, { icon: 'ℹ️' });
+      const refreshed = await registrationsAPI.getOne(selected._id);
+      hydrateSelectedRegistration(refreshed.data.data);
+      load();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Parent email could not be updated');
+    } finally {
+      setUpdatingParentEmail(false);
+    }
   };
 
   const clearFilters = () => {
@@ -1189,6 +1209,34 @@ export default function Registrations() {
               <div><strong style={{ color: '#F5D97A' }}>Program:</strong> {selected.programId?.title || '—'}</div>
               <div style={{ marginTop: '4px' }}><strong style={{ color: '#F5D97A' }}>Amount:</strong> ${selected.totalAmount}</div>
               <div style={{ marginTop: '4px' }}><strong style={{ color: '#F5D97A' }}>Payment:</strong> {selected.paymentMethod} {selected.checkNumber ? `— Check #${selected.checkNumber}` : ''}</div>
+            </div>
+
+            <div style={{ background: 'rgba(212,175,55,0.07)', border: '1px solid rgba(212,175,55,0.2)', borderRadius: '8px', padding: '12px', marginBottom: '20px' }}>
+              <div style={{ color: '#F5D97A', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>Parent Email & Portal Verification</div>
+              <FormField label="Parent Email">
+                <Input type="email" value={parentEmail} onChange={event => setParentEmail(event.target.value)} />
+              </FormField>
+              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '11px', marginBottom: '10px' }}>
+                Portal status: {selected.parentId?.accountStatus || 'GUEST'} · {selected.parentId?.isVerified ? 'Verified' : 'Not verified'}
+              </div>
+              <Btn
+                onClick={handleParentEmailVerification}
+                disabled={updatingParentEmail || !parentEmail.trim() || (
+                  parentEmail.trim().toLowerCase() === String(selected.parentId?.email || '').toLowerCase()
+                  && selected.parentId?.accountStatus === 'ACTIVE'
+                )}
+                small
+              >
+                {updatingParentEmail
+                  ? 'Updating...'
+                  : parentEmail.trim().toLowerCase() !== String(selected.parentId?.email || '').toLowerCase()
+                    ? 'Update Email & Send Verification'
+                    : selected.parentId?.accountStatus === 'PENDING_VERIFICATION'
+                      ? 'Resend Verification Link'
+                      : selected.parentId?.accountStatus === 'ACTIVE'
+                        ? 'Email Verified'
+                        : 'Update Email'}
+              </Btn>
             </div>
 
             {loadingDetails && (

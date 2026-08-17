@@ -19,7 +19,7 @@ interface AuthContextValue {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<{ verificationRequired?: boolean; verificationEmailSent?: boolean; message?: string }>;
   acceptSession: (token: string, parent: ParentUser) => void;
   logout: () => void;
   updateUser: (patch: Partial<ParentUser>) => void;
@@ -81,9 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const res = await api.post("/public/auth/register", data);
-      setAccessToken(res.data.token);
-      setToken(res.data.token);
-      setUser(res.data.parent);
+      if (res.data.token) {
+        setAccessToken(res.data.token);
+        setToken(res.data.token);
+        setUser(res.data.parent);
+      }
+      return res.data;
     } finally {
       setLoading(false);
     }

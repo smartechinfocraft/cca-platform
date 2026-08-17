@@ -87,6 +87,11 @@ app.use('/api/public/feedback', rateLimit({
   max: 10,
   message: { success: false, message: 'Too many feedback attempts. Please try again later.' },
 }));
+app.use('/api/public/auth/resend-verification', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Too many verification email requests. Try again in 15 minutes.' },
+}));
 // Refresh-token rotation endpoints get their own (slightly higher) limit —
 // a legitimate SPA calls these more often than a human types a password.
 app.use(['/api/auth/refresh', '/api/coach-auth/refresh', '/api/public/auth/refresh'], rateLimit({

@@ -17,6 +17,7 @@ import ReviewOrder from "../pages/registration/ReviewOrder";
 import PaymentPage from "../pages/registration/PaymentPage";
 import SuccessPage from "../pages/registration/SuccessPage";
 import LoginPage from "../pages/LoginPage";
+import VerifyEmailPage from "../pages/VerifyEmailPage";
 import StaffLoginPage from "../pages/StaffLoginPage";
 import LegalPage from "../pages/LegalPage";
 import CartPage from "../pages/cart/CartPage";
@@ -142,6 +143,7 @@ function AppRoutes() {
 
       {/* Parent and staff authentication intentionally use separate entry points. */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/staff-login" element={<StaffLoginPage />} />
       <Route path="/cart" element={<CartPage />} />
 

@@ -24,7 +24,7 @@ function validateOptionalAccountPassword(password) {
 }
 
 function isPortalAccount(parent) {
-  return Boolean(parent && parent.accountStatus === 'ACTIVE' && parent.password);
+  return Boolean(parent && ['ACTIVE', 'PENDING_VERIFICATION'].includes(parent.accountStatus) && parent.password);
 }
 
 function guestCheckoutRequiresSignIn(parent) {

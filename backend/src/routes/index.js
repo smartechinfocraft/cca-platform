@@ -595,6 +595,7 @@ router.post('/registrations/:id/refund', protect, superAdminOnly, regCtrl.refund
 // actually registered for.
 router.patch('/registrations/:id/edit',     protect, superAdminOnly, regCtrl.superAdminEdit);
 router.post('/registrations/:id/send-update-email', protect, superAdminOnly, regCtrl.sendUpdateEmail);
+router.patch('/registrations/:id/parent-email', protect, adminOrSuperAdmin, regCtrl.updateParentEmailAndVerify);
 
 // ═══════════════════════════════════════════════════════════
 //  MESSAGING (Admin side) — Both admin roles see every thread;

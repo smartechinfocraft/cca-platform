@@ -161,6 +161,7 @@ export const registrationsAPI = {
   toggleWhatsapp: (id)     => client.patch(`/registrations/${id}/whatsapp`),
   superAdminEdit: (id, data) => client.patch(`/registrations/${id}/edit`, data),
   sendUpdateEmail: (id) => client.post(`/registrations/${id}/send-update-email`),
+  updateParentEmail: (id, email) => client.patch(`/registrations/${id}/parent-email`, { email }),
   confirmCheck:   (id)     => client.patch(`/registrations/${id}/confirm-check`), 
   recoverStripe:  (data)   => client.post('/public/admin/stripe/recover-registration', data),
   recoverPayPal:  (data)   => client.post('/public/admin/paypal/recover-registration', data),

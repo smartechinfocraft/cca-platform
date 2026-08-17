@@ -12,6 +12,7 @@ const { createPaymentIntent, getPaymentIntent, cancelPaymentIntent, toMinorUnits
 const { confirmStripeRegistration, sendStripeConfirmationOnce } = require('../services/stripeRegistrationService');
 const { markPaymentFailed } = require('../services/paymentFailureService');
 const { saveRegistrationWithCouponReservation } = require('../services/couponReservationService');
+const { sendParentVerification, verifyParentEmail } = require('../services/parentEmailVerificationService');
 const { uploadStudentPhoto, fileUrl } = require('../middleware/upload');
 const { protect, adminOrSuperAdmin } = require('../middleware/auth');
 const { computeRegistrationTotal, computeCartTotal, round2 } = require('../utils/pricing');
@@ -189,8 +190,8 @@ async function parentAuth(req, res, next) {
     // immediately, matching the same pattern used by protect() (admin)
     // and coachAuth() (coach).
     const Parent = require('../models/Parent');
-    const parent = await Parent.findById(decoded.id).select('isActive');
-    if (!parent || parent.isActive === false) {
+    const parent = await Parent.findById(decoded.id).select('isActive accountStatus');
+    if (!parent || parent.isActive === false || parent.accountStatus !== 'ACTIVE') {
       return res.status(401).json({ success: false, message: 'Account inactive or not found' });
     }
 
@@ -241,6 +242,8 @@ const toSafeParent = (parent) => ({
   lastName: parent.lastName,
   email: parent.email,
   phone: parent.phone,
+  accountStatus: parent.accountStatus,
+  isVerified: parent.isVerified,
 });
 
 // Issues a fresh access + refresh token pair, persists the refresh token's
@@ -279,19 +282,25 @@ router.post('/auth/register', async (req, res) => {
     parent.email = emailNormalized;
     parent.phone = phone;
     parent.password = normalizedPassword;
-    parent.accountStatus = 'ACTIVE';
+    parent.accountStatus = 'PENDING_VERIFICATION';
     if (address !== undefined) parent.address = address;
     if (city !== undefined) parent.city = city;
     if (state !== undefined) parent.state = state;
     if (zip !== undefined) parent.zip = zip;
     await parent.save();
 
-    const accessToken = await issueParentTokens(res, parent);
+    let verificationEmailSent = true;
+    try { await sendParentVerification(parent); }
+    catch (emailError) {
+      verificationEmailSent = false;
+      console.error('Parent verification email failed:', emailError);
+    }
 
     res.status(201).json({
       success: true,
-      message: 'Account created successfully!',
-      token: accessToken,
+      message: 'Account created. Check your email to activate the parent portal.',
+      verificationRequired: true,
+      verificationEmailSent,
       parent: toSafeParent(parent),
     });
   } catch (err) {
@@ -330,6 +339,13 @@ router.post('/auth/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email and password required.' });
 
     const parent = await Parent.findOne({ email: emailNormalized }).select('+password');
+    if (parent?.accountStatus === 'PENDING_VERIFICATION' && await parent.comparePassword(password)) {
+      return res.status(403).json({
+        success: false,
+        code: 'EMAIL_NOT_VERIFIED',
+        message: 'Verify your email before signing in. You can request a new verification link.',
+      });
+    }
     if (!parent || !isPortalAccount(parent) || !(await parent.comparePassword(password)))
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
 
@@ -367,7 +383,7 @@ router.post('/auth/refresh', async (req, res) => {
     }
 
     const parent = await Parent.findById(decoded.id).select('+refreshTokenHash');
-    if (!parent || !parent.isActive || !parent.refreshTokenHash || parent.refreshTokenHash !== hashToken(token)) {
+    if (!parent || !parent.isActive || parent.accountStatus !== 'ACTIVE' || !parent.refreshTokenHash || parent.refreshTokenHash !== hashToken(token)) {
       res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions(REFRESH_COOKIE_PATH));
       return res.status(401).json({ success: false, message: 'Session expired, please log in again' });
     }
@@ -815,6 +831,32 @@ router.post('/stripe/cancel-payment-intent', async (req, res) => {
   }
 });
 
+router.post('/auth/verify-email', async (req, res) => {
+  try {
+    const parent = await verifyParentEmail(req.body?.token);
+    if (!parent) return res.status(400).json({ success: false, message: 'This verification link is invalid or expired.' });
+    return res.json({ success: true, message: 'Email verified. You can now sign in.' });
+  } catch (error) {
+    console.error('Parent email verification failed:', error);
+    return res.status(500).json({ success: false, message: 'Email verification could not be completed.' });
+  }
+});
+
+router.post('/auth/resend-verification', async (req, res) => {
+  const genericMessage = 'If this email has an account awaiting verification, a new link will be sent.';
+  try {
+    const Parent = require('../models/Parent');
+    const parent = await Parent.findOne({
+      email: normalizeEmail(req.body?.email),
+      accountStatus: 'PENDING_VERIFICATION',
+    }).select('+password +emailVerificationTokenHash +emailVerificationExpiresAt');
+    if (parent) await sendParentVerification(parent);
+  } catch (error) {
+    console.error('Resend parent verification failed:', error);
+  }
+  return res.json({ success: true, message: genericMessage });
+});
+
 router.post('/stripe/report-payment-failure', async (req, res) => {
   try {
     const { registrationId, paymentIntentId, clientSecret, reason } = req.body || {};
@@ -1197,7 +1239,6 @@ async function handleRegistration(req, res) {
     const Parent = require('../models/Parent');
     let resolvedParentId;
     let checkoutSessionParent = null;
-    let checkoutAccessToken = null;
     let accountCreated = false;
     if (authenticatedParentId) {
       resolvedParentId = authenticatedParentId;
@@ -1238,21 +1279,18 @@ async function handleRegistration(req, res) {
         city: parentInfo.city,
         state: parentInfo.state,
         zip: parentInfo.zip,
-        accountStatus: checkoutAccountPassword ? 'ACTIVE' : 'GUEST',
+        accountStatus: checkoutAccountPassword ? 'PENDING_VERIFICATION' : 'GUEST',
       });
       if (checkoutAccountPassword && !existingPortalAccount) {
         parent.password = checkoutAccountPassword;
-        parent.accountStatus = 'ACTIVE';
+        parent.accountStatus = 'PENDING_VERIFICATION';
         accountCreated = true;
       } else if (!parent.accountStatus) {
         parent.accountStatus = 'GUEST';
       }
       await parent.save();
       resolvedParentId = parent._id;
-      if (checkoutAccountPassword && !existingPortalAccount) {
-        checkoutAccessToken = await issueParentTokens(res, parent);
-        checkoutSessionParent = parent;
-      }
+      if (checkoutAccountPassword && !existingPortalAccount) checkoutSessionParent = parent;
     }
     const registrationMode = deriveRegistrationMode({
       authenticatedParentId,
@@ -1453,6 +1491,17 @@ async function handleRegistration(req, res) {
       logPaymentSuccess({ gateway: pmMethod, transactionId, registrationNumber: reg.registrationNumber, amount: priced.total });
     }
 
+    let verificationEmailSent;
+    if (accountCreated && checkoutSessionParent) {
+      try {
+        await sendParentVerification(checkoutSessionParent);
+        verificationEmailSent = true;
+      } catch (verificationError) {
+        verificationEmailSent = false;
+        console.error('Checkout account verification email failed:', verificationError);
+      }
+    }
+
     let confirmationEmailSent = false;
     let confirmationEmailError;
     if (req.isStripeRecovery) {
@@ -1508,7 +1557,8 @@ async function handleRegistration(req, res) {
       registrationMode,
       couponCode: priced.coupon ? priced.coupon.code : undefined,
       accountCreated,
-      token: checkoutAccessToken || undefined,
+      verificationRequired: accountCreated || undefined,
+      verificationEmailSent,
       parent: checkoutSessionParent ? toSafeParent(checkoutSessionParent) : undefined,
       ...((req.isStripeRecovery || req.isPayPalRecovery) ? { confirmationEmailSent, confirmationEmailError } : {}),
     });

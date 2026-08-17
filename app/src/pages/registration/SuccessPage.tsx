@@ -22,6 +22,8 @@ interface SuccessData {
   paymentStatus?: string;
   email?: string;
   orderItems?: OrderItem[];
+  verificationRequired?: boolean;
+  verificationEmailSent?: boolean;
 }
 
 interface OrderStudent {
@@ -475,6 +477,17 @@ function SuccessPage() {
                     : "Thank you for registering with CCA. We will confirm enrollment after payment is successfully received."}
                 </p>
               </div>
+
+              {receiptCredentials?.verificationRequired && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+                  <p className="font-bold">Verify your email to activate the parent portal</p>
+                  <p className="mt-1 text-sm leading-6">
+                    {receiptCredentials.verificationEmailSent === false
+                      ? "Your registration is complete, but we could not send the verification email. Use Resend Verification on the parent login page."
+                      : "Your registration is complete. Open the verification link sent to your email before signing in to the parent portal."}
+                  </p>
+                </div>
+              )}
 
               {/* Registration details grid */}
               {/* <div className="grid gap-4 sm:grid-cols-2">

@@ -66,6 +66,8 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
 
   const [mode, setMode] = useState<Mode>(navState?.mode === "parent-register" ? "parent-register" : "parent-login");
   const [error, setError] = useState("");
+  const [verificationPendingEmail, setVerificationPendingEmail] = useState("");
+  const [resendingVerification, setResendingVerification] = useState(false);
 
   // Parent login state
   const [loginEmail, setLoginEmail] = useState(navState?.prefill?.email || "");
@@ -118,12 +120,15 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
   const handleParentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setVerificationPendingEmail("");
     try {
       await parentLogin(loginEmail, loginPassword);
       toast.success("Signed in successfully!");
       navigate(from || "/", { replace: true });
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Login failed.";
+      const response = (err as { response?: { data?: { message?: string; code?: string } } })?.response?.data;
+      if (response?.code === "EMAIL_NOT_VERIFIED") setVerificationPendingEmail(loginEmail);
+      const msg = response?.message || "Login failed.";
       setError(msg);
     }
   };
@@ -134,12 +139,33 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
     if (reg.password !== reg.confirmPassword) { setError("Passwords do not match."); return; }
     if (reg.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     try {
-      await parentRegister({ ...reg });
-      toast.success("Registration successful!");
-      navigate(from || "/", { replace: true });
+      const result = await parentRegister({ ...reg });
+      if (result.verificationRequired) {
+        setMode("parent-login");
+        setLoginEmail(reg.email);
+        setVerificationPendingEmail(reg.email);
+        setError(result.verificationEmailSent === false
+          ? "Account created, but the verification email could not be sent. Use resend below."
+          : "Account created. Check your email and verify it before signing in.");
+      } else {
+        toast.success("Registration successful!");
+        navigate(from || "/", { replace: true });
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Registration failed.";
       setError(msg);
+    }
+  };
+
+  const resendVerification = async () => {
+    setResendingVerification(true);
+    try {
+      const response = await axios.post(`${API_BASE}/public/auth/resend-verification`, { email: verificationPendingEmail });
+      toast.success(response.data.message || "Verification email requested.");
+    } catch {
+      toast.error("Verification email could not be requested.");
+    } finally {
+      setResendingVerification(false);
     }
   };
 
@@ -245,6 +271,11 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
                 className="mb-4 rounded-2xl bg-red-50 border border-red-200 p-3 text-sm text-red-600 overflow-hidden"
               >
                 {error}
+                {verificationPendingEmail && (
+                  <button type="button" onClick={resendVerification} disabled={resendingVerification} className="mt-2 block font-semibold underline disabled:opacity-50">
+                    {resendingVerification ? "Sending..." : "Resend verification email"}
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
