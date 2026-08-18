@@ -393,9 +393,10 @@ function ReviewOrder() {
   };
 
   // ── Apply coupon ──────────────────────────────────────────
-  const handleApplyCoupon = async () => {
-    const code = couponInput.trim().toUpperCase();
+  const applyCouponCode = async (couponCode: string) => {
+    const code = couponCode.trim().toUpperCase();
     if (!code) return;
+    setCouponInput(code);
     setCouponError(null);
     setCouponLoading(true);
     try {
@@ -411,6 +412,8 @@ function ReviewOrder() {
       setCouponLoading(false);
     }
   };
+
+  const handleApplyCoupon = () => applyCouponCode(couponInput);
 
   const handleRemoveCoupon = () => {
     clearAppliedCoupon();
@@ -930,8 +933,9 @@ function ReviewOrder() {
                           <button
                             key={c.code}
                             type="button"
-                            onClick={() => { setCouponInput(c.code); setCouponError(null); }}
-                            className="w-full text-left rounded-xl border border-dashed border-[var(--gold)] bg-[var(--gold)]/5 px-3 py-2.5 hover:bg-[var(--gold)]/10 transition"
+                            onClick={() => applyCouponCode(c.code)}
+                            disabled={couponLoading}
+                            className="w-full text-left rounded-xl border border-dashed border-[var(--gold)] bg-[var(--gold)]/5 px-3 py-2.5 hover:bg-[var(--gold)]/10 transition disabled:cursor-wait disabled:opacity-60"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-sm font-bold text-[var(--gold)] tracking-wider">{c.code}</span>

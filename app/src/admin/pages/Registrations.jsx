@@ -34,6 +34,38 @@ const splitScheduleItems = (value) =>
     .map((part) => part.trim())
     .filter(Boolean);
 
+const canonicalDay = (value) => {
+  const normalized = String(value || '').trim().toUpperCase();
+  const aliases = {
+    MONDAY: 'MON', TUESDAY: 'TUE', WEDNESDAY: 'WED', THURSDAY: 'THU',
+    FRIDAY: 'FRI', SATURDAY: 'SAT', SUNDAY: 'SUN',
+  };
+  return aliases[normalized] || normalized.slice(0, 3);
+};
+
+const timeMinutes = (value) => {
+  const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const period = match[3]?.toUpperCase();
+  if (period === 'AM') hour = hour === 12 ? 0 : hour;
+  if (period === 'PM') hour = hour === 12 ? 12 : hour + 12;
+  return hour * 60 + minute;
+};
+
+const scheduleOptionMatches = (slot, savedSchedule) => {
+  const parts = String(savedSchedule || '').split(/\s+-\s+/);
+  const savedDay = canonicalDay(parts[0]);
+  const savedTimes = parts.map(timeMinutes).filter(value => value !== null);
+  const slotStart = timeMinutes(slot.startTime);
+  const slotEnd = timeMinutes(slot.endTime);
+  if (canonicalDay(slot.day) !== savedDay) return false;
+  if (slotStart !== null && savedTimes[0] !== undefined && slotStart !== savedTimes[0]) return false;
+  if (slotEnd !== null && savedTimes[1] !== undefined && slotEnd !== savedTimes[1]) return false;
+  return true;
+};
+
 const text = (value, fallback = '') => {
   if (value === null || value === undefined) return fallback;
   const str = String(value).trim();
@@ -613,6 +645,7 @@ export default function Registrations() {
   const [orderEdit, setOrderEdit] = useState({
     programId: '', batchId: '', monthId: '', sessionsPerWeek: 1, scheduleIndexes: [],
   });
+  const [scheduleMatchWarning, setScheduleMatchWarning] = useState('');
   const detailRequestRef = useRef(0);
 
   const editMonthOptions = (orderProgramDetail?.monthOptions || []).filter(option => option.isEnabled !== false);
@@ -673,16 +706,19 @@ export default function Registrations() {
     const detail = response.data.data;
     const item = registration?.orderItems?.[0] || {};
     const existingSchedule = String(item.selectedDays || '');
+    const savedSchedules = splitScheduleItems(existingSchedule);
     const scheduleIndexes = (detail.scheduleDays || [])
-      .map((slot, index) => (
-        existingSchedule.includes(slot.day) &&
-        (!slot.startTime || existingSchedule.includes(slot.startTime)) ? index : -1
-      ))
+      .map((slot, index) => savedSchedules.some(saved => scheduleOptionMatches(slot, saved)) ? index : -1)
       .filter(index => index >= 0);
     const requestedFrequency = Number(item.sessionsPerWeek) || scheduleIndexes.length || 1;
-    const effectiveIndexes = scheduleIndexes.length
+    const effectiveIndexes = scheduleIndexes.length || savedSchedules.length
       ? scheduleIndexes.slice(0, requestedFrequency)
       : (detail.scheduleDays || []).map((_, index) => index).slice(0, requestedFrequency);
+    setScheduleMatchWarning(
+      savedSchedules.length && scheduleIndexes.length !== Math.min(requestedFrequency, savedSchedules.length)
+        ? 'Some saved schedule selections no longer match the current program schedule. Review and select the correct days before saving.'
+        : ''
+    );
     const month = item.selectedMonth || registration?.selectedMonth || {};
     const batches = detail.batches || [];
 
@@ -744,6 +780,7 @@ export default function Registrations() {
     setLoadingDetails(false);
     setSelected(null);
     setOrderProgramDetail(null);
+    setScheduleMatchWarning('');
   };
 
   const toggleBatchSelection = (batchId) => {
@@ -1435,6 +1472,11 @@ export default function Registrations() {
                         ))}
                       </Select>
                     </FormField>
+                    {scheduleMatchWarning && (
+                      <div style={{ marginBottom: '10px', padding: '9px 11px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.35)', background: 'rgba(251,191,36,0.1)', color: '#fde68a', fontSize: '12px' }}>
+                        {scheduleMatchWarning}
+                      </div>
+                    )}
                     <FormField label={`Schedule — select ${orderEdit.sessionsPerWeek}`} required>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                         {editScheduleOptions.map((slot, index) => {
@@ -1443,14 +1485,17 @@ export default function Registrations() {
                             <button
                               type="button"
                               key={`${slot.day}-${index}`}
-                              onClick={() => setOrderEdit(previous => ({
-                                ...previous,
-                                scheduleIndexes: active
-                                  ? previous.scheduleIndexes.filter(value => value !== index)
-                                  : previous.scheduleIndexes.length < Number(previous.sessionsPerWeek)
-                                    ? [...previous.scheduleIndexes, index]
-                                    : previous.scheduleIndexes,
-                              }))}
+                              onClick={() => {
+                                setScheduleMatchWarning('');
+                                setOrderEdit(previous => ({
+                                  ...previous,
+                                  scheduleIndexes: active
+                                    ? previous.scheduleIndexes.filter(value => value !== index)
+                                    : previous.scheduleIndexes.length < Number(previous.sessionsPerWeek)
+                                      ? [...previous.scheduleIndexes, index]
+                                      : previous.scheduleIndexes,
+                                }));
+                              }}
                               style={{
                                 display: 'grid', gap: '3px', padding: '10px', textAlign: 'left',
                                 borderRadius: '8px', cursor: 'pointer',
