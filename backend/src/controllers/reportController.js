@@ -5,6 +5,39 @@
 const mongoose = require('mongoose');
 
 const getReg = () => mongoose.model('Registration');
+const { buildScheduleRegistrationReport } = require('../services/scheduleRegistrationReportService');
+
+// Read-only operational roster: confirmed registrations and pending checks.
+exports.getScheduleRegistrations = async (req, res) => {
+  try {
+    const registrations = await getReg().find({
+      $or: [
+        { status: 'CONFIRMED' },
+        { status: 'AWAITING_PAYMENT', paymentMethod: 'CHECK' },
+      ],
+    })
+      .populate('parentId', 'firstName lastName email phone')
+      .populate('students', 'studentCode firstName lastName dob gender')
+      .populate({ path: 'programId', select: 'title ageGroups category location', populate: [
+        { path: 'category', select: 'title' }, { path: 'location', select: 'title address city' },
+      ] })
+      .populate({ path: 'batches', select: 'dayOfWeek multiDays startTime endTime location', populate: { path: 'location', select: 'title address city' } })
+      .sort({ createdAt: -1 }).lean();
+
+    const itemProgramIds = [...new Set(registrations.flatMap(registration =>
+      (registration.orderItems || []).map(item => String(item.programId || '')).filter(mongoose.isValidObjectId)
+    ))];
+    const programs = itemProgramIds.length ? await mongoose.model('Program').find({ _id: { $in: itemProgramIds } })
+      .select('title ageGroups category location')
+      .populate('category', 'title').populate('location', 'title address city').lean() : [];
+    const programById = new Map(programs.map(program => [String(program._id), program]));
+    const groups = buildScheduleRegistrationReport(registrations, programById);
+    res.json({ success: true, data: groups, meta: { generatedAt: new Date().toISOString(), registrationCount: registrations.length } });
+  } catch (error) {
+    console.error('Schedule registrations report error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate schedule registrations report.' });
+  }
+};
 
 // ─── GET /api/reports/revenue ─────────────────────────────────────────────────
 // Overall revenue summary with graphs data

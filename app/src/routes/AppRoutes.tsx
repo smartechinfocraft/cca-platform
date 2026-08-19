@@ -41,6 +41,7 @@ import AdminCategories from "../admin/pages/Categories";
 import AdminLocations from "../admin/pages/Locations";
 import AdminCoaches from "../admin/pages/Coaches";
 import AdminReports from "../admin/pages/Reports";
+import ScheduleRegistrations from "../admin/pages/ScheduleRegistrations";
 import AdminContent from "../admin/pages/Content";
 import AdminCoupons from "../admin/pages/Coupons";
 import AdminUsersPage from "../admin/pages/AdminUsers";
@@ -203,6 +204,7 @@ function AppRoutes() {
         <Route path="stripe-recovery" element={<StripeRecovery />} />
         <Route path="coaches" element={<AdminCoaches />} />
         <Route path="reports" element={<AdminReports />} />
+        <Route path="schedule-registrations" element={<ScheduleRegistrations />} />
         <Route path="content" element={<AdminContent />} />
         <Route path="coupons" element={<AdminCoupons />} />
         <Route path="messages" element={<AdminMessages />} />

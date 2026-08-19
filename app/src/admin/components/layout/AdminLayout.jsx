@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { path: '/admin/payment-students', label: 'Payment Students', icon: '💳', superOnly: false },
   { path: '/admin/coaches',          label: 'Coaches',          icon: '🧑‍🏫', superOnly: false },
   { path: '/admin/reports',          label: 'Reports',          icon: '📊', superOnly: false },
+  { path: '/admin/schedule-registrations', label: 'Schedule Roster', icon: '📅', superOnly: false },
   { path: '/admin/coupons',          label: 'Coupons',          icon: '🎟️', superOnly: false },
   { path: '/admin/content',          label: 'Content',          icon: '📝', superOnly: false },
   { path: '/admin/messages',         label: 'Messages',         icon: '💬', superOnly: false },

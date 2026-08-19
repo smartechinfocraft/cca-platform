@@ -892,6 +892,7 @@ router.delete('/coupons/:id', protect, adminOrSuperAdmin, couponCRUD.remove);
 //  REPORTS — Both admins
 // ═══════════════════════════════════════════════════════════
 router.get( '/reports/revenue', protect, reportCtrl.getRevenueSummary);
+router.get( '/reports/schedule-registrations', protect, reportCtrl.getScheduleRegistrations);
 router.post('/reports/custom',  protect, reportCtrl.buildCustomReport);
 router.get( '/reports/export',  protect, reportCtrl.exportCSV);
 

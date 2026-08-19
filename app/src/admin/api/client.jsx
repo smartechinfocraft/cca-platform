@@ -186,6 +186,7 @@ export const couponsAPI = {
 
 export const reportsAPI = {
   getRevenue:  (params) => client.get('/reports/revenue', { params }),
+  getScheduleRegistrations: () => client.get('/reports/schedule-registrations'),
   buildCustom: (data)   => client.post('/reports/custom', data),
   exportCSV:   (params) => client.get('/reports/export', { params, responseType: 'blob' }),
 };
