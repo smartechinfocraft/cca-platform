@@ -16,11 +16,37 @@ async function loadXLSX() {
 
 const unique = values => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value || 0));
+const normalized = value => String(value || '').trim().toLocaleLowerCase();
+const matches = (actual, selected) => !selected || normalized(actual) === normalized(selected);
+const EMPTY_FILTERS = { category: '', day: '', location: '', ageGroup: '', program: '', status: '', search: '' };
+
+function filterScheduleGroups(groups, filters) {
+  const needle = normalized(filters.search);
+  return groups.map(group => {
+    if (!matches(group.categoryTitle, filters.category)
+      || !matches(group.day, filters.day)
+      || !matches(group.location, filters.location)
+      || !matches(group.ageGroup, filters.ageGroup)
+      || !matches(group.programTitle, filters.program)) return null;
+
+    const students = (group.students || []).filter(row => {
+      if (!matches(row.status, filters.status)) return false;
+      if (!needle) return true;
+      return [row.studentName, row.studentId, row.registrationNumber, row.parentName, row.parentEmail, row.parentPhone]
+        .some(value => normalized(value).includes(needle));
+    });
+    return students.length ? {
+      ...group,
+      students,
+      studentCount: new Set(students.map(row => row.studentId || `${row.studentName}|${row.dob}`)).size,
+    } : null;
+  }).filter(Boolean);
+}
 
 export default function ScheduleRegistrations() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ category: '', day: '', location: '', ageGroup: '', program: '', status: '', search: '' });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
 
   useEffect(() => {
     reportsAPI.getScheduleRegistrations().then(response => setGroups(response.data.data || []))
@@ -34,24 +60,29 @@ export default function ScheduleRegistrations() {
     programs: unique(groups.map(group => group.programTitle)),
   }), [groups]);
 
-  const filtered = useMemo(() => groups.map(group => {
-    if (filters.category && group.categoryTitle !== filters.category) return null;
-    if (filters.day && group.day !== filters.day) return null;
-    if (filters.location && group.location !== filters.location) return null;
-    if (filters.ageGroup && group.ageGroup !== filters.ageGroup) return null;
-    if (filters.program && group.programTitle !== filters.program) return null;
-    const needle = filters.search.trim().toLowerCase();
-    const students = group.students.filter(row => {
-      if (filters.status && row.status !== filters.status) return false;
-      if (!needle) return true;
-      return [row.studentName, row.studentId, row.registrationNumber, row.parentName, row.parentEmail, row.parentPhone]
-        .some(value => String(value || '').toLowerCase().includes(needle));
-    });
-    return students.length ? { ...group, students, studentCount: new Set(students.map(row => row.studentId || `${row.studentName}|${row.dob}`)).size } : null;
-  }).filter(Boolean), [groups, filters]);
+  const filtered = useMemo(() => filterScheduleGroups(groups, filters), [groups, filters]);
 
   const visibleStudents = filtered.reduce((total, group) => total + group.studentCount, 0);
-  const setFilter = key => event => setFilters(current => ({ ...current, [key]: event.target.value }));
+  const setFilter = key => event => {
+    const value = event.currentTarget.value;
+    setFilters(current => ({ ...current, [key]: value }));
+  };
+
+  const printFiltered = () => {
+    if (!filtered.length) return toast.error('There is no filtered data to print');
+    const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character]);
+    const rows = filtered.map(group => `
+      <section><h2>${escape(group.day)} · ${escape(group.startTime)}${group.endTime ? ` - ${escape(group.endTime)}` : ''} · ${escape(group.location)}</h2>
+      <p>${escape(group.categoryTitle)} · ${escape(group.ageGroup)} · ${escape(group.programTitle)} · ${group.studentCount} students</p>
+      <table><thead><tr><th>Student</th><th>Student ID</th><th>Registration #</th><th>Parent</th><th>Email</th><th>Status</th><th>Fee</th></tr></thead>
+      <tbody>${group.students.map(row => `<tr><td>${escape(row.studentName)}</td><td>${escape(row.studentId)}</td><td>${escape(row.registrationNumber)}</td><td>${escape(row.parentName)}</td><td>${escape(row.parentEmail)}</td><td>${escape(row.status)}</td><td>${escape(money(row.feePerStudent))}</td></tr>`).join('')}</tbody></table></section>`).join('');
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return toast.error('Please allow pop-ups to print this report');
+    printWindow.opener = null;
+    printWindow.document.write(`<!doctype html><html><head><title>CCA Schedule Registrations</title><style>body{font:12px Arial,sans-serif;color:#111;margin:24px}h1{margin:0 0 6px}h2{font-size:15px;margin:22px 0 3px}p{margin:0 0 8px;color:#444}table{width:100%;border-collapse:collapse;page-break-inside:auto}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}tr{page-break-inside:avoid}section{page-break-inside:avoid;margin-bottom:18px}@page{size:landscape;margin:12mm}</style></head><body><h1>CCA Schedule Registrations</h1><p>Filtered report · ${new Date().toLocaleString()}</p>${rows}</body></html>`);
+    printWindow.document.close();
+    window.setTimeout(() => { printWindow.focus(); printWindow.print(); }, 150);
+  };
 
   const exportExcel = async () => {
     if (!filtered.length) return toast.error('There is no filtered data to export');
@@ -75,16 +106,16 @@ export default function ScheduleRegistrations() {
   ];
 
   return <div>
-    <PageHeader title="Schedule Registrations" subtitle="Students grouped by selected day, configured age group and program" action={<Btn onClick={exportExcel} disabled={!filtered.length}>Export filtered Excel</Btn>} />
+    <PageHeader title="Schedule Registrations" subtitle="Students grouped by selected day, configured age group and program" action={<div style={{ display: 'flex', gap: 8 }}><Btn variant="ghost" onClick={printFiltered} disabled={!filtered.length}>Print filtered</Btn><Btn onClick={exportExcel} disabled={!filtered.length}>Export filtered Excel</Btn></div>} />
     <Card style={{ marginBottom: 18, padding: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 10 }}>
         {[['category', 'All categories', options.categories], ['day', 'All days', options.days], ['location', 'All locations', options.locations], ['ageGroup', 'All age groups', options.ageGroups], ['program', 'All programs', options.programs]].map(([key, label, values]) =>
-          <Select key={key} value={filters[key]} onChange={setFilter(key)}><option value="">{label}</option>{values.map(value => <option key={value}>{value}</option>)}</Select>)}
+          <Select key={key} value={filters[key]} onChange={setFilter(key)}><option value="">{label}</option>{values.map(value => <option key={value} value={value}>{value}</option>)}</Select>)}
         <Select value={filters.status} onChange={setFilter('status')}><option value="">Operational statuses</option><option value="CONFIRMED">Confirmed</option><option value="AWAITING_PAYMENT">Awaiting check payment</option></Select>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
         <SearchInput value={filters.search} onChange={setFilter('search')} placeholder="Student, parent, email or registration..." />
-        <span style={{ color: 'rgba(255,255,255,.55)', fontSize: 13 }}>{filtered.length} groups · {visibleStudents} student placements</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ color: 'rgba(255,255,255,.55)', fontSize: 13 }}>{filtered.length} groups · {visibleStudents} student placements</span><Btn small variant="ghost" onClick={() => setFilters({ ...EMPTY_FILTERS })}>Clear filters</Btn></div>
       </div>
     </Card>
     {loading ? <DataTable columns={columns} rows={[]} loading /> : !filtered.length ? <Card style={{ textAlign: 'center', color: 'rgba(255,255,255,.45)' }}>No registrations match these filters.</Card> : filtered.map(group =>
