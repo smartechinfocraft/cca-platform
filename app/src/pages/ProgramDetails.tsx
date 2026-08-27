@@ -78,6 +78,15 @@ function formatProgramDate(date?: string): string {
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+function renderDescription(description?: string) {
+  if (!description) return null;
+  return description.split(/<br\s*\/?>|\r?\n/i).map((line, index, lines) => (
+    <span key={index}>
+      {line}
+      {index < lines.length - 1 && <br />}
+    </span>
+  ));
+}
 function buildDaySlotOptions(batch: BatchRaw): string[] {
   if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
     return batch.scheduleDays.map((schedule) => {
@@ -786,8 +795,13 @@ function ProgramDetails() {
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#A33B2B]">Program Registration</p>
                   <h1 className="mt-2 text-3xl font-bold leading-tight text-[#0F172A] sm:text-4xl">{p.title}</h1>
                   {(p.shortDescription || p.detailedDescription) && (
-                    <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-                      {p.shortDescription || p.detailedDescription}
+                    <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-slate-600 sm:text-base">
+                      {renderDescription(p.shortDescription || p.detailedDescription)}
+                    </p>
+                  )}
+                  {p.startDate && (
+                    <p className="mt-3 text-sm font-semibold text-slate-700">
+                      Program starts: {formatProgramDate(p.startDate)}
                     </p>
                   )}
                   {p.showEndDate && p.endDate && (
