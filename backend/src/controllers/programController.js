@@ -42,7 +42,7 @@ const PROGRAM_ALLOWED_FIELDS = [
   'basePrice', 'discountedPrice',
   'startDate', 'endDate', 'registrationDeadline',
   'maxCapacity', 'shortDescription', 'detailedDescription', 'specialNote',
-  'isFeatured', 'isActive', 'coachId', 'sessionsPerWeek',
+  'isFeatured', 'isActive', 'showEndDate', 'coachId', 'sessionsPerWeek',
   'monthOptions', 'weekOptions', 'weeklyBatches', 'scheduleDays',
 ];
 

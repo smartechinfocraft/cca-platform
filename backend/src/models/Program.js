@@ -57,6 +57,7 @@ const programSchema = new mongoose.Schema(
 
     isFeatured: { type: Boolean, default: false },
     isActive:   { type: Boolean, default: true },
+    showEndDate: { type: Boolean, default: false },
 
     // Coach assigned to this program
     coachId: {

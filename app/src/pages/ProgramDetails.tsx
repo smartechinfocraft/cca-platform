@@ -72,6 +72,12 @@ function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string 
   const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
   return weeks ? `${range} ( ${weeks} week )` : range;
 }
+function formatProgramDate(date?: string): string {
+  if (!date) return "";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 function buildDaySlotOptions(batch: BatchRaw): string[] {
   if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
     return batch.scheduleDays.map((schedule) => {
@@ -782,6 +788,11 @@ function ProgramDetails() {
                   {(p.shortDescription || p.detailedDescription) && (
                     <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
                       {p.shortDescription || p.detailedDescription}
+                    </p>
+                  )}
+                  {p.showEndDate && p.endDate && (
+                    <p className="mt-3 text-sm font-semibold text-slate-700">
+                      Program ends: {formatProgramDate(p.endDate)}
                     </p>
                   )}
                   <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

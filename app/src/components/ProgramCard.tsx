@@ -31,6 +31,7 @@ type ProgramCardProps = {
     endDate?: string;
     basePrice?: number;
     discountedPrice?: number;
+    showEndDate?: boolean;
     location?: { title?: string } | null;
     city?: { title?: string } | null;
     ageGroups?: string[];
@@ -72,13 +73,6 @@ function formatProgramDate(date?: string): string {
     year: "numeric",
    
   });
-}
-
-function formatProgramDateRange(startDate?: string, endDate?: string): string {
-  const start = formatProgramDate(startDate);
-  const end = formatProgramDate(endDate);
-  if (start && end) return `${start} - ${end}`;
-  return start || end || "Dates not available";
 }
 
 function ProgramCard({ program }: ProgramCardProps) {
@@ -249,8 +243,16 @@ function ProgramCard({ program }: ProgramCardProps) {
           <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-900">
             <HiOutlineCalendar className="h-5 w-5 text-[#A33B2B]" />
             <span className="text-slate-600">Program Starts:</span>
-            <span>{formatProgramDateRange(program.startDate)}</span>
+            <span>{formatProgramDate(program.startDate) || "Dates not available"}</span>
           </div>
+
+          {program.showEndDate && program.endDate && (
+            <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-900">
+              <HiOutlineCalendar className="h-5 w-5 text-[#A33B2B]" />
+              <span className="text-slate-600">Program Ends:</span>
+              <span>{formatProgramDate(program.endDate)}</span>
+            </div>
+          )}
 
            <div className="inline-flex items-center gap-2 text-sm  text-slate-900 font-medium">
               <HiOutlineLocationMarker className="h-5 w-5 text-[#A33B2B]" />

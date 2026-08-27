@@ -54,6 +54,7 @@ const EMPTY_FORM = {
   specialNote:          '',
   isFeatured:           false,
   isActive:             true,
+  showEndDate:          false,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -310,6 +311,7 @@ export default function ProgramForm() {
         specialNote:          row.specialNote || '',
         isFeatured:           row.isFeatured || false,
         isActive:             row.isActive !== false,
+        showEndDate:          row.showEndDate === true,
         _existingCoverUrl:    row.coverImageUrl || '',
         _existingSlug:        row.slug || '',
       });
@@ -606,6 +608,7 @@ export default function ProgramForm() {
       fd.append('specialNote',         form.specialNote);
       fd.append('isFeatured',          form.isFeatured);
       fd.append('isActive',            form.isActive);
+      fd.append('showEndDate',         form.showEndDate);
       if (form.coachId)                fd.append('coachId', form.coachId);
       fd.append('sessionsPerWeek',     daysCount);
       fd.append('ageGroups',           JSON.stringify(form.ageGroups));
@@ -890,6 +893,15 @@ export default function ProgramForm() {
               onChange={e => setForm(p => ({ ...p, endDate: e.target.value }))}
             />
           </FormField>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '24px', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.showEndDate}
+              onChange={e => setForm(p => ({ ...p, showEndDate: e.target.checked }))}
+            />
+            Show program end date on website
+          </label>
         </div>
 
         {/* ── Month Selection Options — only for REGULAR_WITH_MONTH ── */}
