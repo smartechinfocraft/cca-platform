@@ -149,9 +149,27 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
   const onlyAvailableMonth = batches.flatMap((batch) =>
     getVisibleMonthOptions(batch.monthOptions).map((month) => ({ batch, month }))
   );
+  const onlyAvailableBatch = batches.length === 1 ? batches[0] : null;
   const initialMonthChoice = onlyAvailableMonth.length === 1 ? onlyAvailableMonth[0] : null;
-  const [selectedBatchId, setSelectedBatchId] = useState(() => initialMonthChoice?.batch._id ?? "");
-  const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(() => initialMonthChoice?.month ?? null);
+  const initialBatchMonthOptions = onlyAvailableBatch
+    ? getVisibleMonthOptions(onlyAvailableBatch.monthOptions)
+    : [];
+  const [selectedBatchId, setSelectedBatchId] = useState(() =>
+    initialMonthChoice?.batch._id ?? onlyAvailableBatch?._id ?? ""
+  );
+  const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(() => {
+    if (initialMonthChoice?.month) return initialMonthChoice.month;
+    if (onlyAvailableBatch && initialBatchMonthOptions.length === 0) {
+      return {
+        label: onlyAvailableBatch.name,
+        startDate: "",
+        endDate: "",
+        weeks: "",
+        price: onlyAvailableBatch.price ?? onlyAvailableBatch.fee ?? basePrice ?? 0,
+      };
+    }
+    return null;
+  });
   const [selectedFreq, setSelectedFreq] = useState(1);
   const [daySlots, setDaySlots] = useState<(string | null)[]>([null]);
 

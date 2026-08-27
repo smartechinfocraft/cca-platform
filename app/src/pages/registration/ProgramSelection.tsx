@@ -233,6 +233,35 @@ export default function ProgramSelection() {
   }, [editCartItem?.cartId]);
 
   useEffect(() => {
+    if (batches.length === 0 || selectedBatchId || batchConfirmed || isWeeklyProgram) return;
+
+    const availableMonths = batches.flatMap((batch) =>
+      getVisibleMonthOptions(batch.monthOptions).map((month) => ({ batch, month }))
+    );
+    if (availableMonths.length === 1) {
+      setSelectedBatchId(availableMonths[0].batch._id);
+      setSelectedMonth(availableMonths[0].month);
+      setSelectedFreq(1);
+      setDaySlots([null]);
+      return;
+    }
+
+    if (batches.length === 1 && availableMonths.length === 0) {
+      const batch = batches[0];
+      setSelectedBatchId(batch._id);
+      setSelectedMonth({
+        label: batch.name,
+        startDate: "",
+        endDate: "",
+        weeks: "",
+        price: batch.fee,
+      });
+      setSelectedFreq(1);
+      setDaySlots([null]);
+    }
+  }, [batchConfirmed, batches, isWeeklyProgram, selectedBatchId]);
+
+  useEffect(() => {
     if (batchConfirmed && selectedBatch?.days) return;
     setDaySlots(Array(selectedFreq).fill(null));
   }, [batchConfirmed, selectedBatch, selectedFreq]);

@@ -568,7 +568,24 @@ function QuickRegisterDrawer({
         const availableMonths = batchItems.flatMap((batch) =>
           getVisibleMonthOptions(batch.monthOptions).map((month) => ({ batch, month }))
         );
-        if (availableMonths.length === 1) {
+        const onlyBatch = batchItems.length === 1 ? batchItems[0] : null;
+        const onlyBatchMonths = onlyBatch ? getVisibleMonthOptions(onlyBatch.monthOptions) : [];
+        if (onlyBatch) {
+          setSelectedBatchId(onlyBatch._id);
+          if (onlyBatchMonths.length === 1) {
+            setSelectedMonth(onlyBatchMonths[0]);
+          } else if (onlyBatchMonths.length === 0) {
+            setSelectedMonth({
+              label: onlyBatch.name,
+              startDate: "",
+              endDate: "",
+              weeks: "",
+              price: onlyBatch.price ?? onlyBatch.fee ?? data?.basePrice ?? program.basePrice ?? 0,
+            });
+          }
+          setSelectedFreq(1);
+          setDaySlots([null]);
+        } else if (availableMonths.length === 1) {
           setSelectedBatchId(availableMonths[0].batch._id);
           setSelectedMonth(availableMonths[0].month);
           setSelectedFreq(1);
