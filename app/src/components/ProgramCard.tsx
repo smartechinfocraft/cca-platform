@@ -75,6 +75,16 @@ function formatProgramDate(date?: string): string {
   });
 }
 
+function renderDescription(description?: string) {
+  if (!description) return null;
+  return description.split(/<br\s*\/?>|\r?\n/i).map((line, index, lines) => (
+    <span key={index}>
+      {line}
+      {index < lines.length - 1 && <br />}
+    </span>
+  ));
+}
+
 function ProgramCard({ program }: ProgramCardProps) {
   const navigate = useNavigate();
   const [quickOpen, setQuickOpen] = useState(false);
@@ -261,8 +271,8 @@ function ProgramCard({ program }: ProgramCardProps) {
 
             </div>
 
-          <p className="mt-4 text-sm leading-6 text-slate-600">
-            {program.shortDescription}
+          <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+            {renderDescription(program.shortDescription)}
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">
