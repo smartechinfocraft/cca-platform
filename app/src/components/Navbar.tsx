@@ -207,13 +207,13 @@ function Navbar() {
 </svg></span>
                 </button>*/}
 
-                <button
+                {/* <button
                   onClick={() => { setProgramsOpen(false); setOpen(false); window.open("#"); }}
                   className="flex gap-3 w-full text-left px-5 py-3 text-sm font-medium text-[var(--ink-600)] hover:bg-[var(--pitch-soft)] hover:text-[var(--outfield)] transition"
                 >
                   Winter Programs <span className="flex gap-1 text-black/50">Coming Soon</span>
 
-                </button>
+                </button> */}
 
                 {categories.length === 0 && (
                   <p className="px-5 py-3 text-sm text-[var(--ink-400)]">Loading...</p>
