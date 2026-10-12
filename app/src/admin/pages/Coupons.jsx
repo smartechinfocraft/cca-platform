@@ -72,18 +72,25 @@ export default function Coupons() {
         minAmount: parseFloat(form.minAmount) || 0,
         maxUses:   form.maxUses ? parseInt(form.maxUses) : null,
         expiresAt: form.expiresAt || undefined,
+        categoryIds: [...new Set((form.categoryIds || []).map(category => String(category?._id || category)))],
       };
+      let response;
       if (editing) {
-        await couponsAPI.update(editing._id, payload);
-        toast.success('Coupon updated!');
+        response = await couponsAPI.update(editing._id, payload);
       } else {
-        await couponsAPI.create(payload);
-        toast.success('Coupon created!');
+        response = await couponsAPI.create(payload);
       }
+      const savedCategoryIds = (response.data.data?.categoryIds || [])
+        .map(category => String(category?._id || category))
+        .sort();
+      if (JSON.stringify(savedCategoryIds) !== JSON.stringify([...payload.categoryIds].sort())) {
+        throw new Error('Selected categories were not saved. Please retry.');
+      }
+      toast.success(editing ? 'Coupon updated!' : 'Coupon created!');
       setModalOpen(false);
       load();
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Save failed');
+      toast.error(e.response?.data?.message || e.message || 'Save failed');
     } finally { setSaving(false); }
   };
 
@@ -185,15 +192,29 @@ export default function Coupons() {
           </FormField>
           <div style={{ gridColumn: '1 / -1' }}>
             <FormField label="Applies to Categories (blank = all categories)">
-              <select
-                multiple
-                size={Math.min(Math.max(categories.length, 3), 6)}
-                value={form.categoryIds}
-                onChange={e => setForm(p => ({ ...p, categoryIds: Array.from(e.target.selectedOptions, option => option.value) }))}
-                style={{ width: '100%', padding: '8px', color: '#fff', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px' }}
-              >
-                {categories.map(category => <option key={category._id} value={category._id} style={{ background: '#171717', color: '#fff' }}>{category.title}</option>)}
-              </select>
+              <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '4px 8px' }}>
+                {categories.map(category => {
+                  const categoryId = String(category._id);
+                  const checked = form.categoryIds.includes(categoryId);
+                  return (
+                    <label key={categoryId} style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 4px', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => setForm(current => ({
+                          ...current,
+                          categoryIds: e.target.checked
+                            ? [...current.categoryIds, categoryId]
+                            : current.categoryIds.filter(id => id !== categoryId),
+                        }))}
+                        style={{ width: '16px', height: '16px', accentColor: '#D4AF37', flex: '0 0 auto' }}
+                      />
+                      {category.title}
+                    </label>
+                  );
+                })}
+                {!categories.length && <span style={{ display: 'block', padding: '8px 4px', color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>No categories available</span>}
+              </div>
             </FormField>
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
