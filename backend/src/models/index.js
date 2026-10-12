@@ -330,6 +330,7 @@ const registrationSchema = new mongoose.Schema(
       {
         programId:       { type: String },
         programTitle:    { type: String },
+        categoryName:    { type: String },
         batchType:       { type: String },
         batchId:         { type: String },
         batchName:       { type: String },

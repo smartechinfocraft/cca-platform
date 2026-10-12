@@ -100,11 +100,25 @@ function buildCartStudentInputs(cartItems) {
   });
 }
 
-function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced, registrationMode }) {
+async function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced, registrationMode }) {
+  const pricedPrograms = Array.isArray(cartItems) && cartItems.length > 0
+    ? (priced?.lineItems || []).map(item => item.program)
+    : [priced?.program];
+  const categoryIds = [...new Set(pricedPrograms
+    .map(program => program?.category?._id || program?.category)
+    .filter(Boolean)
+    .map(String))];
+  const categories = categoryIds.length
+    ? await mongoose.model('Category').find({ _id: { $in: categoryIds } }).select('title').lean()
+    : [];
+  const categoryTitles = new Map(categories.map(category => [String(category._id), category.title]));
+  const categoryNameFor = program => categoryTitles.get(String(program?.category?._id || program?.category)) || '';
+
   if (Array.isArray(cartItems) && cartItems.length > 0) {
     return cartItems.map((item, index) => {
       const itemStudents = Array.isArray(item.students) && item.students.length ? item.students : [];
       const studentCount = Number(item.studentCount) || itemStudents.length || 1;
+      const pricedProgram = priced?.lineItems?.[index]?.program;
       const feePerStudent = round2(Number(priced?.lineItems?.[index]?.unitPrice) || 0);
       return {
         programId: item.programId ? String(item.programId) : '',
@@ -113,6 +127,7 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
           || priced?.lineItems?.[index]?.program?.title
           || selectedProgram?.title
           || 'CCA Program',
+        categoryName: categoryNameFor(pricedProgram),
         batchType: priced?.lineItems?.[index]?.program?.batchType || '',
         batchId: item.batchId ? String(item.batchId) : '',
         batchName: item.batchName
@@ -138,6 +153,7 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
   return [{
     programId: selectedProgram?._id ? String(selectedProgram._id) : '',
     programTitle: selectedProgram?.title || 'CCA Program',
+    categoryName: categoryNameFor(priced?.program),
     batchType: selectedProgram?.batchType || '',
     batchId: selectedBatch?._id ? String(selectedBatch._id) : '',
     batchName: selectedBatch?.title || selectedBatch?.name || '',
@@ -1404,7 +1420,7 @@ async function handleRegistration(req, res) {
       monthDateRange,
     ].filter(Boolean).join(' — ');
     const batchIds = [...new Set(studentBatchIds.filter(Boolean).map(String))];
-    const orderItems = buildRegistrationOrderItems({
+    const orderItems = await buildRegistrationOrderItems({
       cartItems,
       selectedProgram,
       selectedBatch,
@@ -1523,6 +1539,7 @@ async function handleRegistration(req, res) {
       registrationNumber: reg.registrationNumber,
       studentName,
       programName: selectedProgram.title || 'CCA Program',
+      categoryName: orderItems[0]?.categoryName,
       batchInfo: batchTitle,
       parentName: parentInfo.parentName || parentInfo.email,
       parentEmail: parentInfo.email,

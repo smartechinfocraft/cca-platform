@@ -54,7 +54,7 @@ function isRegularWithoutMonth(item) {
 }
 
 async function sendRegistrationEmail({ to, registrationNumber, studentName, programName,
-  batchInfo, parentName, parentEmail, parentPhone, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
+  categoryName, batchInfo, parentName, parentEmail, parentPhone, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
   const subject = `CCA Registration Confirmed — ${registrationNumber}`;
 
   // Generate barcode SVG
@@ -84,6 +84,7 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
       <tr>
         <td style="padding:12px;border-bottom:1px solid #f1f5f9;">
           <p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(item.programTitle || programName)}</p>
+          ${item.categoryName ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Category: ${escapeHtml(item.categoryName)}</p>` : ''}
           ${!hideBatchAndMonth && item.batchName ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</p>` : ''}
           ${!hideBatchAndMonth && monthLabel ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Month: ${escapeHtml(monthLabel)}</p>` : ''}
           ${scheduleListHtml(item.selectedDays)}
@@ -93,7 +94,7 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
         <td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(itemTotal)}</td>
       </tr>`;
     }).join('')
-    : `<tr><td style="padding:12px;border-bottom:1px solid #f1f5f9;"><p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(programName)}</p><p style="margin:2px 0 0;font-size:12px;color:#64748b;">Student: ${escapeHtml(studentName)}</p>${batchInfo ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(batchInfo)}</p>` : ''}</td><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(totalAmount)}</td></tr>`;
+    : `<tr><td style="padding:12px;border-bottom:1px solid #f1f5f9;"><p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(programName)}</p>${categoryName ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Category: ${escapeHtml(categoryName)}</p>` : ''}<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Student: ${escapeHtml(studentName)}</p>${batchInfo ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(batchInfo)}</p>` : ''}</td><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(totalAmount)}</td></tr>`;
 
   const calculatedSubtotal = Array.isArray(orderItems) && orderItems.length
     ? orderItems.reduce((sum, item) => sum + (Number(item.itemTotal) || ((Number(item.feePerStudent) || 0) * (Number(item.studentCount) || item.students?.length || 1))), 0)
