@@ -128,29 +128,29 @@ export default function Hero() {
             {/* CTA buttons */}
             <div className="reveal reveal-delay-3 flex flex-wrap gap-3 mt-9">
               <button
-                onClick={() => navigate("/programs?category=6a395104b0a89910ba884470")}
+                onClick={() => navigate("/programs?category=6acc2d97991042456f831314")}
                 className="btn-glow px-8 py-3.5 rounded-full font-semibold text-sm shadow-lg hover:scale-105 transition-transform"
                 style={{ background: "var(--outfield)", color: "var(--pitch)" }}
               >
-                Fall 2026 Programs
+               Winter 2026-27 Outdoor Programs
               </button>
 
                   {/* All Programs option */}
                 <button
-                   onClick={() => navigate("/programs?category=6a74b81eac8c59a167001018")}
+                   onClick={() => navigate("/programs?category=6acc2da0991042456f83131a")}
                   className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
                 >
-                 Amy Imai Elementary school  
+               Winter 2026-27 Indoor Programs
                 </button>
 
-                <button
+              {/*  <button
                   onClick={() => window.open("#")}
                   className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
                 >
                  Winter Programs <span className="flex gap-1 text-black/50">Coming Soon</span>
 
                 </button>
-              {/* <button
+               <button
                 onClick={() => document.querySelector("#programs")?.scrollIntoView({ behavior: "smooth" })}
                 className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
                 style={{ borderColor: "var(--cca-red)", color: "var(--cca-red)" }}
