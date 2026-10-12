@@ -3,7 +3,7 @@
 //  Create discount codes: percentage or fixed amount
 // ============================================================
 import React, { useEffect, useState } from 'react';
-import { couponsAPI } from '../api/client';
+import { categoriesAPI, couponsAPI } from '../api/client';
 import {
   PageHeader, DataTable, Modal, Btn, Badge,
   FormField, Input, Select, SearchInput
@@ -13,11 +13,12 @@ import toast from 'react-hot-toast';
 const EMPTY = {
   code: '', type: 'PERCENTAGE', value: '', minAmount: '0',
   maxUses: '', expiresAt: '', description: '', isActive: true,
-  isPubliclyVisible: true,
+  isPubliclyVisible: true, categoryIds: [],
 };
 
 export default function Coupons() {
   const [rows, setRows]       = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -34,6 +35,12 @@ export default function Coupons() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    categoriesAPI.getAll()
+      .then(res => setCategories(res.data.data))
+      .catch(() => toast.error('Failed to load categories'));
+  }, []);
+
   const openCreate = () => { setEditing(null); setForm(EMPTY); setModalOpen(true); };
   const openEdit   = (row) => {
     setEditing(row);
@@ -47,6 +54,7 @@ export default function Coupons() {
       description: row.description || '',
       isActive:    row.isActive !== false,
       isPubliclyVisible: row.isPubliclyVisible !== false,
+      categoryIds: (row.categoryIds || []).map(category => String(category?._id || category)),
     });
     setModalOpen(true);
   };
@@ -102,6 +110,13 @@ export default function Coupons() {
       render: (v, row) => row.type === 'PERCENTAGE' ? `${v}%` : `$${v}`,
     },
     { key: 'minAmount', label: 'Min Order', render: v => `$${v}` },
+    {
+      key: 'categoryIds', label: 'Categories',
+      render: ids => {
+        const names = (ids || []).map(id => categories.find(category => category._id === String(id?._id || id))?.title).filter(Boolean);
+        return names.length ? names.join(', ') : 'All categories';
+      },
+    },
     {
       key: 'usedCount', label: 'Used / Max',
       render: (v, row) => row.maxUses ? `${v} / ${row.maxUses}` : `${v} / ∞`,
@@ -165,6 +180,19 @@ export default function Coupons() {
           <FormField label="Max Uses (blank = unlimited)">
             <Input type="number" value={form.maxUses} onChange={f('maxUses')} placeholder="∞" />
           </FormField>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FormField label="Applies to Categories (blank = all categories)">
+              <select
+                multiple
+                size={Math.min(Math.max(categories.length, 3), 6)}
+                value={form.categoryIds}
+                onChange={e => setForm(p => ({ ...p, categoryIds: Array.from(e.target.selectedOptions, option => option.value) }))}
+                style={{ width: '100%', padding: '8px', color: '#fff', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px' }}
+              >
+                {categories.map(category => <option key={category._id} value={category._id} style={{ background: '#171717', color: '#fff' }}>{category.title}</option>)}
+              </select>
+            </FormField>
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <FormField label="Expiry Date (optional)">
               <Input type="date" value={form.expiresAt} onChange={f('expiresAt')} style={{ width: '200px' }} />

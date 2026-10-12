@@ -10,9 +10,10 @@ function queryResult(value) {
 async function withPricingModels(run, overrides = {}) {
   const originalModel = mongoose.model;
   mongoose.model = function model(name) {
-    if (name === 'Program') return { findOne: () => queryResult(overrides.program || { _id: 'program-1', isActive: true, basePrice: 430, monthOptions: [] }) };
+    if (name === 'Program') return { findOne: query => queryResult(overrides.programs?.[query._id] || overrides.program || { _id: 'program-1', isActive: true, basePrice: 430, monthOptions: [] }) };
     if (name === 'Batch') return { findOne: () => queryResult(overrides.batch ?? null) };
-    if (name === 'Coupon') return {};
+    if (name === 'Coupon') return { findOne: () => queryResult(overrides.coupon || null) };
+    if (name === 'Registration') return { find: () => ({ select: () => ({ limit: () => ({ lean: async () => [] }) }) }) };
     return originalModel.apply(this, arguments);
   };
   try { await run(); } finally { mongoose.model = originalModel; }
@@ -30,6 +31,59 @@ test('cart pricing uses the database price and multiplies only by actual student
     assert.equal(result.lineItems[0].unitPrice, 430);
     assert.equal(result.lineItems[0].subtotal, 860);
     assert.equal(result.subtotal, 860);
+  });
+});
+
+test('category-scoped coupon discounts only matching cart categories', async () => {
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({
+      cartItems: [
+        { programId: 'program-a', batchId: 'program-a', fee: 100, students: [{}] },
+        { programId: 'program-b', batchId: 'program-b', fee: 200, students: [{}] },
+      ],
+      couponCode: 'CATEGORY10',
+    });
+    assert.equal(result.subtotal, 300);
+    assert.equal(result.discount, 10);
+    assert.equal(result.total, 290);
+  }, {
+    programs: {
+      'program-a': { _id: 'program-a', category: 'category-a', isActive: true, basePrice: 100, monthOptions: [] },
+      'program-b': { _id: 'program-b', category: 'category-b', isActive: true, basePrice: 200, monthOptions: [] },
+    },
+    coupon: { code: 'CATEGORY10', isActive: true, type: 'PERCENTAGE', value: 10, minAmount: 0, usedCount: 0, maxUses: null, categoryIds: ['category-a'] },
+  });
+});
+
+test('category-scoped coupon is rejected when no cart item matches', async () => {
+  await withPricingModels(async () => {
+    await assert.rejects(
+      computeCartTotal({ cartItems: [{ programId: 'program-1', batchId: 'program-1', fee: 430, students: [{}] }], couponCode: 'CATEGORY10' }),
+      error => error.status === 400 && error.message.includes('does not apply')
+    );
+  }, {
+    program: { _id: 'program-1', category: 'category-b', isActive: true, basePrice: 430, monthOptions: [] },
+    coupon: { code: 'CATEGORY10', isActive: true, type: 'PERCENTAGE', value: 10, minAmount: 0, usedCount: 0, maxUses: null, categoryIds: ['category-a'] },
+  });
+});
+
+test('fixed category-scoped coupon is capped at the matching category subtotal', async () => {
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({
+      cartItems: [
+        { programId: 'program-a', batchId: 'program-a', fee: 100, students: [{}] },
+        { programId: 'program-b', batchId: 'program-b', fee: 200, students: [{}] },
+      ],
+      couponCode: 'CATEGORY150',
+    });
+    assert.equal(result.discount, 100);
+    assert.equal(result.total, 200);
+  }, {
+    programs: {
+      'program-a': { _id: 'program-a', category: 'category-a', isActive: true, basePrice: 100, monthOptions: [] },
+      'program-b': { _id: 'program-b', category: 'category-b', isActive: true, basePrice: 200, monthOptions: [] },
+    },
+    coupon: { code: 'CATEGORY150', isActive: true, type: 'FIXED', value: 150, minAmount: 0, usedCount: 0, maxUses: null, categoryIds: ['category-a'] },
   });
 });
 

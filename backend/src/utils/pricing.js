@@ -180,6 +180,12 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
         throw err;
       }
 
+      if (!couponAppliesToCategory(coupon, program.category)) {
+        const err = new Error('This coupon does not apply to the selected program.');
+        err.status = 400;
+        throw err;
+      }
+
       // Check minimum amount
       if (subtotal < coupon.minAmount) {
         const err = new Error(`Coupon requires a minimum order of $${coupon.minAmount}`);
@@ -313,15 +319,16 @@ function isDisabledFlag(value) {
   return value === false || value === 'false' || value === 0 || value === '0';
 }
 
-async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
+async function applyCouponToSubtotal({ subtotal, eligibleSubtotal = subtotal, couponCode, parentId, knownCoupon }) {
   const Coupon = mongoose.model('Coupon');
   const safeSubtotal = round2(subtotal);
+  const safeEligibleSubtotal = round2(eligibleSubtotal);
   if (!couponCode) return { discount: 0, total: safeSubtotal, coupon: null };
 
   const { releaseExpiredUnstartedReservations } = require('../services/couponReservationService');
   await releaseExpiredUnstartedReservations();
 
-  const coupon = await Coupon.findOne({
+  const coupon = knownCoupon || await Coupon.findOne({
     code: couponCode.trim().toUpperCase(),
     isActive: true,
   }).lean();
@@ -345,7 +352,13 @@ async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
     throw err;
   }
 
-  if (safeSubtotal < coupon.minAmount) {
+  if (Array.isArray(coupon.categoryIds) && coupon.categoryIds.length > 0 && safeEligibleSubtotal <= 0) {
+    const err = new Error('This coupon does not apply to any items in your cart.');
+    err.status = 400;
+    throw err;
+  }
+
+  if (safeEligibleSubtotal < coupon.minAmount) {
     const err = new Error(`Coupon requires a minimum order of $${coupon.minAmount}`);
     err.status = 400;
     throw err;
@@ -366,8 +379,8 @@ async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
   }
 
   const discount = coupon.type === 'PERCENTAGE'
-    ? round2(safeSubtotal * (coupon.value / 100))
-    : round2(Math.min(coupon.value, safeSubtotal));
+    ? round2(safeEligibleSubtotal * (coupon.value / 100))
+    : round2(Math.min(coupon.value, safeEligibleSubtotal));
 
   return {
     discount,
@@ -455,10 +468,21 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
   }));
 
   const subtotal = round2(lineItems.reduce((sum, item) => sum + item.subtotal, 0));
+  const coupon = couponCode ? await mongoose.model('Coupon').findOne({
+    code: couponCode.trim().toUpperCase(),
+    isActive: true,
+  }).lean() : null;
+  const eligibleSubtotal = !coupon || !Array.isArray(coupon.categoryIds) || coupon.categoryIds.length === 0
+    ? subtotal
+    : round2(lineItems
+      .filter(item => couponAppliesToCategory(coupon, item.program.category))
+      .reduce((sum, item) => sum + item.subtotal, 0));
   const couponResult = await applyCouponToSubtotal({
     subtotal,
+    eligibleSubtotal,
     couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
     parentId,
+    knownCoupon: coupon,
   });
 
   return {
@@ -470,6 +494,11 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
     lineItems,
     coupon: couponResult.coupon,
   };
+}
+
+function couponAppliesToCategory(coupon, categoryId) {
+  const categoryIds = Array.isArray(coupon.categoryIds) ? coupon.categoryIds.map(String) : [];
+  return categoryIds.length === 0 || categoryIds.includes(String(categoryId?._id || categoryId));
 }
 
 module.exports = {

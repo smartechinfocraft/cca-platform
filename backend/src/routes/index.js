@@ -879,7 +879,7 @@ router.post('/coach-portal/messages/:threadId/reply', coachAuth, async (req, res
 //  COUPONS — Both admins
 // ═══════════════════════════════════════════════════════════
 const couponCRUD = makeCRUD('Coupon', [
-  'code', 'type', 'value', 'minAmount', 'maxUses',
+  'code', 'type', 'value', 'minAmount', 'categoryIds', 'maxUses',
   'expiresAt', 'description', 'isActive', 'isPubliclyVisible',
 ]);
 router.get(   '/coupons',     protect, couponCRUD.getAll);
