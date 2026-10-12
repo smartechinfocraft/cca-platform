@@ -113,8 +113,11 @@ export default function Coupons() {
     {
       key: 'categoryIds', label: 'Categories',
       render: ids => {
-        const names = (ids || []).map(id => categories.find(category => category._id === String(id?._id || id))?.title).filter(Boolean);
-        return names.length ? names.join(', ') : 'All categories';
+        if (!ids?.length) return 'All categories';
+        const names = ids.map(id => categories.find(category => category._id === String(id?._id || id))?.title).filter(Boolean);
+        const unavailableCount = ids.length - names.length;
+        if (!names.length) return `${ids.length} selected`;
+        return unavailableCount ? `${names.join(', ')} + ${unavailableCount} unavailable` : names.join(', ');
       },
     },
     {
