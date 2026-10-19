@@ -423,7 +423,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                           ].filter(Boolean).join(" - ");
                           return (
                             <label key={oi}
-                              className={`flex items-center cursor-pointer text-[11px] px-3 py-1.5 font-normal rounded-2xl border transition ${isChecked
+                              className={`flex items-center cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-2xl border transition ${isChecked
                                 ? "border-green-200 bg-green-800 text-white"
                                 : "border-slate-300 bg-white text-slate-700 hover:border-green-500"}`}
                             >
