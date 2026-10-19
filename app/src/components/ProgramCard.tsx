@@ -404,6 +404,17 @@ const DAY_FULL: Record<string, string> = {
   MON: "Monday", TUE: "Tuesday", WED: "Wednesday", THU: "Thursday",
   FRI: "Friday", SAT: "Saturday", SUN: "Sunday",
 };
+const DAY_ORDER = Object.fromEntries(
+  Object.values(DAY_FULL).map((day, index) => [day, index]),
+) as Record<string, number>;
+
+function sortDaySlotOptions(options: string[]): string[] {
+  return [...options].sort((a, b) => {
+    const aOrder = DAY_ORDER[a.split(" - ")[0]] ?? Object.keys(DAY_ORDER).length;
+    const bOrder = DAY_ORDER[b.split(" - ")[0]] ?? Object.keys(DAY_ORDER).length;
+    return aOrder - bOrder;
+  });
+}
 
 function getSlots(batch: QuickBatch): TimeSlot[] {
   if (batch.timeSlots && batch.timeSlots.length > 0) return batch.timeSlots;
@@ -432,13 +443,13 @@ function fmtMonthDateRange(startDate?: string, endDate?: string): string {
 
 function buildDaySlotOptions(batch: QuickBatch): string[] {
   if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
-    return batch.scheduleDays.map((schedule) => {
+    return sortDaySlotOptions(batch.scheduleDays.map((schedule) => {
       const day = schedule.day ? (DAY_FULL[schedule.day] ?? schedule.day) : "";
       const time = schedule.startTime && schedule.endTime
         ? `${fmt12(schedule.startTime)} - ${fmt12(schedule.endTime)}`
         : "";
       return [day, time, schedule.groundAddress].filter(Boolean).join(" - ");
-    }).filter(Boolean);
+    }).filter(Boolean));
   }
   const slots = getSlots(batch);
   const locationSuffix = getLocationStr(batch) ? ` - ${getLocationStr(batch)}` : "";
@@ -447,13 +458,13 @@ function buildDaySlotOptions(batch: QuickBatch): string[] {
   else if (batch.dayOfWeek && batch.dayOfWeek !== "MULTI") days = [DAY_FULL[batch.dayOfWeek] ?? batch.dayOfWeek];
   else if (batch.days) days = [batch.days];
   if (days.length === 0) return [];
-  return days.map((day, index) => {
+  return sortDaySlotOptions(days.map((day, index) => {
     if (slots.length > 0) {
       const s = slots[index] ?? slots[0];
       return `${day} - ${fmt12(s.startTime)} - ${fmt12(s.endTime)}${locationSuffix}`;
     }
     return `${day}${locationSuffix}`;
-  });
+  }));
 }
 
 function buildProgramAvailableDayOptions(program: ProgramCardProps["program"] & { batches?: QuickBatch[] }): string[] {
