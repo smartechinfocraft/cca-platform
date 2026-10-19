@@ -101,6 +101,69 @@ function calcMonthOption(startDate, endDate) {
   };
 }
 
+const WEEKDAY_INDEX = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+
+function shiftDate(date, days) {
+  const shifted = new Date(`${date}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+function syncMonthOptionToSchedule(option, scheduleDays, programStart, programEnd) {
+  if (!option.startDate || !option.endDate) return option;
+  const isValidDate = (date) => /^\d{4}-\d{2}-\d{2}$/.test(date)
+    && Number.isFinite(new Date(`${date}T00:00:00Z`).getTime())
+    && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+  if (!isValidDate(option.startDate) || !isValidDate(option.endDate)) {
+    return { ...option, _dateAlignmentError: 'Enter valid month option dates.' };
+  }
+
+  const lowerBound = programStart && programStart > option.startDate ? programStart : option.startDate;
+  const upperBound = programEnd && programEnd < option.endDate ? programEnd : option.endDate;
+  if (lowerBound > upperBound) {
+    return { ...option, _dateAlignmentError: 'Month option must overlap the program date range.' };
+  }
+
+  const weekdays = new Set(
+    scheduleDays.map(({ day }) => WEEKDAY_INDEX[day]).filter((day) => day !== undefined),
+  );
+  let startDate = lowerBound;
+  let endDate = upperBound;
+
+  if (weekdays.size > 0) {
+    while (startDate <= upperBound && !weekdays.has(new Date(`${startDate}T00:00:00Z`).getUTCDay())) {
+      startDate = shiftDate(startDate, 1);
+    }
+    while (endDate >= lowerBound && !weekdays.has(new Date(`${endDate}T00:00:00Z`).getUTCDay())) {
+      endDate = shiftDate(endDate, -1);
+    }
+    if (startDate > upperBound || endDate < lowerBound || startDate > endDate) {
+      return { ...option, _dateAlignmentError: 'No selected schedule day falls within this month option date range.' };
+    }
+  }
+
+  const datesChanged = startDate !== option.startDate || endDate !== option.endDate;
+  const auto = calcMonthOption(startDate, endDate);
+  const weeks = datesChanged || option.weeks === '' || option.weeks == null
+    ? auto.weeks
+    : option.weeks;
+  const syncedOption = { ...option };
+  delete syncedOption._dateAlignmentError;
+  return {
+    ...syncedOption,
+    startDate,
+    endDate,
+    weeks,
+    label: formatMonthOptionLabel(startDate, endDate, weeks),
+  };
+}
+
+function syncMonthOptionsToSchedule(monthOptions, scheduleDays, programStart, programEnd) {
+  return monthOptions.map((option) =>
+    syncMonthOptionToSchedule(option, scheduleDays, programStart, programEnd),
+  );
+}
+
 const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
 
 const normalizeMonthOption = (option = {}) => {
@@ -113,7 +176,11 @@ const normalizeMonthOption = (option = {}) => {
 };
 
 const emptyMonthOption = () => normalizeMonthOption({ label: '', startDate: '', endDate: '', weeks: '', price: '' });
-const serializeMonthOptions = (monthOptions = []) => monthOptions.map(normalizeMonthOption);
+const serializeMonthOptions = (monthOptions = []) => monthOptions.map(option => {
+  const normalized = normalizeMonthOption(option);
+  delete normalized._dateAlignmentError;
+  return normalized;
+});
 
 // ── Weekly Batch helper (WEEKLY batch type only) ─────────────────────────────
 // Admin picks Start Date/Time + End Date/Time → auto-calc label like
@@ -302,6 +369,23 @@ export default function ProgramForm() {
     if (!isEdit) return;
     programsAPI.getOne(id).then(res => {
       const row = res.data.data;
+      const programStartDate = row.startDate ? row.startDate.split('T')[0] : '';
+      const programEndDate = row.endDate ? row.endDate.split('T')[0] : '';
+      const scheduleDays = row.scheduleDays || [];
+      const monthOptions = (row.monthOptions || []).map(option => {
+        const normalized = normalizeMonthOption(option);
+        const auto = calcMonthOption(normalized.startDate, normalized.endDate);
+        const hasWeeks = normalized.weeks !== undefined && normalized.weeks !== null && normalized.weeks !== '';
+        const weeks = hasWeeks ? normalized.weeks : auto.weeks;
+        return {
+          ...normalized,
+          weeks,
+          price: normalized.price ?? '',
+          label: hasWeeks
+            ? formatMonthOptionLabel(normalized.startDate, normalized.endDate, weeks)
+            : auto.label,
+        };
+      });
       setForm({
         title:                row.title || '',
         categoryId:           row.category?._id || '',
@@ -313,25 +397,12 @@ export default function ProgramForm() {
         price:                String(row.basePrice ?? '250'),
         discountedPrice:      row.discountedPrice ? String(row.discountedPrice) : '',
         maxCapacity:          String(row.maxCapacity ?? '99'),
-        startDate:            row.startDate ? row.startDate.split('T')[0] : '',
-        endDate:              row.endDate   ? row.endDate.split('T')[0]   : '',
+        startDate:            programStartDate,
+        endDate:              programEndDate,
         registrationDeadline: row.registrationDeadline ? row.registrationDeadline.split('T')[0] : '',
-        monthOptions:         (row.monthOptions || []).map(option => {
-          const normalized = normalizeMonthOption(option);
-          const auto = calcMonthOption(normalized.startDate, normalized.endDate);
-          const hasWeeks = normalized.weeks !== undefined && normalized.weeks !== null && normalized.weeks !== '';
-          const weeks = hasWeeks ? normalized.weeks : auto.weeks;
-          return {
-            ...normalized,
-            weeks,
-            price: normalized.price ?? '',
-            label: hasWeeks
-              ? formatMonthOptionLabel(normalized.startDate, normalized.endDate, weeks)
-              : auto.label,
-          };
-        }),
+        monthOptions:         syncMonthOptionsToSchedule(monthOptions, scheduleDays, programStartDate, programEndDate),
         weeklyBatches:        row.weeklyBatches || [],
-        scheduleDays:         row.scheduleDays  || [],
+        scheduleDays,
         // row.coachId comes back POPULATED ({_id, firstName, lastName, ...})
         // from GET /programs/:id — only the ID string belongs in form state,
         // otherwise Save/Update sends "[object Object]" and the whole
@@ -381,8 +452,13 @@ export default function ProgramForm() {
       const updated = prev.monthOptions.map((m, i) => i === idx ? { ...m, [field]: value } : m);
       if (field === 'startDate' || field === 'endDate') {
         const opt = updated[idx];
-        const auto = calcMonthOption(opt.startDate, opt.endDate);
-        updated[idx] = { ...opt, ...auto, price: opt.price || '' };
+        updated[idx] = syncMonthOptionToSchedule(
+          opt,
+          prev.scheduleDays,
+          prev.startDate,
+          prev.endDate,
+        );
+        updated[idx].price = opt.price || '';
       } else if (field === 'weeks') {
         const opt = updated[idx];
         updated[idx] = {
@@ -391,6 +467,18 @@ export default function ProgramForm() {
         };
       }
       return { ...prev, monthOptions: updated };
+    });
+
+  const updateProgramDate = (field, value) =>
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+      next.monthOptions = syncMonthOptionsToSchedule(
+        prev.monthOptions,
+        prev.scheduleDays,
+        field === 'startDate' ? value : prev.startDate,
+        field === 'endDate' ? value : prev.endDate,
+      );
+      return next;
     });
 
   // ── Weekly Batch helpers (WEEKLY batch type only) ──────────────────────────
@@ -586,10 +674,18 @@ export default function ProgramForm() {
   const toggleDay = (day) =>
     setForm(prev => {
       const exists = prev.scheduleDays.find(d => d.day === day);
-      if (exists) return { ...prev, scheduleDays: prev.scheduleDays.filter(d => d.day !== day) };
+      const scheduleDays = exists
+        ? prev.scheduleDays.filter(d => d.day !== day)
+        : [...prev.scheduleDays, { day, startTime: '', endTime: '', groundAddress: '' }];
       return {
         ...prev,
-        scheduleDays: [...prev.scheduleDays, { day, startTime: '', endTime: '', groundAddress: '' }],
+        scheduleDays,
+        monthOptions: syncMonthOptionsToSchedule(
+          prev.monthOptions,
+          scheduleDays,
+          prev.startDate,
+          prev.endDate,
+        ),
       };
     });
 
@@ -913,7 +1009,7 @@ export default function ProgramForm() {
             <Input
               type="date"
               value={form.startDate}
-              onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))}
+              onChange={e => updateProgramDate('startDate', e.target.value)}
             />
           </FormField>
 
@@ -921,7 +1017,7 @@ export default function ProgramForm() {
             <Input
               type="date"
               value={form.endDate}
-              onChange={e => setForm(p => ({ ...p, endDate: e.target.value }))}
+              onChange={e => updateProgramDate('endDate', e.target.value)}
             />
           </FormField>
 
@@ -945,7 +1041,7 @@ export default function ProgramForm() {
               📆 Month Selection Options — shown to users on registration page
             </div>
             <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '12px', lineHeight: '1.6' }}>
-              Pick a <strong style={{color:'rgba(255,255,255,0.6)'}}>Month Start Date</strong> → <strong style={{color:'rgba(255,255,255,0.6)'}}>Month End Date</strong> — weeks, sessions, &amp; label auto-fill. Sessions default to once per week and can be adjusted for holidays. <strong style={{color:'#F5D97A'}}>Enter the price manually for each option.</strong>
+              Pick a <strong style={{color:'rgba(255,255,255,0.6)'}}>Month Start Date</strong> → <strong style={{color:'rgba(255,255,255,0.6)'}}>Month End Date</strong> — dates align to selected schedule days within the program date range; weeks, sessions, &amp; label auto-fill. Sessions default to once per week and can be adjusted for holidays. <strong style={{color:'#F5D97A'}}>Enter the price manually for each option.</strong>
               &nbsp;All dates must be within program start/end range.
             </div>
 
@@ -1012,6 +1108,11 @@ export default function ProgramForm() {
                         onChange={e => updateMonthOption(idx, 'endDate', e.target.value)} />
                     </div>
                   </div>
+                  {opt._dateAlignmentError && (
+                    <div style={{ color: '#f87171', fontSize: '11px', marginBottom: '8px' }}>
+                      {opt._dateAlignmentError}
+                    </div>
+                  )}
                   {/* Row 2: Weeks / Sessions + Price + Label + Remove */}
                   <div style={{ display: 'grid', gridTemplateColumns: '80px 130px 1fr auto', gap: '8px', alignItems: 'end' }}>
                     <div>
