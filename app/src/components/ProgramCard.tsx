@@ -489,7 +489,7 @@ function buildProgramAvailableDayOptions(program: ProgramCardProps["program"] & 
       }).filter(Boolean)
     : [];
 
-  return Array.from(new Set([...fromBatches, ...fromScheduleDays, ...fromWeeklyBatches]));
+  return sortDaySlotOptions(Array.from(new Set([...fromBatches, ...fromScheduleDays, ...fromWeeklyBatches])));
 }
 
 function freqLabel(n: number): string {
