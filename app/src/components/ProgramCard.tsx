@@ -915,7 +915,7 @@ function QuickRegisterDrawer({
                           </div>
                         </div>
                       ) : (
-                        <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-700">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
                           <input
                             type="radio"
                             name={`quick-batch-${batch._id}`}
