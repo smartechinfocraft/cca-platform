@@ -62,15 +62,17 @@ function getLocationStr(batch: BatchRaw): string {
   if (batch.groundLocationNote) return batch.groundLocationNote;
   return "";
 }
-// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
-function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+// Formats a month option's start/end dates as "Jul 5 - Aug 10"
+function fmtMonthDateRange(startDate?: string, endDate?: string): string {
   if (!startDate || !endDate) return "";
   const s = new Date(startDate);
   const e = new Date(endDate);
   if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
-  return weeks ? `${range} ( ${weeks} week )` : range;
+  return `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+}
+function getMonthOptionSessionCount(label?: string): string {
+  return label?.match(/\b\d+\s*Sessions?\b/i)?.[0] ?? "";
 }
 function formatProgramDate(date?: string): string {
   if (!date) return "";
@@ -414,10 +416,14 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                       <div className="flex flex-wrap gap-2">
                         {bMonthOpts.map((opt, oi) => {
                           const isChecked = isSelected && selectedMonth?.label === opt.label;
-                          const dateRange = fmtMonthDateRange(opt.startDate, opt.endDate, opt.weeks);
+                          const optionDetails = [
+                            fmtMonthDateRange(opt.startDate, opt.endDate),
+                            getMonthOptionSessionCount(opt.label),
+                            opt.price !== undefined && opt.price !== "" ? `$${opt.price}` : "",
+                          ].filter(Boolean).join(" - ");
                           return (
                             <label key={oi}
-                              className={`flex items-center gap-1.5 cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-2xl border transition ${isChecked
+                              className={`flex items-center cursor-pointer text-[11px] px-3 py-1.5 font-normal rounded-2xl border transition ${isChecked
                                 ? "border-green-200 bg-green-800 text-white"
                                 : "border-slate-300 bg-white text-slate-700 hover:border-green-500"}`}
                             >
@@ -430,13 +436,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                                 }}
                                 className="sr-only"
                               />
-                              <span className="flex flex-col leading-tight">
-                                <span>{opt.label}{opt.price ? ` · $${opt.price}` : ""}</span>
-                                {dateRange && (
-                                  <span className={`text-[11px] font-normal ${isChecked ? "text-white/80" : "text-slate-500"}`}>
-                                    {dateRange}
-                                  </span>
-                                )}
+                              <span className={`leading-tight ${isChecked ? "text-white/80" : "text-slate-500"}`}>
+                                {optionDetails}
                               </span>
                             </label>
                           );
