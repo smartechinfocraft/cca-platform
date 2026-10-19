@@ -85,6 +85,14 @@ function fmtMonthDateRange(startDate?: string, endDate?: string): string {
 function getMonthOptionSessionCount(label?: string): string {
   return label?.match(/\b\d+\s*Sessions?\b/i)?.[0] ?? "";
 }
+function formatMonthOptionDetails(option?: MonthOption | null): string {
+  if (!option) return "";
+  return [
+    fmtMonthDateRange(option.startDate, option.endDate),
+    getMonthOptionSessionCount(option.label),
+    option.price !== undefined && option.price !== "" ? `$${option.price}` : "",
+  ].filter(Boolean).join(" - ");
+}
 function formatProgramDate(date?: string): string {
   if (!date) return "";
   const parsed = new Date(date);
@@ -427,11 +435,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                       <div className="flex flex-wrap gap-2">
                         {bMonthOpts.map((opt, oi) => {
                           const isChecked = isSelected && selectedMonth?.label === opt.label;
-                          const optionDetails = [
-                            fmtMonthDateRange(opt.startDate, opt.endDate),
-                            getMonthOptionSessionCount(opt.label),
-                            opt.price !== undefined && opt.price !== "" ? `$${opt.price}` : "",
-                          ].filter(Boolean).join(" - ");
+                          const optionDetails = formatMonthOptionDetails(opt);
                           return (
                             <label key={oi}
                               className={`flex items-center cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-2xl border transition ${isChecked
@@ -558,6 +562,7 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               <p className="text-sm font-semibold text-[#0F172A]">
                 {activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}
               </p>
+              <p className="text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
               <p className="text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
             </div>
             <p className="text-lg font-bold text-green-800">${totalPrice}</p>

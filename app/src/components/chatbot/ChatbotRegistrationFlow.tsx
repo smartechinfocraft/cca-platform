@@ -118,6 +118,20 @@ function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string 
   return weeks ? `${range} ( ${weeks} week )` : range;
 }
 
+function formatMonthOptionDetails(option?: ChatMonthOption | null): string {
+  if (!option) return "";
+  const startEnd = option.startDate && option.endDate
+    ? fmtMonthDateRange(option.startDate, option.endDate)
+    : "";
+  const sessions = option.label.match(/\b\d+\s*Sessions?\b/i)?.[0]
+    ?? (option.weeks !== undefined && option.weeks !== "" ? `${option.weeks} ${Number(option.weeks) === 1 ? "Session" : "Sessions"}` : "");
+  return [
+    startEnd,
+    sessions,
+    option.price !== undefined && option.price !== "" ? `$${option.price}` : "",
+  ].filter(Boolean).join(" - ");
+}
+
 
 function Bubble({ children }: { children: React.ReactNode }) {
   return (
@@ -1001,7 +1015,12 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
               ) : (
                 <>
                   <p><strong>Batch:</strong> {selectedBatch?.title || selectedBatch?.name}</p>
-                  {selectedMonth && <p><strong>Month:</strong> {selectedMonth.label}</p>}
+                  {selectedMonth && (
+                    <>
+                      <p><strong>Month:</strong> {selectedMonth.label}</p>
+                      <p className="text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
+                    </>
+                  )}
                   <p><strong>Frequency:</strong> {freqLabel(frequency)}</p>
                   {daySlots.filter(Boolean).length > 0 && <p><strong>Days:</strong> {daySlots.filter(Boolean).join(" + ")}</p>}
                 </>

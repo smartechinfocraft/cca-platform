@@ -441,6 +441,17 @@ function fmtMonthDateRange(startDate?: string, endDate?: string): string {
   return `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
 }
 
+function formatMonthOptionDetails(option?: MonthOption | null): string {
+  if (!option) return "";
+  const sessions = option.label.match(/\b\d+\s*Sessions?\b/i)?.[0]
+    ?? (option.weeks !== "" ? `${option.weeks} ${Number(option.weeks) === 1 ? "Session" : "Sessions"}` : "");
+  return [
+    fmtMonthDateRange(option.startDate, option.endDate),
+    sessions,
+    option.price !== undefined && option.price !== "" ? `$${option.price}` : "",
+  ].filter(Boolean).join(" - ");
+}
+
 function buildDaySlotOptions(batch: QuickBatch): string[] {
   if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
     return sortDaySlotOptions(batch.scheduleDays.map((schedule) => {
@@ -766,6 +777,7 @@ function QuickRegisterDrawer({
                     ) : (
                       <>
                         <p className="mt-1 text-sm font-bold text-[#0F172A]">{activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}</p>
+                        <p className="mt-1 text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
                         <p className="mt-1 text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
                       </>
                     )}
