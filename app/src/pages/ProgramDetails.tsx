@@ -19,6 +19,7 @@ import SavedStudentPicker from "../components/registration/SavedStudentPicker";
 import WeeklyBatchSelector from "../components/registration/WeeklyBatchSelector";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
+import { splitAndSortScheduleItems } from "../utils/scheduleDisplay";
 import toast from "react-hot-toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -563,7 +564,11 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                 {activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}
               </p>
               <p className="text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
-              <p className="text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+                {splitAndSortScheduleItems(daySlots.filter(Boolean).join("\n")).map((schedule, index) => (
+                  <li key={`${schedule}-${index}`}>• {schedule}</li>
+                ))}
+              </ul>
             </div>
             <p className="text-lg font-bold text-green-800">${totalPrice}</p>
           </div>
@@ -833,6 +838,12 @@ function ProgramDetails() {
                     <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-slate-600 sm:text-base">
                       {renderDescription(p.shortDescription || p.detailedDescription)}
                     </p>
+                  )}
+                  {p.category?.holidayNotes?.trim() && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Holiday / Closure Notes</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-amber-900">{p.category.holidayNotes}</p>
+                    </div>
                   )}
                   {p.startDate && (
                     <p className="mt-3 text-sm font-semibold text-slate-700">

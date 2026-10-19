@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 import { HiOutlineCheckCircle, HiOutlineArrowDownTray, HiOutlineHome, HiOutlineXMark, HiStar } from "react-icons/hi2";
 import api from "../../api/axios";
+import { splitAndSortScheduleItems } from "../../utils/scheduleDisplay";
 
 interface SuccessData {
   registrationId?: string;
@@ -48,11 +49,7 @@ interface OrderItem {
 
 const money = (value?: number) => `$${(Number(value) || 0).toFixed(2)}`;
 
-const splitScheduleItems = (value?: string) =>
-  String(value || "")
-    .split(/\s*(?:\n|;|\+|\||,\s*(?=[A-Z][a-z]+day\b))\s*/i)
-    .map((part) => part.trim())
-    .filter(Boolean);
+const splitScheduleItems = splitAndSortScheduleItems;
 
 const isRegularWithoutMonth = (item: OrderItem) => {
   if (item.batchType === "REGULAR_WITHOUT_MONTH") return true;

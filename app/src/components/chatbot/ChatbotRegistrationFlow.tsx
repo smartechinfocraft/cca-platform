@@ -29,6 +29,7 @@ import type { StudentWithSummary } from "../../types/parentDashboard";
 import SavedStudentPicker from "../registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../../utils/monthOptions";
+import { splitAndSortScheduleItems } from "../../utils/scheduleDisplay";
 import {
   fetchChatPrograms,
   fetchChatProgramDetail,
@@ -1022,7 +1023,16 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
                     </>
                   )}
                   <p><strong>Frequency:</strong> {freqLabel(frequency)}</p>
-                  {daySlots.filter(Boolean).length > 0 && <p><strong>Days:</strong> {daySlots.filter(Boolean).join(" + ")}</p>}
+                  {daySlots.filter(Boolean).length > 0 && (
+                    <div>
+                      <strong>Days:</strong>
+                      <ul className="list-disc pl-5">
+                        {splitAndSortScheduleItems(daySlots.filter(Boolean).join("\n")).map((schedule, index) => (
+                          <li key={`${schedule}-${index}`}>{schedule}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </>
               )}
               <p><strong>Player:</strong> {student.firstName} {student.lastName}</p>

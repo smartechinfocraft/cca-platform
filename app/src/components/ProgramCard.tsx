@@ -19,6 +19,7 @@ import WeeklyBatchSelector from "./registration/WeeklyBatchSelector";
 import SavedStudentPicker from "./registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, fmt12, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
+import { splitAndSortScheduleItems } from "../utils/scheduleDisplay";
 import { setQuickRegisterVisibility } from "../utils/quickRegisterVisibility";
 
 type ProgramCardProps = {
@@ -26,7 +27,7 @@ type ProgramCardProps = {
     _id: string;
     title: string;
     shortDescription?: string;
-    category?: string | { title?: string } | null;
+    category?: string | { title?: string; holidayNotes?: string } | null;
     startDate?: string;
     endDate?: string;
     basePrice?: number;
@@ -274,6 +275,13 @@ function ProgramCard({ program }: ProgramCardProps) {
           <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-600">
             {renderDescription(program.shortDescription)}
           </p>
+
+          {program.category && typeof program.category === "object" && program.category.holidayNotes?.trim() && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Holiday / Closure Notes</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-amber-900">{program.category.holidayNotes}</p>
+            </div>
+          )}
 
           <div className="mt-3 flex flex-wrap gap-2">
 
@@ -778,7 +786,11 @@ function QuickRegisterDrawer({
                       <>
                         <p className="mt-1 text-sm font-bold text-[#0F172A]">{activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}</p>
                         <p className="mt-1 text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
-                        <p className="mt-1 text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
+                        <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+                          {splitAndSortScheduleItems(daySlots.filter(Boolean).join("\n")).map((schedule, index) => (
+                            <li key={`${schedule}-${index}`}>• {schedule}</li>
+                          ))}
+                        </ul>
                       </>
                     )}
                   </div>

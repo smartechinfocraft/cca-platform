@@ -249,7 +249,7 @@ router.get('/public/programs', async (req, res) => {
 
     const data = await mongoose.model('Program')
       .find(filter)
-      .populate('category', 'title slug')
+      .populate('category', 'title slug holidayNotes')
       .populate('location', 'title city address')
       .sort({ createdAt: -1 })
       .lean();
@@ -268,7 +268,7 @@ router.get('/public/programs/:id', async (req, res) => {
   try {
     const program = await mongoose.model('Program')
       .findOne({ _id: req.params.id, isActive: true })
-      .populate('category', 'title slug')
+      .populate('category', 'title slug holidayNotes')
       .populate('location', 'title city address')
       .populate('coachId', 'firstName lastName profileImageUrl');
 

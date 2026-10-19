@@ -18,14 +18,12 @@ import {
   HiOutlineArrowRight, HiOutlineShoppingCart,
 } from "react-icons/hi2";
 import { HiOutlineArrowLeft } from "react-icons/hi";
+import { splitAndSortScheduleItems } from "../../utils/scheduleDisplay";
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
 
 function splitScheduleItems(selectedDays?: string): string[] {
-  return (selectedDays ?? "")
-    .split(/\s*(?:\+|\||\n)\s*/)
-    .map((day) => day.trim())
-    .filter(Boolean);
+  return splitAndSortScheduleItems(selectedDays);
 }
 
 function isRegularWithoutMonth(item: { batchType?: string; batchName?: string; selectedMonth?: string }) {

@@ -11,6 +11,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import api from "../../api/axios";
 import { isAxiosError } from "axios";
+import { splitAndSortScheduleItems } from "../../utils/scheduleDisplay";
 
 // Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
 function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
@@ -24,10 +25,7 @@ function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string 
 }
 
 function splitSelectedDays(days?: string): string[] {
-  return (days ?? "")
-    .split(/\s*(?:\+|\||\n)\s*/)
-    .map((day) => day.trim())
-    .filter(Boolean);
+  return splitAndSortScheduleItems(days);
 }
 
 function getEffectiveBatchFee(batch: any, fallbackPrice = 0): number {
@@ -557,19 +555,14 @@ function ReviewOrder() {
                       );
                     })()}
                     </>}
-                    <p className="mt-1 text-sm text-slate-500">
-                      <ul className="mt-1 space-y-1 list-none">
-                        {(item.selectedDays || "")
-                          .split(/\s*\+\s*|\s*\|\s*/)
-                          .filter((d: string, i: number, arr: string[]) => d.trim() && arr.indexOf(d.trim()) === i)
-                          .map((day: string, i: number) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A33B2B]" />
-                              {day.trim()}
-                            </li>
-                          ))}
-                      </ul>
-                    </p>
+                    <ul className="mt-1 space-y-1 list-none">
+                      {splitSelectedDays(item.selectedDays).map((day, i) => (
+                        <li key={`${day}-${i}`} className="flex items-start gap-2 text-sm text-slate-600">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A33B2B]" />
+                          {day}
+                        </li>
+                      ))}
+                    </ul>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {item.students.map((student, index) => (
                         <span key={index} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">

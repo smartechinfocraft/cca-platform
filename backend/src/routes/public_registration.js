@@ -109,10 +109,12 @@ async function buildRegistrationOrderItems({ cartItems, selectedProgram, selecte
     .filter(Boolean)
     .map(String))];
   const categories = categoryIds.length
-    ? await mongoose.model('Category').find({ _id: { $in: categoryIds } }).select('title').lean()
+    ? await mongoose.model('Category').find({ _id: { $in: categoryIds } }).select('title holidayNotes').lean()
     : [];
-  const categoryTitles = new Map(categories.map(category => [String(category._id), category.title]));
-  const categoryNameFor = program => categoryTitles.get(String(program?.category?._id || program?.category)) || '';
+  const categoryById = new Map(categories.map(category => [String(category._id), category]));
+  const categoryFor = program => categoryById.get(String(program?.category?._id || program?.category));
+  const categoryNameFor = program => categoryFor(program)?.title || '';
+  const categoryHolidayNotesFor = program => categoryFor(program)?.holidayNotes || '';
 
   if (Array.isArray(cartItems) && cartItems.length > 0) {
     return cartItems.map((item, index) => {
@@ -128,6 +130,7 @@ async function buildRegistrationOrderItems({ cartItems, selectedProgram, selecte
           || selectedProgram?.title
           || 'CCA Program',
         categoryName: categoryNameFor(pricedProgram),
+        categoryHolidayNotes: categoryHolidayNotesFor(pricedProgram),
         batchType: priced?.lineItems?.[index]?.program?.batchType || '',
         batchId: item.batchId ? String(item.batchId) : '',
         batchName: item.batchName
@@ -154,6 +157,7 @@ async function buildRegistrationOrderItems({ cartItems, selectedProgram, selecte
     programId: selectedProgram?._id ? String(selectedProgram._id) : '',
     programTitle: selectedProgram?.title || 'CCA Program',
     categoryName: categoryNameFor(priced?.program),
+    categoryHolidayNotes: categoryHolidayNotesFor(priced?.program),
     batchType: selectedProgram?.batchType || '',
     batchId: selectedBatch?._id ? String(selectedBatch._id) : '',
     batchName: selectedBatch?.title || selectedBatch?.name || '',
@@ -1540,6 +1544,7 @@ async function handleRegistration(req, res) {
       studentName,
       programName: selectedProgram.title || 'CCA Program',
       categoryName: orderItems[0]?.categoryName,
+      categoryHolidayNotes: orderItems[0]?.categoryHolidayNotes,
       batchInfo: batchTitle,
       parentName: parentInfo.parentName || parentInfo.email,
       parentEmail: parentInfo.email,

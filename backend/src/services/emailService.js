@@ -34,16 +34,34 @@ function money(value) {
 }
 
 function splitScheduleItems(value) {
-  return String(value || '')
+  const schedules = String(value || '')
     .split(/\s*(?:\n|;|\+|\||,\s*(?=[A-Z][a-z]+day\b))\s*/i)
     .map(part => part.trim())
     .filter(Boolean);
+  const weekdayOrder = {
+    monday: 0, tuesday: 1, wednesday: 2, thursday: 3,
+    friday: 4, saturday: 5, sunday: 6,
+  };
+  return schedules
+    .map((schedule, index) => ({
+      schedule,
+      index,
+      order: weekdayOrder[schedule.match(/^\s*([a-z]+)/i)?.[1]?.toLowerCase()] ?? 7,
+    }))
+    .sort((a, b) => a.order - b.order || a.index - b.index)
+    .map(({ schedule }) => schedule);
 }
 
 function scheduleListHtml(value) {
   const schedules = splitScheduleItems(value);
   if (!schedules.length) return '';
   return `<div style="margin:5px 0 0;font-size:12px;color:#64748b;"><div style="margin-bottom:3px;font-weight:bold;">Schedule:</div><ul style="margin:0;padding-left:18px;line-height:1.55;">${schedules.map(schedule => `<li style="margin:1px 0;padding-left:1px;">${escapeHtml(schedule)}</li>`).join('')}</ul></div>`;
+}
+
+function holidayNotesHtml(value) {
+  const notes = String(value || '').trim();
+  if (!notes) return '';
+  return `<div style="margin:5px 0 0;padding:8px 10px;border-radius:6px;background:#fffbeb;color:#92400e;font-size:12px;line-height:1.5;"><strong>Holiday / Closure Notes:</strong><br/>${escapeHtml(notes).replace(/\r?\n/g, '<br/>')}</div>`;
 }
 
 function isRegularWithoutMonth(item) {
@@ -54,7 +72,7 @@ function isRegularWithoutMonth(item) {
 }
 
 async function sendRegistrationEmail({ to, registrationNumber, studentName, programName,
-  categoryName, batchInfo, parentName, parentEmail, parentPhone, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
+  categoryName, categoryHolidayNotes, batchInfo, parentName, parentEmail, parentPhone, paymentMethod, subtotal, discountAmount, couponCode, totalAmount, transactionId, orderItems = [] }) {
   const subject = `CCA Registration Confirmed — ${registrationNumber}`;
 
   // Generate barcode SVG
@@ -72,7 +90,7 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
   }).join('');
   const barcodeSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="60" viewBox="0 0 300 60"><rect width="300" height="60" fill="#ffffff"/>${barRects}<text x="150" y="58" font-family="monospace" font-size="9" text-anchor="middle" fill="#0F172A">${registrationNumber}</text></svg>`;
   const itemRows = Array.isArray(orderItems) && orderItems.length
-    ? orderItems.map((item) => {
+    ? orderItems.map((item, index) => {
       const students = Array.isArray(item.students) ? item.students : [];
       const studentLines = students.length
         ? students.map(s => `${escapeHtml(`${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Student')}${s.dob ? ` <span style="color:#94a3b8;">DOB: ${escapeHtml(s.dob)}</span>` : ''}${s.gender ? ` <span style="color:#94a3b8;">${escapeHtml(s.gender)}</span>` : ''}`).join('<br/>')
@@ -85,6 +103,7 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
         <td style="padding:12px;border-bottom:1px solid #f1f5f9;">
           <p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(item.programTitle || programName)}</p>
           ${item.categoryName ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Category: ${escapeHtml(item.categoryName)}</p>` : ''}
+          ${holidayNotesHtml(item.categoryHolidayNotes || (index === 0 ? categoryHolidayNotes : ''))}
           ${!hideBatchAndMonth && item.batchName ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(item.batchName)}</p>` : ''}
           ${!hideBatchAndMonth && monthLabel ? `<p style="margin:3px 0 0;font-size:12px;color:#64748b;">Month: ${escapeHtml(monthLabel)}</p>` : ''}
           ${scheduleListHtml(item.selectedDays)}
@@ -94,7 +113,7 @@ async function sendRegistrationEmail({ to, registrationNumber, studentName, prog
         <td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(itemTotal)}</td>
       </tr>`;
     }).join('')
-    : `<tr><td style="padding:12px;border-bottom:1px solid #f1f5f9;"><p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(programName)}</p>${categoryName ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Category: ${escapeHtml(categoryName)}</p>` : ''}<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Student: ${escapeHtml(studentName)}</p>${batchInfo ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(batchInfo)}</p>` : ''}</td><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(totalAmount)}</td></tr>`;
+    : `<tr><td style="padding:12px;border-bottom:1px solid #f1f5f9;"><p style="margin:0;font-weight:bold;color:#0F172A;">${escapeHtml(programName)}</p>${categoryName ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Category: ${escapeHtml(categoryName)}</p>` : ''}${holidayNotesHtml(categoryHolidayNotes)}<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Student: ${escapeHtml(studentName)}</p>${batchInfo ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">Batch: ${escapeHtml(batchInfo)}</p>` : ''}</td><td style="padding:12px;text-align:right;font-weight:bold;color:#0F172A;border-bottom:1px solid #f1f5f9;">${money(totalAmount)}</td></tr>`;
 
   const calculatedSubtotal = Array.isArray(orderItems) && orderItems.length
     ? orderItems.reduce((sum, item) => sum + (Number(item.itemTotal) || ((Number(item.feePerStudent) || 0) * (Number(item.studentCount) || item.students?.length || 1))), 0)

@@ -55,7 +55,7 @@ exports.getAll = async (req, res) => {
     if (req.query.active !== undefined) filter.isActive = req.query.active === 'true';
 
     const programs = await Program.find(filter)
-      .populate('category', 'title slug')
+      .populate('category', 'title slug holidayNotes')
       .populate('location', 'title city')
       .populate('coachId', 'firstName lastName')
       .sort({ createdAt: -1 });
@@ -70,7 +70,7 @@ exports.getAll = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const program = await Program.findById(req.params.id)
-      .populate('category', 'title slug')
+      .populate('category', 'title slug holidayNotes')
       .populate('location', 'title address city')
       .populate('coachId', 'firstName lastName profileImageUrl');
 
