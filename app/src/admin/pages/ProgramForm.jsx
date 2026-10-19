@@ -68,31 +68,49 @@ function buildAutoTitle(ageGroups, skillLevels, cities) {
 }
 
 // ── Month option helper ──────────────────────────────────────────────────────
-// Admin selects start+end date of a month → auto-calc weeks & label only.
-// Price is left blank so admin enters it manually (no auto-price calculation).
-function calcMonthOption(startDate, endDate, basePrice, daysPerWeek) {
+function formatMonthOptionLabel(startDate, endDate, sessions) {
+  if (!startDate || !endDate) return '';
+  const [startYear, startMonth] = startDate.split('-').map(Number);
+  const [endYear, endMonth] = endDate.split('-').map(Number);
+  if (!startYear || !startMonth || !endYear || !endMonth) return '';
+  const fmtMonth = (year, month) =>
+    new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const sm = fmtMonth(startYear, startMonth);
+  const em = fmtMonth(endYear, endMonth);
+  const range = sm === em ? sm : `${sm} - ${em}`;
+  return sessions === '' || sessions == null
+    ? range
+    : `${range} (${sessions} ${Number(sessions) === 1 ? 'Session' : 'Sessions'})`;
+}
+
+// A month option includes one session per week by default; admins can adjust
+// the generated session count manually to account for holidays.
+function calcMonthOption(startDate, endDate) {
   if (!startDate || !endDate) return { weeks: '', price: '', label: '' };
-  const ms = new Date(endDate) - new Date(startDate);
-  if (ms <= 0) return { weeks: '', price: '', label: '' };
-  const days     = Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1;
-  const rawWeeks = Math.ceil(days / 7);
-  // Count sessions: number of scheduled days per week × raw weeks
-  const spw      = parseInt(daysPerWeek) || 1;
-  const sessions = Math.round(rawWeeks * spw);
-  const fmtMonth = (d) => new Date(d).toLocaleDateString('en-US', { month: 'long' });
-  const sm = fmtMonth(startDate);
-  const em = fmtMonth(endDate);
-  const label = sm === em ? `${sm} (${sessions} Sessions)` : `${sm} - ${em} (${sessions} Sessions)`;
-  // Price is intentionally left blank — admin must enter manually
-  return { weeks: Math.round(rawWeeks), price: '', label };
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) {
+    return { weeks: '', price: '', label: '' };
+  }
+  const days = (end - start) / (1000 * 60 * 60 * 24) + 1;
+  const weeks = Math.ceil(days / 7);
+  return {
+    weeks,
+    price: '',
+    label: formatMonthOptionLabel(startDate, endDate, weeks),
+  };
 }
 
 const isDisabledFlag = (value) => value === false || value === 'false' || value === 0 || value === '0';
 
-const normalizeMonthOption = (option = {}) => ({
-  ...option,
-  isEnabled: !isDisabledFlag(option.isEnabled),
-});
+const normalizeMonthOption = (option = {}) => {
+  const normalized = { ...option };
+  delete normalized.sessions;
+  return {
+    ...normalized,
+    isEnabled: !isDisabledFlag(option.isEnabled),
+  };
+};
 
 const emptyMonthOption = () => normalizeMonthOption({ label: '', startDate: '', endDate: '', weeks: '', price: '' });
 const serializeMonthOptions = (monthOptions = []) => monthOptions.map(normalizeMonthOption);
@@ -298,7 +316,20 @@ export default function ProgramForm() {
         startDate:            row.startDate ? row.startDate.split('T')[0] : '',
         endDate:              row.endDate   ? row.endDate.split('T')[0]   : '',
         registrationDeadline: row.registrationDeadline ? row.registrationDeadline.split('T')[0] : '',
-        monthOptions:         (row.monthOptions || []).map(normalizeMonthOption),
+        monthOptions:         (row.monthOptions || []).map(option => {
+          const normalized = normalizeMonthOption(option);
+          const auto = calcMonthOption(normalized.startDate, normalized.endDate);
+          const hasWeeks = normalized.weeks !== undefined && normalized.weeks !== null && normalized.weeks !== '';
+          const weeks = hasWeeks ? normalized.weeks : auto.weeks;
+          return {
+            ...normalized,
+            weeks,
+            price: normalized.price ?? '',
+            label: hasWeeks
+              ? formatMonthOptionLabel(normalized.startDate, normalized.endDate, weeks)
+              : auto.label,
+          };
+        }),
         weeklyBatches:        row.weeklyBatches || [],
         scheduleDays:         row.scheduleDays  || [],
         // row.coachId comes back POPULATED ({_id, firstName, lastName, ...})
@@ -337,8 +368,8 @@ export default function ProgramForm() {
   }, [form.categoryId, categories]);
 
   // ── Month option helpers ──────────────────────────────────────────────────
-  // When admin picks start/end date for a month option, auto-fill weeks, price, label.
-  // Admin can still override any field manually.
+  // Weeks also represent the default weekly session count and can be adjusted
+  // to account for holidays.
   const addMonthOption = () =>
     setForm(prev => ({ ...prev, monthOptions: [...prev.monthOptions, emptyMonthOption()] }));
 
@@ -350,14 +381,14 @@ export default function ProgramForm() {
       const updated = prev.monthOptions.map((m, i) => i === idx ? { ...m, [field]: value } : m);
       if (field === 'startDate' || field === 'endDate') {
         const opt = updated[idx];
-        const sd  = field === 'startDate' ? value : opt.startDate;
-        const ed  = field === 'endDate'   ? value : opt.endDate;
-        if (sd && ed && new Date(ed) > new Date(sd)) {
-          const auto = calcMonthOption(sd, ed, prev.price, prev.scheduleDays.length || 1);
-          // Keep admin price intact; only auto-fill weeks & label
-          const existingPrice = updated[idx].price;
-          updated[idx] = { ...updated[idx], weeks: auto.weeks, label: auto.label, price: existingPrice || '' };
-        }
+        const auto = calcMonthOption(opt.startDate, opt.endDate);
+        updated[idx] = { ...opt, ...auto, price: opt.price || '' };
+      } else if (field === 'weeks') {
+        const opt = updated[idx];
+        updated[idx] = {
+          ...opt,
+          label: formatMonthOptionLabel(opt.startDate, opt.endDate, value),
+        };
       }
       return { ...prev, monthOptions: updated };
     });
@@ -914,7 +945,7 @@ export default function ProgramForm() {
               📆 Month Selection Options — shown to users on registration page
             </div>
             <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '12px', lineHeight: '1.6' }}>
-              Pick a <strong style={{color:'rgba(255,255,255,0.6)'}}>Month Start Date</strong> → <strong style={{color:'rgba(255,255,255,0.6)'}}>Month End Date</strong> — weeks &amp; label auto-fill. <strong style={{color:'#F5D97A'}}>Enter the price manually for each option.</strong>
+              Pick a <strong style={{color:'rgba(255,255,255,0.6)'}}>Month Start Date</strong> → <strong style={{color:'rgba(255,255,255,0.6)'}}>Month End Date</strong> — weeks, sessions, &amp; label auto-fill. Sessions default to once per week and can be adjusted for holidays. <strong style={{color:'#F5D97A'}}>Enter the price manually for each option.</strong>
               &nbsp;All dates must be within program start/end range.
             </div>
 
@@ -981,11 +1012,11 @@ export default function ProgramForm() {
                         onChange={e => updateMonthOption(idx, 'endDate', e.target.value)} />
                     </div>
                   </div>
-                  {/* Row 2: Weeks + Price + Label + Remove */}
+                  {/* Row 2: Weeks / Sessions + Price + Label + Remove */}
                   <div style={{ display: 'grid', gridTemplateColumns: '80px 130px 1fr auto', gap: '8px', alignItems: 'end' }}>
                     <div>
                       <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '3px' }}>
-                        Weeks <span style={{fontSize:'10px', color:'#6ee7b7'}}>(auto)</span>
+                        Weeks / Sessions <span style={{fontSize:'10px', color:'#6ee7b7'}}>(auto)</span>
                       </div>
                       <Input type="number" value={opt.weeks}
                         onChange={e => updateMonthOption(idx, 'weeks', e.target.value)}
@@ -1007,7 +1038,7 @@ export default function ProgramForm() {
                       </div>
                       <Input value={opt.label}
                         onChange={e => updateMonthOption(idx, 'label', e.target.value)}
-                        placeholder="e.g. May to June (5 Weeks)" />
+                        placeholder="e.g. May - June (5 Sessions)" />
                     </div>
                     <button type="button" onClick={() => removeMonthOption(idx)}
                       style={{
