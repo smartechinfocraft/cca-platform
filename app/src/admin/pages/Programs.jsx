@@ -25,6 +25,20 @@ const uniqueOptions = (options) => {
     .sort((a, b) => a.label.localeCompare(b.label));
 };
 
+const locationLabel = (location) => (location?.city || location?.title || '').trim();
+const locationKey = (location) => locationLabel(location).replace(/\s+/g, ' ').toLocaleLowerCase();
+
+const uniqueLocationOptions = (rows) => {
+  const labels = new Map();
+  rows.forEach(row => {
+    const label = locationLabel(row.location).replace(/\s+/g, ' ');
+    const value = locationKey(row.location);
+    if (label && value && !labels.has(value)) labels.set(value, label);
+  });
+  return Array.from(labels, ([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+};
+
 const hasAny = (selected, values) => !selected.length || values.some(value => selected.includes(value));
 const PROGRAM_FILTER_STORAGE_KEY = 'admin.programs.filters.v1';
 const DEFAULT_PROGRAM_FILTERS = { categories: [], locations: [], ageGroups: [], levels: [], status: [] };
@@ -453,6 +467,15 @@ export default function Programs() {
     try {
       const p = await programsAPI.getAll();
       setRows(p.data.data);
+      setFilters(previous => ({
+        ...previous,
+        locations: [...new Set(previous.locations.map(value => {
+          const existingOption = p.data.data.find(row => locationKey(row.location) === value);
+          if (existingOption) return locationKey(existingOption.location);
+          const legacyMatch = p.data.data.find(row => idOf(row.location) === value);
+          return legacyMatch ? locationKey(legacyMatch.location) : value;
+        }))],
+      }));
     } catch {
       toast.error('Failed to load programs');
     } finally {
@@ -468,7 +491,7 @@ export default function Programs() {
 
   const filterOptions = {
     categories: uniqueOptions(rows.map(row => ({ value: idOf(row.category), label: row.category?.title || '' }))),
-    locations: uniqueOptions(rows.map(row => ({ value: idOf(row.location), label: row.location?.city || row.location?.title || '' }))),
+    locations: uniqueLocationOptions(rows),
     ageGroups: uniqueOptions(rows.flatMap(row => (row.ageGroups || []).map(age => ({ value: age, label: age })))),
     levels: uniqueOptions(rows.flatMap(row => (row.skillLevels || []).map(level => ({ value: level, label: level })))),
     status: [
@@ -560,7 +583,7 @@ export default function Programs() {
 
     if (q && !searchable.includes(q)) return false;
     if (!hasAny(filters.categories, [idOf(r.category)])) return false;
-    if (!hasAny(filters.locations, [idOf(r.location)])) return false;
+    if (!hasAny(filters.locations, [locationKey(r.location)])) return false;
     if (!hasAny(filters.ageGroups, r.ageGroups || [])) return false;
     if (!hasAny(filters.levels, r.skillLevels || [])) return false;
     if (!hasAny(filters.status, [r.isActive ? 'active' : 'inactive'])) return false;
@@ -646,7 +669,25 @@ export default function Programs() {
       key: '_id', label: 'Actions',
       render: (_, row) => (
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Btn small onClick={() => navigate(`/admin/programs/${row._id}/edit`)}>Edit</Btn>
+          <a
+            href={`/admin/programs/${row._id}/edit`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-block',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '6px 14px',
+              background: 'linear-gradient(135deg, #D4AF37, #B8960C)',
+              color: '#0a2416',
+              fontSize: '12px',
+              fontWeight: '600',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Edit
+          </a>
           {row.isActive && (
             <Btn small variant="danger" onClick={() => handleDeactivate(row)}>Deactivate</Btn>
           )}
