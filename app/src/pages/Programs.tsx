@@ -9,6 +9,10 @@ import { getPrograms } from "../services/programService";
 
 const PAGE_SIZE = 25;
 
+function normalizeFilterValue(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
 function Programs() {
   const [searchParams] = useSearchParams();
 
@@ -108,16 +112,22 @@ function Programs() {
       list = list.filter((p) => {
         // Check p.cities[] array first (main source)
         if (Array.isArray(p.cities) && p.cities.length > 0) {
-          return p.cities.some((c: string) => filters.cities.includes(c?.trim()));
+          return p.cities.some((c: string) =>
+            filters.cities.some((city) => normalizeFilterValue(city) === normalizeFilterValue(c ?? ""))
+          );
         }
         // Fallback: location.city
         if (p.location?.city?.trim()) {
-          return filters.cities.includes(p.location.city.trim());
+          return filters.cities.some((city) =>
+            normalizeFilterValue(city) === normalizeFilterValue(p.location.city)
+          );
         }
         // Fallback: first part of location.title
         if (p.location?.title) {
           const city = p.location.title.split(/[-–,]/)[0].trim();
-          return filters.cities.includes(city);
+          return filters.cities.some((selectedCity) =>
+            normalizeFilterValue(selectedCity) === normalizeFilterValue(city)
+          );
         }
         return false;
       });
@@ -126,14 +136,22 @@ function Programs() {
     // Level: any match in skillLevels array
     if (filters.levels.length > 0) {
       list = list.filter((p) =>
-        filters.levels.some((l) => p.skillLevels?.includes(l))
+        filters.levels.some((level) =>
+          p.skillLevels?.some((programLevel: string) =>
+            normalizeFilterValue(programLevel) === normalizeFilterValue(level)
+          )
+        )
       );
     }
 
     // Age group: any match in ageGroups array
     if (filters.ageGroups.length > 0) {
       list = list.filter((p) =>
-        filters.ageGroups.some((a) => p.ageGroups?.includes(a))
+        filters.ageGroups.some((ageGroup) =>
+          p.ageGroups?.some((programAgeGroup: string) =>
+            normalizeFilterValue(programAgeGroup) === normalizeFilterValue(ageGroup)
+          )
+        )
       );
     }
 

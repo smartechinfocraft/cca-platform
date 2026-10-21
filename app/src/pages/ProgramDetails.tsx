@@ -20,6 +20,7 @@ import WeeklyBatchSelector from "../components/registration/WeeklyBatchSelector"
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
 import { splitAndSortScheduleItems } from "../utils/scheduleDisplay";
+import { formatDateOnly } from "../utils/dateOnly";
 import toast from "react-hot-toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -77,11 +78,10 @@ function getLocationStr(batch: BatchRaw): string {
 // Formats a month option's start/end dates as "Jul 5 - Aug 10"
 function fmtMonthDateRange(startDate?: string, endDate?: string): string {
   if (!startDate || !endDate) return "";
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  return `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  const start = formatDateOnly(startDate, opts);
+  const end = formatDateOnly(endDate, opts);
+  return start && end ? `${start} - ${end}` : "";
 }
 function getMonthOptionSessionCount(label?: string): string {
   return label?.match(/\b\d+\s*Sessions?\b/i)?.[0] ?? "";
@@ -95,10 +95,7 @@ function formatMonthOptionDetails(option?: MonthOption | null): string {
   ].filter(Boolean).join(" - ");
 }
 function formatProgramDate(date?: string): string {
-  if (!date) return "";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return formatDateOnly(date, { month: "short", day: "numeric", year: "numeric" });
 }
 function renderDescription(description?: string) {
   if (!description) return null;

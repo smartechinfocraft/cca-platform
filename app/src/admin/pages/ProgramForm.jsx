@@ -203,12 +203,12 @@ function fmtTime12(t) {
 
 function calcBatchLabel(startDate, startTime, endDate, endTime) {
   if (!startDate || !endDate) return '';
-  const s = new Date(startDate);
-  const e = new Date(endDate);
+  const s = new Date(`${startDate}T00:00:00Z`);
+  const e = new Date(`${endDate}T00:00:00Z`);
   if (isNaN(s) || isNaN(e)) return '';
-  const sm = s.toLocaleDateString('en-US', { month: 'long' });
-  const em = e.toLocaleDateString('en-US', { month: 'long' });
-  const dateLabel = sm === em ? `${sm} ${s.getDate()} - ${e.getDate()}` : `${sm} ${s.getDate()} - ${em} ${e.getDate()}`;
+  const sm = s.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const em = e.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const dateLabel = sm === em ? `${sm} ${s.getUTCDate()} - ${e.getUTCDate()}` : `${sm} ${s.getUTCDate()} - ${em} ${e.getUTCDate()}`;
   const timeLabel = startTime && endTime ? ` (${fmtTime12(startTime)} - ${fmtTime12(endTime)})` : '';
   return `${dateLabel}${timeLabel}`;
 }

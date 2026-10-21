@@ -20,6 +20,7 @@ import SavedStudentPicker from "./registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, fmt12, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
 import { splitAndSortScheduleItems } from "../utils/scheduleDisplay";
+import { formatDateOnly } from "../utils/dateOnly";
 import { setQuickRegisterVisibility } from "../utils/quickRegisterVisibility";
 
 type ProgramCardProps = {
@@ -64,15 +65,11 @@ type ProgramBatchSummary = {
 };
 
 function formatProgramDate(date?: string): string {
-  if (!date) return "";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("en-US", {
+  return formatDateOnly(date, {
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
-   
   });
 }
 
@@ -442,11 +439,10 @@ function getLocationStr(batch: QuickBatch): string {
 // Formats a month option's start/end dates as "Jul 5 - Aug 10"
 function fmtMonthDateRange(startDate?: string, endDate?: string): string {
   if (!startDate || !endDate) return "";
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  return `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  const start = formatDateOnly(startDate, opts);
+  const end = formatDateOnly(endDate, opts);
+  return start && end ? `${start} - ${end}` : "";
 }
 
 function formatMonthOptionDetails(option?: MonthOption | null): string {

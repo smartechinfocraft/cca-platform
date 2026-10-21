@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   HiOutlineCalendar,
@@ -25,6 +25,74 @@ type Props = {
 };
 
 type Season = { _id: string; title: string };
+type FilterProgram = {
+  category?: { title?: string };
+  cities?: string[];
+  location?: { city?: string; title?: string };
+  skillLevels?: string[];
+  ageGroups?: string[];
+};
+
+type ProgramFilterOptions = {
+  cities: string[];
+  levels: string[];
+  ageGroups: string[];
+};
+
+function normalizeOption(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function retainAvailableOptions(selected: string[], available: string[]): string[] {
+  const availableValues = new Set(available.map((option) => option.toLocaleLowerCase()));
+  return selected.filter((value) => availableValues.has(normalizeOption(value).toLocaleLowerCase()));
+}
+
+function getProgramFilterOptions(programs: FilterProgram[], season: string): ProgramFilterOptions {
+  const scopedPrograms = season
+    ? programs.filter((program) => program.category?.title === season)
+    : programs;
+  const optionSets = {
+    cities: new Map<string, string>(),
+    levels: new Map<string, string>(),
+    ageGroups: new Map<string, string>(),
+  };
+  const addOption = (options: Map<string, string>, value: string) => {
+    const normalized = normalizeOption(value);
+    if (normalized) options.set(normalized.toLocaleLowerCase(), normalized);
+  };
+
+  scopedPrograms.forEach((program) => {
+    if (Array.isArray(program.cities) && program.cities.length > 0) {
+      program.cities.forEach((city) => {
+        if (typeof city === "string") addOption(optionSets.cities, city);
+      });
+    } else if (program.location?.city) {
+      addOption(optionSets.cities, program.location.city);
+    } else if (program.location?.title) {
+      addOption(optionSets.cities, program.location.title.split(/[-–,]/)[0]);
+    }
+
+    if (Array.isArray(program.skillLevels)) {
+      program.skillLevels.forEach((level) => {
+        if (typeof level === "string") addOption(optionSets.levels, level);
+      });
+    }
+    if (Array.isArray(program.ageGroups)) {
+      program.ageGroups.forEach((ageGroup) => {
+        if (typeof ageGroup === "string") addOption(optionSets.ageGroups, ageGroup);
+      });
+    }
+  });
+
+  const sortedOptions = (options: Map<string, string>) =>
+    Array.from(options.values()).sort((a, b) => a.localeCompare(b));
+  return {
+    cities: sortedOptions(optionSets.cities),
+    levels: sortedOptions(optionSets.levels),
+    ageGroups: sortedOptions(optionSets.ageGroups),
+  };
+}
 
 function SingleSelectDropdown({ label, icon, options, selected, placeholder, onChange }: {
   label: string;
@@ -205,10 +273,7 @@ function MultiSelectDropdown({
 /* ── Main component ─────────────────────────────────────────── */
 function ProgramFilter({ filters, onChange }: Props) {
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [activeTitles, setActiveTitles] = useState<Set<string>>(new Set());
-  const [cityOptions, setCityOptions] = useState<string[]>([]);
-  const [levelOptions, setLevelOptions] = useState<string[]>([]);
-  const [ageGroupOptions, setAgeGroupOptions] = useState<string[]>([]);
+  const [programs, setPrograms] = useState<FilterProgram[] | null>(null);
   const [seasonOpen, setSeasonOpen] = useState(false);
   const [seasonQuery, setSeasonQuery] = useState("");
   const [isStuck, setIsStuck] = useState(false);
@@ -230,39 +295,7 @@ function ProgramFilter({ filters, onChange }: Props) {
         const cats: Season[] = categoryData ?? [];
         setSeasons(cats);
 
-        const progList: any[] = progs ?? [];
-
-        // Which category titles have at least one active program
-        const titles = new Set<string>();
-        progList.forEach((p) => {
-          if (p.category?.title) titles.add(p.category.title);
-        });
-        setActiveTitles(titles);
-
-        // Cities: use p.cities[] array (primary city field on programs)
-        // Fallback to location.city or location.title prefix
-        const allCities = new Set<string>();
-        progList.forEach((p) => {
-          if (Array.isArray(p.cities) && p.cities.length > 0) {
-            p.cities.forEach((c: string) => { if (c?.trim()) allCities.add(c.trim()); });
-          } else if (p.location?.city?.trim()) {
-            allCities.add(p.location.city.trim());
-          } else if (p.location?.title) {
-            const city = p.location.title.split(/[-–,]/)[0].trim();
-            if (city) allCities.add(city);
-          }
-        });
-        setCityOptions(Array.from(allCities).sort());
-
-        // Levels and age groups
-        const allLevels = new Set<string>();
-        const allAges = new Set<string>();
-        progList.forEach((p) => {
-          if (Array.isArray(p.skillLevels)) p.skillLevels.forEach((l: string) => allLevels.add(l));
-          if (Array.isArray(p.ageGroups)) p.ageGroups.forEach((a: string) => allAges.add(a));
-        });
-        setLevelOptions(Array.from(allLevels).sort());
-        setAgeGroupOptions(Array.from(allAges).sort());
+        setPrograms(progs ?? []);
 
         setReady(true);
       })
@@ -302,7 +335,33 @@ function ProgramFilter({ filters, onChange }: Props) {
 
   const filteredSeasons = seasons.filter((season) => season.title.toLowerCase().includes(seasonQuery.trim().toLowerCase()));
   const activeFilterCount = Number(Boolean(filters.season)) + filters.cities.length + filters.levels.length + filters.ageGroups.length;
+  const activeTitles = useMemo(
+    () => new Set((programs ?? []).map((program) => program.category?.title).filter((title): title is string => Boolean(title))),
+    [programs],
+  );
   const activeCategoryOptions = seasons.filter((season) => activeTitles.has(season.title)).map((season) => season.title);
+  const filterOptions = useMemo(
+    () => getProgramFilterOptions(programs ?? [], filters.season),
+    [programs, filters.season],
+  );
+  const mobileFilterOptions = useMemo(
+    () => getProgramFilterOptions(programs ?? [], mobileDraft.season),
+    [programs, mobileDraft.season],
+  );
+
+  useEffect(() => {
+    if (programs === null) return;
+    const cities = retainAvailableOptions(filters.cities, filterOptions.cities);
+    const levels = retainAvailableOptions(filters.levels, filterOptions.levels);
+    const ageGroups = retainAvailableOptions(filters.ageGroups, filterOptions.ageGroups);
+    if (
+      cities.length !== filters.cities.length ||
+      levels.length !== filters.levels.length ||
+      ageGroups.length !== filters.ageGroups.length
+    ) {
+      onChange({ cities, levels, ageGroups });
+    }
+  }, [filters.cities, filters.levels, filters.ageGroups, filterOptions, onChange, programs]);
 
   useEffect(() => {
     const handleQuickRegisterVisibility = (event: Event) => {
@@ -332,6 +391,15 @@ function ProgramFilter({ filters, onChange }: Props) {
   };
 
   const updateMobileDraft = (next: Partial<Filters>) => setMobileDraft((current) => ({ ...current, ...next }));
+  const updateMobileSeason = (season: string) => {
+    const nextOptions = getProgramFilterOptions(programs ?? [], season);
+    updateMobileDraft({
+      season,
+      cities: retainAvailableOptions(mobileDraft.cities, nextOptions.cities),
+      levels: retainAvailableOptions(mobileDraft.levels, nextOptions.levels),
+      ageGroups: retainAvailableOptions(mobileDraft.ageGroups, nextOptions.ageGroups),
+    });
+  };
 
   const resetFilters = () => onChange({ season: "", cities: [], levels: [], ageGroups: [] });
 
@@ -435,7 +503,7 @@ function ProgramFilter({ filters, onChange }: Props) {
         <MultiSelectDropdown
           label="Location"
           icon={<HiOutlineLocationMarker className="h-4 w-4 text-[#A33B2B]" />}
-          options={cityOptions}
+          options={filterOptions.cities}
           selected={filters.cities}
           placeholder="All Locations"
           onChange={(v) => onChange({ cities: v })}
@@ -445,7 +513,7 @@ function ProgramFilter({ filters, onChange }: Props) {
         <MultiSelectDropdown
           label="Skill Level"
           icon={<HiOutlineSparkles className="h-4 w-4 text-[#A33B2B]" />}
-          options={levelOptions}
+          options={filterOptions.levels}
           selected={filters.levels}
           placeholder="All Levels"
           onChange={(v) => onChange({ levels: v })}
@@ -455,7 +523,7 @@ function ProgramFilter({ filters, onChange }: Props) {
         <MultiSelectDropdown
           label="Age Group"
           icon={<HiOutlineUserGroup className="h-4 w-4 text-[#A33B2B]" />}
-          options={ageGroupOptions}
+          options={filterOptions.ageGroups}
           selected={filters.ageGroups}
           placeholder="All Ages"
           onChange={(v) => onChange({ ageGroups: v })}
@@ -491,10 +559,10 @@ function ProgramFilter({ filters, onChange }: Props) {
             <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Close filter drawer" className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-700"><HiX className="h-5 w-5" /></button>
           </div>
           <div className="space-y-5">
-            <SingleSelectDropdown label="Category" icon={<HiOutlineCalendar className="h-4 w-4 text-[#A33B2B]" />} options={activeCategoryOptions} selected={mobileDraft.season} placeholder="All Categories" onChange={(season) => updateMobileDraft({ season })} />
-            <MultiSelectDropdown label="Location" icon={<HiOutlineLocationMarker className="h-4 w-4 text-[#A33B2B]" />} options={cityOptions} selected={mobileDraft.cities} placeholder="All Locations" onChange={(cities) => updateMobileDraft({ cities })} />
-            <MultiSelectDropdown label="Skill Level" icon={<HiOutlineSparkles className="h-4 w-4 text-[#A33B2B]" />} options={levelOptions} selected={mobileDraft.levels} placeholder="All Levels" onChange={(levels) => updateMobileDraft({ levels })} />
-            <MultiSelectDropdown label="Age Group" icon={<HiOutlineUserGroup className="h-4 w-4 text-[#A33B2B]" />} options={ageGroupOptions} selected={mobileDraft.ageGroups} placeholder="All Ages" onChange={(ageGroups) => updateMobileDraft({ ageGroups })} />
+            <SingleSelectDropdown label="Category" icon={<HiOutlineCalendar className="h-4 w-4 text-[#A33B2B]" />} options={activeCategoryOptions} selected={mobileDraft.season} placeholder="All Categories" onChange={updateMobileSeason} />
+            <MultiSelectDropdown label="Location" icon={<HiOutlineLocationMarker className="h-4 w-4 text-[#A33B2B]" />} options={mobileFilterOptions.cities} selected={mobileDraft.cities} placeholder="All Locations" onChange={(cities) => updateMobileDraft({ cities })} />
+            <MultiSelectDropdown label="Skill Level" icon={<HiOutlineSparkles className="h-4 w-4 text-[#A33B2B]" />} options={mobileFilterOptions.levels} selected={mobileDraft.levels} placeholder="All Levels" onChange={(levels) => updateMobileDraft({ levels })} />
+            <MultiSelectDropdown label="Age Group" icon={<HiOutlineUserGroup className="h-4 w-4 text-[#A33B2B]" />} options={mobileFilterOptions.ageGroups} selected={mobileDraft.ageGroups} placeholder="All Ages" onChange={(ageGroups) => updateMobileDraft({ ageGroups })} />
           </div>
           <div className="sticky bottom-0 mt-6 flex gap-3 border-t border-slate-200 bg-white/95 pt-4 backdrop-blur-md">
             <button type="button" onClick={() => setMobileDraft({ season: "", cities: [], levels: [], ageGroups: [] })} className="h-14 rounded-full border border-slate-300 px-5 text-sm font-semibold text-slate-700">Reset</button>

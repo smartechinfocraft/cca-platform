@@ -28,6 +28,7 @@ import { getMyStudents, getParentProfile } from "../../services/parentDashboardS
 import type { StudentWithSummary } from "../../types/parentDashboard";
 import SavedStudentPicker from "../registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
+import { formatDateOnly } from "../../utils/dateOnly";
 import { getVisibleMonthOptions } from "../../utils/monthOptions";
 import { splitAndSortScheduleItems } from "../../utils/scheduleDisplay";
 import {
@@ -111,11 +112,11 @@ interface Props {
 // Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
 function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
   if (!startDate || !endDate) return "";
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  const start = formatDateOnly(startDate, opts);
+  const end = formatDateOnly(endDate, opts);
+  if (!start || !end) return "";
+  const range = `${start} - ${end}`;
   return weeks ? `${range} ( ${weeks} week )` : range;
 }
 
