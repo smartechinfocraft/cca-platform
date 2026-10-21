@@ -25,7 +25,7 @@ const uniqueOptions = (options) => {
     .sort((a, b) => a.label.localeCompare(b.label));
 };
 
-const locationLabel = (location) => (location?.city || location?.title || '').trim();
+const locationLabel = (location) => (location?.title || '').trim();
 const locationKey = (location) => locationLabel(location).replace(/\s+/g, ' ').toLocaleLowerCase();
 
 const uniqueLocationOptions = (rows) => {
@@ -472,6 +472,10 @@ export default function Programs() {
         locations: [...new Set(previous.locations.map(value => {
           const existingOption = p.data.data.find(row => locationKey(row.location) === value);
           if (existingOption) return locationKey(existingOption.location);
+          const legacyLabelMatch = p.data.data.find(row =>
+            row.location?.city?.trim().replace(/\s+/g, ' ').toLocaleLowerCase() === value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+          );
+          if (legacyLabelMatch) return locationKey(legacyLabelMatch.location);
           const legacyMatch = p.data.data.find(row => idOf(row.location) === value);
           return legacyMatch ? locationKey(legacyMatch.location) : value;
         }))],
@@ -660,7 +664,7 @@ export default function Programs() {
     { key: 'title',     label: 'Program Title' },
     { key: 'sku',       label: 'SKU',       render: v => <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#F5D97A' }}>{v}</span> },
     { key: 'category',  label: 'Category',  render: v => v?.title || '—' },
-    { key: 'location',  label: 'Location',  render: v => v?.city  || '—' },
+    { key: 'location',  label: 'Location Name',  render: v => v?.title || '—' },
     { key: 'basePrice', label: 'Price',     render: v => `$${v}` },
     { key: 'ageGroups', label: 'Age Groups',render: v => (v || []).join(', ') || '—' },
     { key: 'isActive',  label: 'Status',    render: v => <Badge label={v ? 'ACTIVE' : 'INACTIVE'} /> },
