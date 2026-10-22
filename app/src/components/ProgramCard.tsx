@@ -356,7 +356,7 @@ function ProgramCard({ program }: ProgramCardProps) {
           <div className="rounded-[20px] bg-[#A33B2B]/5 p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.24em] text-[#A33B2B]">
               <HiOutlineCurrencyDollar className="h-4 w-4" />
-              Price
+              Price Starts
             </div>
             <div className="mt-3 text-3xl font-semibold text-[#0F172A]">
               {price ? `$${price}` : "N/A"}
