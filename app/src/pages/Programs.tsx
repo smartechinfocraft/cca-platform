@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -8,9 +8,34 @@ import type { Filters } from "../components/ProgramFilter";
 import { getPrograms } from "../services/programService";
 
 const PAGE_SIZE = 25;
+const programSortCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 function normalizeFilterValue(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function firstSortedValue(values?: string[]): string {
+  return [...(values ?? [])].sort(programSortCollator.compare)[0] ?? "";
+}
+
+function compareProgramValues(a: string, b: string): number {
+  if (!a) return b ? 1 : 0;
+  if (!b) return -1;
+  return programSortCollator.compare(a, b);
+}
+
+type SortableProgram = {
+  skillLevels?: string[];
+  ageGroups?: string[];
+  location?: { title?: string };
+  title?: string;
+};
+
+function comparePrograms(a: SortableProgram, b: SortableProgram): number {
+  return compareProgramValues(firstSortedValue(a.skillLevels), firstSortedValue(b.skillLevels)) ||
+    compareProgramValues(firstSortedValue(a.ageGroups), firstSortedValue(b.ageGroups)) ||
+    compareProgramValues(a.location?.title ?? "", b.location?.title ?? "") ||
+    compareProgramValues(a.title ?? "", b.title ?? "");
 }
 
 function Programs() {
@@ -27,10 +52,11 @@ function Programs() {
   });
   const [programId, setProgramId] = useState<string>(searchParams.get("program") ?? "");
   const [categoryId, setCategoryId] = useState<string>(searchParams.get("category") ?? "");
-  const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Re-sync filters whenever the URL's query params change. Without this,
   // clicking a second footer link (e.g. another location) while already on
@@ -47,7 +73,7 @@ function Programs() {
     });
     setProgramId(searchParams.get("program") ?? "");
     setCategoryId(searchParams.get("category") ?? "");
-    setPage(1);
+    setVisibleCount(PAGE_SIZE);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
 
@@ -137,26 +163,41 @@ function Programs() {
       );
     }
 
-    return list;
+    return [...list].sort(comparePrograms);
   }, [filters, programs, programId, categoryId]);
 
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-
   const paged = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
+    return filtered.slice(0, visibleCount);
+  }, [filtered, visibleCount]);
+
+  const hasMore = visibleCount < filtered.length;
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || !hasMore || !("IntersectionObserver" in window)) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisibleCount((current) => Math.min(current + PAGE_SIZE, filtered.length));
+        }
+      },
+      { rootMargin: "400px 0px" },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [filtered.length, hasMore]);
 
   function handleChange(next: Partial<Filters>) {
     setFilters((s) => ({ ...s, ...next }));
     setCategoryId("");
-    setPage(1);
+    setVisibleCount(PAGE_SIZE);
   }
 
   function handleReset() {
     setFilters({ season: "", cities: [], levels: [], ageGroups: [] });
     setCategoryId("");
-    setPage(1);
+    setVisibleCount(PAGE_SIZE);
   }
 
   return (
@@ -224,27 +265,20 @@ function Programs() {
                 ))}
               </div>
 
-              <div className="mt-12 flex flex-col gap-3 items-center justify-center sm:flex-row sm:gap-4">
-                <button
-                  className="min-w-[120px] rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#A33B2B] hover:text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Prev
-                </button>
-
-                <div className="text-sm text-slate-700">
-                  Page {page} of {pages}
+              {hasMore && (
+                <div ref={loadMoreRef} className="mt-12 flex justify-center">
+                  <button
+                    type="button"
+                    className="min-w-[180px] rounded-full bg-[#A33B2B] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#ea7a2e]"
+                    onClick={() => setVisibleCount((current) => Math.min(current + PAGE_SIZE, filtered.length))}
+                  >
+                    Load more programs
+                  </button>
                 </div>
-
-                <button
-                  className="min-w-[120px] rounded-full bg-[#A33B2B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#ea7a2e] disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                  disabled={page === pages}
-                >
-                  Next
-                </button>
-              </div>
+              )}
+              <p className="mt-4 text-center text-sm text-slate-500" aria-live="polite">
+                Showing {paged.length} of {filtered.length} programs
+              </p>
             </>
           )}
         </div>

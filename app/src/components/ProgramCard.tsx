@@ -31,8 +31,10 @@ type ProgramCardProps = {
     category?: string | { title?: string; holidayNotes?: string } | null;
     startDate?: string;
     endDate?: string;
+    batchType?: string;
     basePrice?: number;
     discountedPrice?: number;
+    monthOptions?: MonthOption[];
     showEndDate?: boolean;
     location?: { title?: string } | null;
     city?: { title?: string } | null;
@@ -87,7 +89,13 @@ function ProgramCard({ program }: ProgramCardProps) {
   const navigate = useNavigate();
   const [quickOpen, setQuickOpen] = useState(false);
   const [programDetails, setProgramDetails] = useState<any | null>(null);
-  const price = program.discountedPrice ?? program.basePrice;
+  const defaultPrice = program.discountedPrice ?? program.basePrice;
+  const monthOptionPrices = program.batchType === "REGULAR_WITH_MONTH"
+    ? getVisibleMonthOptions(program.monthOptions)
+      .map((option) => Number(option.price))
+      .filter((optionPrice) => Number.isFinite(optionPrice) && optionPrice > 0)
+    : [];
+  const price = monthOptionPrices.length > 0 ? Math.min(...monthOptionPrices) : defaultPrice;
   const programWithDetails = programDetails ?? program;
   const availableDays = buildProgramAvailableDayOptions(programWithDetails);
   const availableBatchCount = Array.isArray(programWithDetails.batches) && programWithDetails.batches.length > 0
