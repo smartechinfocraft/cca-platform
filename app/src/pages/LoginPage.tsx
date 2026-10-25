@@ -439,7 +439,7 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
                   <h2 className="text-xl font-bold mb-2" style={{ color: "var(--outfield)" }}>Check Your Email</h2>
                   <p className="text-sm mb-6" style={{ color: "var(--ink-500)", lineHeight: "1.6" }}>
                     If <strong>{forgotEmail}</strong> is registered in our system, you'll receive a temporary password shortly.
-                    Use it to log in, then update your password.
+                    If this email belongs to a guest registration, verify it using the activation link before signing in with the temporary password.
                   </p>
                   <button
                     type="button"
@@ -457,7 +457,7 @@ function LoginPage({ modal = false }: { modal?: boolean }) {
                     Reset Password
                   </h2>
                   <p className="text-sm text-center mb-6" style={{ color: "var(--ink-500)", lineHeight: "1.5" }}>
-                    Enter your registered email address and we'll send a temporary password.
+                    Enter your parent portal email. For a guest registration, we'll send a temporary password and an email verification link; verify the email before signing in.
                   </p>
                   <form onSubmit={handleForgotPassword} className="space-y-4">
                     <div>

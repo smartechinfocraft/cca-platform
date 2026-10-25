@@ -463,8 +463,27 @@ router.post('/auth/forgot-password', async (req, res) => {
 
     const parent = await Parent.findOne({ email: email.toLowerCase().trim() }).select('+password');
 
-    // Always return the same response to prevent email enumeration
+    // Keep the response identical to avoid revealing whether an email exists.
     if (!parent || !parent.isActive) {
+      return res.json({ success: true, message: 'If that email is registered, you will receive a password reset email shortly.' });
+    }
+
+    if (parent.accountStatus === 'GUEST') {
+      const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
+      parent.password = tempPassword;
+      await parent.save();
+      await sendForgotPasswordEmail({
+        to: parent.email,
+        firstName: parent.firstName,
+        tempPassword,
+        role: 'Parent',
+        loginUrl: `${process.env.FRONTEND_URL || 'https://calcricket.org'}/login`,
+      });
+      await sendParentVerification(parent);
+      return res.json({ success: true, message: 'If that email is registered, you will receive a password reset email shortly.' });
+    }
+
+    if (!isPortalAccount(parent)) {
       return res.json({ success: true, message: 'If that email is registered, you will receive a password reset email shortly.' });
     }
 
