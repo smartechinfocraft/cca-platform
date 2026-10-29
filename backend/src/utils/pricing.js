@@ -130,6 +130,9 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
     unitPrice = perWeekPrice * weekCount;
   } else if (selectedMonthPrice > 0) {
     unitPrice = selectedMonthPrice * selectedFrequency;
+  } else if (program.batchType === 'REGULAR_WITHOUT_MONTH') {
+    const perSessionPrice = batch?.price ?? (program.discountedPrice != null ? program.discountedPrice : program.basePrice);
+    unitPrice = perSessionPrice * selectedFrequency;
   } else if (batch?.pricePerSession && selectedFrequency > 0) {
     unitPrice = batch.pricePerSession * selectedFrequency;
   } else if (batch?.price != null) {

@@ -190,6 +190,72 @@ test('pricing accepts exact stored schedule entries and preserves day x student 
   } });
 });
 
+test('regular programs without month options multiply the per-session price by selected days', async () => {
+  const program = {
+    _id: 'program-1', isActive: true, basePrice: 430, batchType: 'REGULAR_WITHOUT_MONTH',
+    monthOptions: [],
+    scheduleDays: [
+      { day: 'TUE', startTime: '16:00', endTime: '17:30', groundAddress: '10800 Torre Avenue, Cupertino' },
+      { day: 'THU', startTime: '16:00', endTime: '17:30', groundAddress: '10800 Torre Avenue, Cupertino' },
+    ],
+  };
+  const selectedDays = [
+    'Tuesday - 4:00 PM - 5:30 PM - 10800 Torre Avenue, Cupertino',
+    'Thursday - 4:00 PM - 5:30 PM - 10800 Torre Avenue, Cupertino',
+  ].join(' + ');
+
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({ cartItems: [{
+      programId: 'program-1', batchId: 'program-1', fee: 860,
+      selectedDays, sessionsPerWeek: 2, students: [{}],
+    }] });
+    assert.equal(result.lineItems[0].unitPrice, 860);
+    assert.equal(result.subtotal, 860);
+  }, { program });
+});
+
+test('regular programs without month options retain the one-day price', async () => {
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({ cartItems: [{
+      programId: 'program-1', batchId: 'program-1', fee: 430,
+      selectedDays: 'Tuesday - 4:00 PM - 5:30 PM - 10800 Torre Avenue, Cupertino',
+      sessionsPerWeek: 1, students: [{}],
+    }] });
+    assert.equal(result.lineItems[0].unitPrice, 430);
+    assert.equal(result.subtotal, 430);
+  }, { program: {
+    _id: 'program-1', isActive: true, basePrice: 430, batchType: 'REGULAR_WITHOUT_MONTH',
+    monthOptions: [],
+    scheduleDays: [{ day: 'TUE', startTime: '16:00', endTime: '17:30', groundAddress: '10800 Torre Avenue, Cupertino' }],
+  } });
+});
+
+test('regular programs without month options use the batch price displayed during registration', async () => {
+  const selectedDays = [
+    'Tuesday - 4:00 PM - 5:30 PM - 10800 Torre Avenue, Cupertino',
+    'Thursday - 4:00 PM - 5:30 PM - 10800 Torre Avenue, Cupertino',
+  ].join(' + ');
+
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({ cartItems: [{
+      programId: 'program-1', batchId: 'batch-1', fee: 860,
+      selectedDays, sessionsPerWeek: 2, students: [{}],
+    }] });
+    assert.equal(result.lineItems[0].unitPrice, 860);
+    assert.equal(result.subtotal, 860);
+  }, {
+    program: {
+      _id: 'program-1', isActive: true, basePrice: 430, batchType: 'REGULAR_WITHOUT_MONTH',
+      monthOptions: [],
+      scheduleDays: [
+        { day: 'TUE', startTime: '16:00', endTime: '17:30', groundAddress: '10800 Torre Avenue, Cupertino' },
+        { day: 'THU', startTime: '16:00', endTime: '17:30', groundAddress: '10800 Torre Avenue, Cupertino' },
+      ],
+    },
+    batch: { price: 430, pricePerSession: 500, monthOptions: [] },
+  });
+});
+
 test('cart pricing rejects a client-tampered fee', async () => {
   await withPricingModels(async () => {
     await assert.rejects(
