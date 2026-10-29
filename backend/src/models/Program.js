@@ -148,8 +148,12 @@ programSchema.pre('save', async function (next) {
   if (!this.slug || this.isModified('title')) {
     let base = toSlug(this.title);
     let slug  = base;
-    const existing = await mongoose.model('Program').findOne({ slug, _id: { $ne: this._id } });
-    if (existing) slug = `${base}-${Date.now()}`;
+    let attempt = 0;
+    // eslint-disable-next-line no-await-in-loop
+    while (await mongoose.model('Program').findOne({ slug, _id: { $ne: this._id } })) {
+      attempt += 1;
+      slug = `${base}-${Date.now()}-${attempt}`;
+    }
     this.slug = slug;
   }
 

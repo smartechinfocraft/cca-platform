@@ -6,10 +6,11 @@
 // ============================================================
 const mongoose = require('mongoose');
 const Program  = require('../models/Program');
-const { fileUrl } = require('../middleware/upload');
+const { fileUrl, UPLOAD_BASE } = require('../middleware/upload');
 const { pickAllowedFields } = require('../utils/allowlist');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const toSlug = (text) =>
   text.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -130,6 +131,63 @@ exports.create = async (req, res) => {
       return res.status(400).json({ success: false, message: details.join(' | ') });
     }
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── POST /api/programs/:id/duplicate ── Super Admin only ────────────────────
+exports.duplicate = async (req, res) => {
+  let copiedCoverPath;
+  try {
+    const source = await Program.findById(req.params.id);
+    if (!source) return res.status(404).json({ success: false, message: 'Program not found' });
+
+    const duplicateData = source.toObject({ depopulate: true });
+    for (const field of ['_id', '__v', 'slug', 'sku', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']) {
+      delete duplicateData[field];
+    }
+    for (const field of ['scheduleDays', 'monthOptions', 'weekOptions', 'weeklyBatches']) {
+      duplicateData[field] = (duplicateData[field] || []).map(({ _id, ...item }) => item);
+    }
+
+    if (source.coverImagePath) {
+      const sourceCoverPath = path.resolve(source.coverImagePath);
+      const programsDirectory = path.resolve(UPLOAD_BASE, 'programs');
+      const relativeCoverPath = path.relative(programsDirectory, sourceCoverPath);
+      if (!relativeCoverPath || relativeCoverPath.startsWith('..') || path.isAbsolute(relativeCoverPath)) {
+        throw new Error('The program cover image is outside the managed uploads directory.');
+      }
+
+      copiedCoverPath = path.join(
+        programsDirectory,
+        `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(sourceCoverPath)}`,
+      );
+      fs.copyFileSync(sourceCoverPath, copiedCoverPath);
+      duplicateData.coverImagePath = copiedCoverPath.replace(/\\/g, '/');
+      duplicateData.coverImageUrl = fileUrl(req, copiedCoverPath);
+    }
+
+    duplicateData.isActive = false;
+    duplicateData.createdBy = req.user._id;
+
+    const duplicate = new Program(duplicateData);
+    await duplicate.save();
+    return res.status(201).json({ success: true, data: duplicate });
+  } catch (err) {
+    if (copiedCoverPath && fs.existsSync(copiedCoverPath)) {
+      try {
+        fs.unlinkSync(copiedCoverPath);
+      } catch (cleanupError) {
+        console.error('[programs] failed to remove copied cover image after duplication failed:', cleanupError);
+      }
+    }
+    if (err.code === 11000) {
+      return res.status(409).json({ success: false, message: 'A unique program SKU or slug could not be generated' });
+    }
+    if (err.name === 'ValidationError') {
+      const details = Object.values(err.errors).map(error => error.message);
+      return res.status(400).json({ success: false, message: details.join(' | ') });
+    }
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 

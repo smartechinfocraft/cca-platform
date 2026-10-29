@@ -457,6 +457,7 @@ export default function Programs() {
   const [openFilter,   setOpenFilter]   = useState('');
   const [selectedIds,  setSelectedIds]  = useState([]);
   const [bulkSaving,   setBulkSaving]   = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState('');
   const [uploading,    setUploading]    = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const fileInputRef                   = useRef();
@@ -533,6 +534,21 @@ export default function Programs() {
       load();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Delete failed');
+    }
+  };
+
+  const handleDuplicate = async (row) => {
+    if (!window.confirm(`Create an inactive copy of "${row.title}"?`)) return;
+    setDuplicatingId(row._id);
+    try {
+      const response = await programsAPI.duplicate(row._id);
+      const duplicate = response.data.data;
+      toast.success('Inactive program copy created. Review and update it before activating.');
+      navigate(`/admin/programs/${duplicate._id}/edit`);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to duplicate program');
+    } finally {
+      setDuplicatingId('');
     }
   };
 
@@ -692,6 +708,9 @@ export default function Programs() {
           >
             Edit
           </a>
+          <Btn small disabled={duplicatingId === row._id} onClick={() => handleDuplicate(row)}>
+            {duplicatingId === row._id ? 'Copying...' : 'Duplicate'}
+          </Btn>
           {row.isActive && (
             <Btn small variant="danger" onClick={() => handleDeactivate(row)}>Deactivate</Btn>
           )}

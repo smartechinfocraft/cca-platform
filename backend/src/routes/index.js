@@ -499,6 +499,7 @@ router.get(   '/programs',     protect, progCtrl.getAll);
 router.get(   '/programs/:id', protect, progCtrl.getOne);
 // ISSUE 4: uploadCoverImage handles the file, then controller saves path to DB
 router.post(  '/programs',     protect, superAdminOnly, uploadCoverImage, progCtrl.create);
+router.post(  '/programs/:id/duplicate', protect, superAdminOnly, progCtrl.duplicate);
 router.put(   '/programs/:id', protect, superAdminOnly, uploadCoverImage, progCtrl.update);
 router.delete('/programs/:id', protect, superAdminOnly, progCtrl.remove);
 router.delete('/programs/:id/permanent', protect, superAdminOnly, progCtrl.hardRemove);
