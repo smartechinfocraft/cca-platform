@@ -120,17 +120,16 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
 
   // Price priority (most specific wins):
   //   1. WEEKLY batchType with batches selected: (discountedPrice||basePrice) × weekCount
-  //   2. Batch per-session price × sessions/week
-  //   3. Batch flat price override
-  //   4. Program discountedPrice
-  //   5. Program basePrice
+  //   2. Selected month option price × sessions/week
+  //   3. Non-WEEKLY batch/program price × sessions/week
+  //   4. Legacy WEEKLY fallback: batch or program price
   let unitPrice;
   if (program.batchType === 'WEEKLY' && weekCount > 0) {
     const perWeekPrice = program.discountedPrice != null ? program.discountedPrice : program.basePrice;
     unitPrice = perWeekPrice * weekCount;
   } else if (selectedMonthPrice > 0) {
     unitPrice = selectedMonthPrice * selectedFrequency;
-  } else if (program.batchType === 'REGULAR_WITHOUT_MONTH') {
+  } else if (program.batchType !== 'WEEKLY') {
     const perSessionPrice = batch?.price ?? (program.discountedPrice != null ? program.discountedPrice : program.basePrice);
     unitPrice = perSessionPrice * selectedFrequency;
   } else if (batch?.pricePerSession && selectedFrequency > 0) {

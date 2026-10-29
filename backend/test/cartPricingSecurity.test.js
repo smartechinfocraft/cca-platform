@@ -256,6 +256,50 @@ test('regular programs without month options use the batch price displayed durin
   });
 });
 
+test('fixed-day and special-camp programs without month options multiply batch price by selected days', async () => {
+  const selectedDays = [
+    'Tuesday - 4:00 PM - 5:30 PM - 10800 Torre Avenue, Cupertino',
+    'Thursday - 4:00 PM - 5:30 PM - 10800 Torre Avenue, Cupertino',
+  ].join(' + ');
+
+  for (const batchType of ['FIXED_DAYS', 'SPECIAL_CAMP']) {
+    await withPricingModels(async () => {
+      const result = await computeCartTotal({ cartItems: [{
+        programId: 'program-1', batchId: 'batch-1', fee: 860,
+        selectedDays, sessionsPerWeek: 2, students: [{}],
+      }] });
+      assert.equal(result.lineItems[0].unitPrice, 860, `${batchType} unit price`);
+      assert.equal(result.subtotal, 860, `${batchType} subtotal`);
+    }, {
+      program: {
+        _id: 'program-1', isActive: true, basePrice: 430, batchType,
+        monthOptions: [],
+        scheduleDays: [
+          { day: 'TUE', startTime: '16:00', endTime: '17:30', groundAddress: '10800 Torre Avenue, Cupertino' },
+          { day: 'THU', startTime: '16:00', endTime: '17:30', groundAddress: '10800 Torre Avenue, Cupertino' },
+        ],
+      },
+      batch: { price: 430, monthOptions: [] },
+    });
+  }
+});
+
+test('weekly programs keep pricing by selected weekly batches', async () => {
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({ cartItems: [{
+      programId: 'program-1', batchId: 'program-1', fee: 600,
+      weeklyBatchIds: ['week-1', 'week-2'], students: [{}],
+    }] });
+    assert.equal(result.lineItems[0].unitPrice, 600);
+    assert.equal(result.subtotal, 600);
+  }, {
+    program: {
+      _id: 'program-1', isActive: true, basePrice: 300, batchType: 'WEEKLY',
+      weeklyBatches: [{ _id: 'week-1' }, { _id: 'week-2' }],
+    },
+  });
+});
+
 test('cart pricing rejects a client-tampered fee', async () => {
   await withPricingModels(async () => {
     await assert.rejects(
