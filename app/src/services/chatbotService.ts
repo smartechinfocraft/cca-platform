@@ -144,6 +144,13 @@ export interface ChatTimeSlot {
   endTime: string;
 }
 
+export interface ChatScheduleDay {
+  day: string;
+  startTime?: string;
+  endTime?: string;
+  groundAddress?: string;
+}
+
 export interface ChatBatch {
   _id: string;
   name?: string;
@@ -151,6 +158,7 @@ export interface ChatBatch {
   dayOfWeek?: string;
   multiDays?: string[];
   timeSlots?: ChatTimeSlot[];
+  scheduleDays?: ChatScheduleDay[];
   fee: number;                       // fallback fee when there are no monthOptions
   seats?: number;
   sessionsPerWeek?: number;          // MAX times/week selectable for this batch
@@ -188,6 +196,7 @@ export const fetchChatBatches = async (programId: string): Promise<ChatBatch[]> 
       dayOfWeek: b.dayOfWeek,
       multiDays: Array.isArray(b.multiDays) ? b.multiDays : undefined,
       timeSlots,
+      scheduleDays: Array.isArray(b.scheduleDays) ? b.scheduleDays : undefined,
       fee: Number(b.price ?? b.fee ?? b.pricePerSession ?? 0),
       seats: Math.max(0, Number(b.maxCapacity ?? b.seats ?? 0) - Number(b.currentCapacity ?? 0)),
       sessionsPerWeek: Number(b.sessionsPerWeek ?? 1) || 1,

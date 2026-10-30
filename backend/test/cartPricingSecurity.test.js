@@ -214,6 +214,50 @@ test('regular programs without month options multiply the per-session price by s
   }, { program });
 });
 
+test('two time slots on the same weekday count as two sessions and multiply price by two', async () => {
+  const program = {
+    _id: 'program-1', isActive: true, basePrice: 430, batchType: 'REGULAR_WITHOUT_MONTH',
+    monthOptions: [],
+    scheduleDays: [
+      { day: 'SAT', startTime: '09:30', endTime: '11:00', groundAddress: 'CCA Ground' },
+      { day: 'SAT', startTime: '15:00', endTime: '16:30', groundAddress: 'CCA Ground' },
+    ],
+  };
+  const selectedDays = [
+    'Saturday - 9:30 AM - 11:00 AM - CCA Ground',
+    'Saturday - 3:00 PM - 4:30 PM - CCA Ground',
+  ].join(' + ');
+
+  await withPricingModels(async () => {
+    const result = await computeCartTotal({ cartItems: [{
+      programId: 'program-1', batchId: 'program-1', fee: 860,
+      selectedDays, sessionsPerWeek: 2, students: [{}],
+    }] });
+    assert.equal(result.lineItems[0].unitPrice, 860);
+    assert.equal(result.subtotal, 860);
+  }, { program });
+});
+
+test('pricing rejects selecting the exact same schedule slot more than once', async () => {
+  await withPricingModels(async () => {
+    await assert.rejects(
+      computeCartTotal({ cartItems: [{
+        programId: 'program-1', batchId: 'program-1', fee: 860,
+        selectedDays: 'Saturday - 9:30 AM - 11:00 AM - CCA Ground + Saturday - 9:30 AM - 11:00 AM - CCA Ground',
+        sessionsPerWeek: 2, students: [{}],
+      }] }),
+      error => error.code === 'INVALID_SCHEDULE'
+    );
+  }, { program: {
+    _id: 'program-1', isActive: true, basePrice: 430, batchType: 'REGULAR_WITHOUT_MONTH',
+    monthOptions: [],
+    scheduleDays: [
+      { day: 'SAT', startTime: '09:30', endTime: '11:00', groundAddress: 'CCA Ground' },
+      { day: 'SAT', startTime: '15:00', endTime: '16:30', groundAddress: 'CCA Ground' },
+    ],
+  } });
+});
+
 test('regular programs without month options retain the one-day price', async () => {
   await withPricingModels(async () => {
     const result = await computeCartTotal({ cartItems: [{

@@ -291,7 +291,7 @@ router.get('/public/programs/:id', async (req, res) => {
       const days = prog.scheduleDays;
 
       // Determine if multi-day (more than one day) or single-day
-      const multiDays = days.map(d => d.day).filter(Boolean);
+      const multiDays = [...new Set(days.map(d => d.day).filter(Boolean))];
       const isMulti   = multiDays.length > 1;
 
       // Build timeSlots array from each scheduledDay entry

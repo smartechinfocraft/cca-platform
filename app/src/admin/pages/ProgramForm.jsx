@@ -47,7 +47,7 @@ const EMPTY_FORM = {
   registrationDeadline: '',
   monthOptions:         [],    // [{label, startDate, endDate, weeks, price, isEnabled}]
   weeklyBatches:        [],    // [{startDate,startTime,endDate,endTime,groundAddress,ageGroups,skillLevels,label}] — WEEKLY batch type only
-  scheduleDays:         [],    // [{day, startTime, endTime, groundAddress}]
+  scheduleDays:         [],    // One entry per selectable day/time slot; duplicate days are allowed.
   coachId:              '',
   shortDescription:     '',
   detailedDescription:  '',
@@ -673,9 +673,9 @@ export default function ProgramForm() {
 
   const toggleDay = (day) =>
     setForm(prev => {
-      const exists = prev.scheduleDays.find(d => d.day === day);
+      const exists = prev.scheduleDays.some(schedule => schedule.day === day);
       const scheduleDays = exists
-        ? prev.scheduleDays.filter(d => d.day !== day)
+        ? prev.scheduleDays.filter(schedule => schedule.day !== day)
         : [...prev.scheduleDays, { day, startTime: '', endTime: '', groundAddress: '' }];
       return {
         ...prev,
@@ -689,11 +689,54 @@ export default function ProgramForm() {
       };
     });
 
-  const updateDayField = (day, field, value) =>
-    setForm(prev => ({
-      ...prev,
-      scheduleDays: prev.scheduleDays.map(d => d.day === day ? { ...d, [field]: value } : d),
-    }));
+  const addTimeSlot = (day) =>
+    setForm(prev => {
+      const lastIndex = prev.scheduleDays.reduce(
+        (found, schedule, index) => schedule.day === day ? index : found,
+        -1,
+      );
+      const scheduleDays = [...prev.scheduleDays];
+      scheduleDays.splice(lastIndex + 1, 0, { day, startTime: '', endTime: '', groundAddress: '' });
+      return { ...prev, scheduleDays };
+    });
+
+  const removeTimeSlot = (day, slotIndex) =>
+    setForm(prev => {
+      let remainingForDay = 0;
+      const scheduleDays = prev.scheduleDays.filter(schedule => {
+        if (schedule.day !== day) return true;
+        if (remainingForDay === slotIndex) {
+          remainingForDay += 1;
+          return false;
+        }
+        remainingForDay += 1;
+        return true;
+      });
+      return {
+        ...prev,
+        scheduleDays,
+        monthOptions: syncMonthOptionsToSchedule(
+          prev.monthOptions,
+          scheduleDays,
+          prev.startDate,
+          prev.endDate,
+        ),
+      };
+    });
+
+  const updateDayField = (day, slotIndex, field, value) =>
+    setForm(prev => {
+      let currentSlot = 0;
+      return {
+        ...prev,
+        scheduleDays: prev.scheduleDays.map(schedule => {
+          if (schedule.day !== day) return schedule;
+          const matches = currentSlot === slotIndex;
+          currentSlot += 1;
+          return matches ? { ...schedule, [field]: value } : schedule;
+        }),
+      };
+    });
 
   // ─── Price preview calculation ────────────────────────────
   const daysCount = form.scheduleDays.length;
@@ -704,6 +747,34 @@ export default function ProgramForm() {
     if (!form.title.trim()) { toast.error('Program Title is required'); return; }
     if (!form.categoryId) { toast.error('Category (Season) is required'); return; }
     if (!form.price)      { toast.error('Price is required'); return; }
+    if (form.batchType !== 'WEEKLY') {
+      const slotsByDay = form.scheduleDays.reduce((groups, schedule) => {
+        groups[schedule.day] = [...(groups[schedule.day] || []), schedule];
+        return groups;
+      }, {});
+      for (const [day, slots] of Object.entries(slotsByDay)) {
+        if (slots.length > 1 && slots.some(slot => !slot.startTime || !slot.endTime)) {
+          toast.error(`${DAY_LABELS[day]}: enter a start and end time for every time slot.`);
+          return;
+        }
+        const timeRanges = slots
+          .filter(slot => slot.startTime && slot.endTime)
+          .map(slot => ({
+            start: Number(slot.startTime.slice(0, 2)) * 60 + Number(slot.startTime.slice(3, 5)),
+            end: Number(slot.endTime.slice(0, 2)) * 60 + Number(slot.endTime.slice(3, 5)),
+          }))
+          .sort((a, b) => a.start - b.start);
+        for (let index = 0; index < timeRanges.length; index += 1) {
+          if (!Number.isFinite(timeRanges[index].start)
+            || !Number.isFinite(timeRanges[index].end)
+            || timeRanges[index].end <= timeRanges[index].start
+            || (index > 0 && timeRanges[index].start < timeRanges[index - 1].end)) {
+            toast.error(`${DAY_LABELS[day]} time slots must be valid and cannot overlap.`);
+            return;
+          }
+        }
+      }
+    }
     if (form.batchType === 'WEEKLY') {
       if (form.weeklyBatches.length === 0) {
         toast.error('Add at least one Batch for this Weekly program'); return;
@@ -1391,8 +1462,8 @@ export default function ProgramForm() {
         ) : (
           <>
             <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
-              Select which days this program runs. Enter time and ground address for each day.
-              Price multiplies per day the user selects during registration.
+              Select which days this program runs. Add one or more time slots for each day.
+              Each selected time slot counts as one session per week and affects registration pricing.
             </div>
 
             {/* Day toggles */}
@@ -1409,67 +1480,90 @@ export default function ProgramForm() {
             </div>
 
             {/* Per-day time & address rows */}
-            {ALL_DAYS.filter(day => form.scheduleDays.some(d => d.day === day)).map(day => {
-              const dayData = form.scheduleDays.find(d => d.day === day);
+            {ALL_DAYS.filter(day => form.scheduleDays.some(schedule => schedule.day === day)).map(day => {
+              const daySlots = form.scheduleDays.filter(schedule => schedule.day === day);
               return (
                 <div key={day} style={{
-                  display: 'grid',
-                  gridTemplateColumns: '110px 130px 130px 1fr',
-                  gap: '12px', alignItems: 'center',
                   padding: '12px 16px',
                   background: 'rgba(212,175,55,0.05)',
                   border: '1px solid rgba(212,175,55,0.12)',
                   borderRadius: '8px', marginBottom: '8px',
                 }}>
-                  <div style={{ color: '#F5D97A', fontWeight: '700', fontSize: '14px' }}>
-                    {DAY_LABELS[day]}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Start Time</div>
-                    <Input
-                      type="time"
-                      value={dayData?.startTime || ''}
-                      onChange={e => updateDayField(day, 'startTime', e.target.value)}
-                      style={{ padding: '5px 8px', fontSize: '13px' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>End Time</div>
-                    <Input
-                      type="time"
-                      value={dayData?.endTime || ''}
-                      onChange={e => updateDayField(day, 'endTime', e.target.value)}
-                      style={{ padding: '5px 8px', fontSize: '13px' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Ground Address</div>
-                    <Select
-                      value={dayData?.groundAddress || ''}
-                      onChange={e => updateDayField(day, 'groundAddress', e.target.value)}
-                      style={{ padding: '5px 8px', fontSize: '13px' }}
-                    >
-                      <option value="">— Select Location —</option>
-                      {locations
-                        .filter(l => l.isActive !== false)
-                        .map(l => {
-                          const formatted = formatLocationAddress(l);
-                          return (
-                            <option key={l._id} value={formatted}>
-                              {formatted}
-                            </option>
-                          );
-                        })}
-                      {/* Preserve a previously saved address that no longer matches any active location
-                          (e.g. location was edited/deactivated after this program was created) */}
-                      {dayData?.groundAddress &&
-                        !locations.some(l => l.isActive !== false && formatLocationAddress(l) === dayData.groundAddress) && (
-                          <option value={dayData.groundAddress}>
-                            {dayData.groundAddress} (saved)
-                          </option>
-                      )}
-                    </Select>
-                  </div>
+                  {daySlots.map((dayData, slotIndex) => (
+                    <div key={`${day}-${slotIndex}`} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '110px 130px 130px 1fr auto',
+                      gap: '12px', alignItems: 'center',
+                      padding: slotIndex ? '10px 0 0' : '0',
+                      marginTop: slotIndex ? '10px' : '0',
+                      borderTop: slotIndex ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                    }}>
+                      <div style={{ color: '#F5D97A', fontWeight: '700', fontSize: '14px' }}>
+                        {slotIndex === 0 ? DAY_LABELS[day] : `Time slot ${slotIndex + 1}`}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Start Time</div>
+                        <Input
+                          type="time"
+                          value={dayData.startTime || ''}
+                          onChange={e => updateDayField(day, slotIndex, 'startTime', e.target.value)}
+                          style={{ padding: '5px 8px', fontSize: '13px' }}
+                        />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>End Time</div>
+                        <Input
+                          type="time"
+                          value={dayData.endTime || ''}
+                          onChange={e => updateDayField(day, slotIndex, 'endTime', e.target.value)}
+                          style={{ padding: '5px 8px', fontSize: '13px' }}
+                        />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Ground Address</div>
+                        <Select
+                          value={dayData.groundAddress || ''}
+                          onChange={e => updateDayField(day, slotIndex, 'groundAddress', e.target.value)}
+                          style={{ padding: '5px 8px', fontSize: '13px' }}
+                        >
+                          <option value="">— Select Location —</option>
+                          {locations
+                            .filter(l => l.isActive !== false)
+                            .map(l => {
+                              const formatted = formatLocationAddress(l);
+                              return (
+                                <option key={l._id} value={formatted}>
+                                  {formatted}
+                                </option>
+                              );
+                            })}
+                          {dayData.groundAddress &&
+                            !locations.some(l => l.isActive !== false && formatLocationAddress(l) === dayData.groundAddress) && (
+                              <option value={dayData.groundAddress}>
+                                {dayData.groundAddress} (saved)
+                              </option>
+                          )}
+                        </Select>
+                      </div>
+                      <button type="button" onClick={() => removeTimeSlot(day, slotIndex)}
+                        aria-label={`Remove ${DAY_LABELS[day]} time slot ${slotIndex + 1}`}
+                        style={{
+                          background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#f87171', borderRadius: '6px', padding: '6px 10px',
+                          cursor: 'pointer', fontSize: '13px',
+                        }}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addTimeSlot(day)}
+                    style={{
+                      background: 'transparent', border: '1px dashed rgba(212,175,55,0.4)',
+                      color: '#F5D97A', borderRadius: '6px', padding: '6px 10px',
+                      cursor: 'pointer', fontSize: '12px', fontWeight: '600', marginTop: '10px',
+                    }}>
+                    + Add {DAY_LABELS[day]} time slot
+                  </button>
                 </div>
               );
             })}

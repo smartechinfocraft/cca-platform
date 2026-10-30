@@ -61,6 +61,15 @@ function fmt12(t?: string): string {
   return `${h12}:${mStr ?? "00"} ${ampm}`;
 }
 function buildDaySlotOptions(batch: ChatBatch): string[] {
+  if (batch.scheduleDays?.length) {
+    return batch.scheduleDays.map((schedule) => {
+      const day = DAY_FULL[schedule.day] ?? schedule.day;
+      const start = fmt12(schedule.startTime);
+      const end = fmt12(schedule.endTime);
+      const locationSuffix = schedule.groundAddress ? ` - ${schedule.groundAddress}` : "";
+      return [day, start, end].filter(Boolean).join(" - ") + locationSuffix;
+    });
+  }
   const slot = batch.timeSlots && batch.timeSlots.length > 0 ? batch.timeSlots[0] : null;
   const locationSuffix = batch.locationLabel ? ` - ${batch.locationLabel}` : "";
   let days: string[] = [];

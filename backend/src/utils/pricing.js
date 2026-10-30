@@ -290,13 +290,20 @@ function validateSelectedSchedule({ program, selectedDays, sessionsPerWeek, sele
     err.code = 'INVALID_SCHEDULE';
     throw err;
   }
+  const requestedKeys = requested.map(normalizeSchedule);
+  if (new Set(requestedKeys).size !== requestedKeys.length) {
+    const err = new Error('The same program time slot cannot be selected more than once.');
+    err.status = 400;
+    err.code = 'INVALID_SCHEDULE';
+    throw err;
+  }
   const allowed = new Set(storedDays.map(day => normalizeSchedule([
     DAY_NAMES[day.day] || day.day,
     formatScheduleTime(day.startTime),
     formatScheduleTime(day.endTime),
     day.groundAddress,
   ].filter(Boolean).join(' - '))));
-  if (requested.some(part => !allowed.has(normalizeSchedule(part)))) {
+  if (requestedKeys.some(part => !allowed.has(part))) {
     const err = new Error('One or more selected program days are invalid or have changed.');
     err.status = 400;
     err.code = 'INVALID_SCHEDULE';
