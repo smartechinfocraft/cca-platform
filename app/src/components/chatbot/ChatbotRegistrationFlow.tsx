@@ -28,7 +28,9 @@ import { getMyStudents, getParentProfile } from "../../services/parentDashboardS
 import type { StudentWithSummary } from "../../types/parentDashboard";
 import SavedStudentPicker from "../registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
+import { formatDateOnly } from "../../utils/dateOnly";
 import { getVisibleMonthOptions } from "../../utils/monthOptions";
+import { splitAndSortScheduleItems } from "../../utils/scheduleDisplay";
 import {
   fetchChatPrograms,
   fetchChatProgramDetail,
@@ -59,6 +61,15 @@ function fmt12(t?: string): string {
   return `${h12}:${mStr ?? "00"} ${ampm}`;
 }
 function buildDaySlotOptions(batch: ChatBatch): string[] {
+  if (batch.scheduleDays?.length) {
+    return batch.scheduleDays.map((schedule) => {
+      const day = DAY_FULL[schedule.day] ?? schedule.day;
+      const start = fmt12(schedule.startTime);
+      const end = fmt12(schedule.endTime);
+      const locationSuffix = schedule.groundAddress ? ` - ${schedule.groundAddress}` : "";
+      return [day, start, end].filter(Boolean).join(" - ") + locationSuffix;
+    });
+  }
   const slot = batch.timeSlots && batch.timeSlots.length > 0 ? batch.timeSlots[0] : null;
   const locationSuffix = batch.locationLabel ? ` - ${batch.locationLabel}` : "";
   let days: string[] = [];
@@ -110,12 +121,26 @@ interface Props {
 // Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
 function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
   if (!startDate || !endDate) return "";
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  const start = formatDateOnly(startDate, opts);
+  const end = formatDateOnly(endDate, opts);
+  if (!start || !end) return "";
+  const range = `${start} - ${end}`;
   return weeks ? `${range} ( ${weeks} week )` : range;
+}
+
+function formatMonthOptionDetails(option?: ChatMonthOption | null): string {
+  if (!option) return "";
+  const startEnd = option.startDate && option.endDate
+    ? fmtMonthDateRange(option.startDate, option.endDate)
+    : "";
+  const sessions = option.label.match(/\b\d+\s*Sessions?\b/i)?.[0]
+    ?? (option.weeks !== undefined && option.weeks !== "" ? `${option.weeks} ${Number(option.weeks) === 1 ? "Session" : "Sessions"}` : "");
+  return [
+    startEnd,
+    sessions,
+    option.price !== undefined && option.price !== "" ? `$${option.price}` : "",
+  ].filter(Boolean).join(" - ");
 }
 
 
@@ -1001,9 +1026,23 @@ function ChatbotRegistrationFlow({ onBack, onClose, pushMessage, initialProgramI
               ) : (
                 <>
                   <p><strong>Batch:</strong> {selectedBatch?.title || selectedBatch?.name}</p>
-                  {selectedMonth && <p><strong>Month:</strong> {selectedMonth.label}</p>}
+                  {selectedMonth && (
+                    <>
+                      <p><strong>Month:</strong> {selectedMonth.label}</p>
+                      <p className="text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
+                    </>
+                  )}
                   <p><strong>Frequency:</strong> {freqLabel(frequency)}</p>
-                  {daySlots.filter(Boolean).length > 0 && <p><strong>Days:</strong> {daySlots.filter(Boolean).join(" + ")}</p>}
+                  {daySlots.filter(Boolean).length > 0 && (
+                    <div>
+                      <strong>Days:</strong>
+                      <ul className="list-disc pl-5">
+                        {splitAndSortScheduleItems(daySlots.filter(Boolean).join("\n")).map((schedule, index) => (
+                          <li key={`${schedule}-${index}`}>{schedule}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </>
               )}
               <p><strong>Player:</strong> {student.firstName} {student.lastName}</p>

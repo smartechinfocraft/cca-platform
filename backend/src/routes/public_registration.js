@@ -100,11 +100,27 @@ function buildCartStudentInputs(cartItems) {
   });
 }
 
-function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced, registrationMode }) {
+async function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch, selectedMonth, selectedDays, sessionsPerWeek, students, priced, registrationMode }) {
+  const pricedPrograms = Array.isArray(cartItems) && cartItems.length > 0
+    ? (priced?.lineItems || []).map(item => item.program)
+    : [priced?.program];
+  const categoryIds = [...new Set(pricedPrograms
+    .map(program => program?.category?._id || program?.category)
+    .filter(Boolean)
+    .map(String))];
+  const categories = categoryIds.length
+    ? await mongoose.model('Category').find({ _id: { $in: categoryIds } }).select('title holidayNotes').lean()
+    : [];
+  const categoryById = new Map(categories.map(category => [String(category._id), category]));
+  const categoryFor = program => categoryById.get(String(program?.category?._id || program?.category));
+  const categoryNameFor = program => categoryFor(program)?.title || '';
+  const categoryHolidayNotesFor = program => categoryFor(program)?.holidayNotes || '';
+
   if (Array.isArray(cartItems) && cartItems.length > 0) {
     return cartItems.map((item, index) => {
       const itemStudents = Array.isArray(item.students) && item.students.length ? item.students : [];
       const studentCount = Number(item.studentCount) || itemStudents.length || 1;
+      const pricedProgram = priced?.lineItems?.[index]?.program;
       const feePerStudent = round2(Number(priced?.lineItems?.[index]?.unitPrice) || 0);
       return {
         programId: item.programId ? String(item.programId) : '',
@@ -113,6 +129,8 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
           || priced?.lineItems?.[index]?.program?.title
           || selectedProgram?.title
           || 'CCA Program',
+        categoryName: categoryNameFor(pricedProgram),
+        categoryHolidayNotes: categoryHolidayNotesFor(pricedProgram),
         batchType: priced?.lineItems?.[index]?.program?.batchType || '',
         batchId: item.batchId ? String(item.batchId) : '',
         batchName: item.batchName
@@ -138,6 +156,8 @@ function buildRegistrationOrderItems({ cartItems, selectedProgram, selectedBatch
   return [{
     programId: selectedProgram?._id ? String(selectedProgram._id) : '',
     programTitle: selectedProgram?.title || 'CCA Program',
+    categoryName: categoryNameFor(priced?.program),
+    categoryHolidayNotes: categoryHolidayNotesFor(priced?.program),
     batchType: selectedProgram?.batchType || '',
     batchId: selectedBatch?._id ? String(selectedBatch._id) : '',
     batchName: selectedBatch?.title || selectedBatch?.name || '',
@@ -443,8 +463,27 @@ router.post('/auth/forgot-password', async (req, res) => {
 
     const parent = await Parent.findOne({ email: email.toLowerCase().trim() }).select('+password');
 
-    // Always return the same response to prevent email enumeration
+    // Keep the response identical to avoid revealing whether an email exists.
     if (!parent || !parent.isActive) {
+      return res.json({ success: true, message: 'If that email is registered, you will receive a password reset email shortly.' });
+    }
+
+    if (parent.accountStatus === 'GUEST') {
+      const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
+      parent.password = tempPassword;
+      await parent.save();
+      await sendForgotPasswordEmail({
+        to: parent.email,
+        firstName: parent.firstName,
+        tempPassword,
+        role: 'Parent',
+        loginUrl: `${process.env.FRONTEND_URL || 'https://calcricket.org'}/login`,
+      });
+      await sendParentVerification(parent);
+      return res.json({ success: true, message: 'If that email is registered, you will receive a password reset email shortly.' });
+    }
+
+    if (!isPortalAccount(parent)) {
       return res.json({ success: true, message: 'If that email is registered, you will receive a password reset email shortly.' });
     }
 
@@ -1404,7 +1443,7 @@ async function handleRegistration(req, res) {
       monthDateRange,
     ].filter(Boolean).join(' — ');
     const batchIds = [...new Set(studentBatchIds.filter(Boolean).map(String))];
-    const orderItems = buildRegistrationOrderItems({
+    const orderItems = await buildRegistrationOrderItems({
       cartItems,
       selectedProgram,
       selectedBatch,
@@ -1523,6 +1562,8 @@ async function handleRegistration(req, res) {
       registrationNumber: reg.registrationNumber,
       studentName,
       programName: selectedProgram.title || 'CCA Program',
+      categoryName: orderItems[0]?.categoryName,
+      categoryHolidayNotes: orderItems[0]?.categoryHolidayNotes,
       batchInfo: batchTitle,
       parentName: parentInfo.parentName || parentInfo.email,
       parentEmail: parentInfo.email,

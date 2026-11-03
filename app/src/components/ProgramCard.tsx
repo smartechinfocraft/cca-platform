@@ -19,6 +19,8 @@ import WeeklyBatchSelector from "./registration/WeeklyBatchSelector";
 import SavedStudentPicker from "./registration/SavedStudentPicker";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, formatWeekRangeLabel, fmt12, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
+import { splitAndSortScheduleItems } from "../utils/scheduleDisplay";
+import { formatDateOnly } from "../utils/dateOnly";
 import { setQuickRegisterVisibility } from "../utils/quickRegisterVisibility";
 
 type ProgramCardProps = {
@@ -26,11 +28,13 @@ type ProgramCardProps = {
     _id: string;
     title: string;
     shortDescription?: string;
-    category?: string | { title?: string } | null;
+    category?: string | { title?: string; holidayNotes?: string } | null;
     startDate?: string;
     endDate?: string;
+    batchType?: string;
     basePrice?: number;
     discountedPrice?: number;
+    monthOptions?: MonthOption[];
     showEndDate?: boolean;
     location?: { title?: string } | null;
     city?: { title?: string } | null;
@@ -63,15 +67,11 @@ type ProgramBatchSummary = {
 };
 
 function formatProgramDate(date?: string): string {
-  if (!date) return "";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("en-US", {
+  return formatDateOnly(date, {
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
-   
   });
 }
 
@@ -89,7 +89,13 @@ function ProgramCard({ program }: ProgramCardProps) {
   const navigate = useNavigate();
   const [quickOpen, setQuickOpen] = useState(false);
   const [programDetails, setProgramDetails] = useState<any | null>(null);
-  const price = program.discountedPrice ?? program.basePrice;
+  const defaultPrice = program.discountedPrice ?? program.basePrice;
+  const monthOptionPrices = program.batchType === "REGULAR_WITH_MONTH"
+    ? getVisibleMonthOptions(program.monthOptions)
+      .map((option) => Number(option.price))
+      .filter((optionPrice) => Number.isFinite(optionPrice) && optionPrice > 0)
+    : [];
+  const price = monthOptionPrices.length > 0 ? Math.min(...monthOptionPrices) : defaultPrice;
   const programWithDetails = programDetails ?? program;
   const availableDays = buildProgramAvailableDayOptions(programWithDetails);
   const availableBatchCount = Array.isArray(programWithDetails.batches) && programWithDetails.batches.length > 0
@@ -275,6 +281,13 @@ function ProgramCard({ program }: ProgramCardProps) {
             {renderDescription(program.shortDescription)}
           </p>
 
+          {program.category && typeof program.category === "object" && program.category.holidayNotes?.trim() && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Holiday / Closure Notes</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-amber-900">{program.category.holidayNotes}</p>
+            </div>
+          )}
+
           <div className="mt-3 flex flex-wrap gap-2">
 
             </div>
@@ -343,7 +356,7 @@ function ProgramCard({ program }: ProgramCardProps) {
           <div className="rounded-[20px] bg-[#A33B2B]/5 p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.24em] text-[#A33B2B]">
               <HiOutlineCurrencyDollar className="h-4 w-4" />
-              Price
+              Price Starts
             </div>
             <div className="mt-3 text-3xl font-semibold text-[#0F172A]">
               {price ? `$${price}` : "N/A"}
@@ -404,6 +417,17 @@ const DAY_FULL: Record<string, string> = {
   MON: "Monday", TUE: "Tuesday", WED: "Wednesday", THU: "Thursday",
   FRI: "Friday", SAT: "Saturday", SUN: "Sunday",
 };
+const DAY_ORDER = Object.fromEntries(
+  Object.values(DAY_FULL).map((day, index) => [day, index]),
+) as Record<string, number>;
+
+function sortDaySlotOptions(options: string[]): string[] {
+  return [...options].sort((a, b) => {
+    const aOrder = DAY_ORDER[a.split(" - ")[0]] ?? Object.keys(DAY_ORDER).length;
+    const bOrder = DAY_ORDER[b.split(" - ")[0]] ?? Object.keys(DAY_ORDER).length;
+    return aOrder - bOrder;
+  });
+}
 
 function getSlots(batch: QuickBatch): TimeSlot[] {
   if (batch.timeSlots && batch.timeSlots.length > 0) return batch.timeSlots;
@@ -420,26 +444,35 @@ function getLocationStr(batch: QuickBatch): string {
   return "";
 }
 
-// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
-function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+// Formats a month option's start/end dates as "Jul 5 - Aug 10"
+function fmtMonthDateRange(startDate?: string, endDate?: string): string {
   if (!startDate || !endDate) return "";
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
-  return weeks ? `${range} ( ${weeks} week )` : range;
+  const start = formatDateOnly(startDate, opts);
+  const end = formatDateOnly(endDate, opts);
+  return start && end ? `${start} - ${end}` : "";
+}
+
+function formatMonthOptionDetails(option?: MonthOption | null): string {
+  if (!option) return "";
+  const sessions = option.label.match(/\b\d+\s*Sessions?\b/i)?.[0]
+    ?? (option.weeks !== "" ? `${option.weeks} ${Number(option.weeks) === 1 ? "Session" : "Sessions"}` : "");
+  return [
+    fmtMonthDateRange(option.startDate, option.endDate),
+    sessions,
+    option.price !== undefined && option.price !== "" ? `$${option.price}` : "",
+  ].filter(Boolean).join(" - ");
 }
 
 function buildDaySlotOptions(batch: QuickBatch): string[] {
   if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
-    return batch.scheduleDays.map((schedule) => {
+    return sortDaySlotOptions(batch.scheduleDays.map((schedule) => {
       const day = schedule.day ? (DAY_FULL[schedule.day] ?? schedule.day) : "";
       const time = schedule.startTime && schedule.endTime
         ? `${fmt12(schedule.startTime)} - ${fmt12(schedule.endTime)}`
         : "";
       return [day, time, schedule.groundAddress].filter(Boolean).join(" - ");
-    }).filter(Boolean);
+    }).filter(Boolean));
   }
   const slots = getSlots(batch);
   const locationSuffix = getLocationStr(batch) ? ` - ${getLocationStr(batch)}` : "";
@@ -448,13 +481,13 @@ function buildDaySlotOptions(batch: QuickBatch): string[] {
   else if (batch.dayOfWeek && batch.dayOfWeek !== "MULTI") days = [DAY_FULL[batch.dayOfWeek] ?? batch.dayOfWeek];
   else if (batch.days) days = [batch.days];
   if (days.length === 0) return [];
-  return days.map((day, index) => {
+  return sortDaySlotOptions(days.map((day, index) => {
     if (slots.length > 0) {
       const s = slots[index] ?? slots[0];
       return `${day} - ${fmt12(s.startTime)} - ${fmt12(s.endTime)}${locationSuffix}`;
     }
     return `${day}${locationSuffix}`;
-  });
+  }));
 }
 
 function buildProgramAvailableDayOptions(program: ProgramCardProps["program"] & { batches?: QuickBatch[] }): string[] {
@@ -479,7 +512,7 @@ function buildProgramAvailableDayOptions(program: ProgramCardProps["program"] & 
       }).filter(Boolean)
     : [];
 
-  return Array.from(new Set([...fromBatches, ...fromScheduleDays, ...fromWeeklyBatches]));
+  return sortDaySlotOptions(Array.from(new Set([...fromBatches, ...fromScheduleDays, ...fromWeeklyBatches])));
 }
 
 function freqLabel(n: number): string {
@@ -756,7 +789,12 @@ function QuickRegisterDrawer({
                     ) : (
                       <>
                         <p className="mt-1 text-sm font-bold text-[#0F172A]">{activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}</p>
-                        <p className="mt-1 text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
+                        <p className="mt-1 text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
+                        <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+                          {splitAndSortScheduleItems(daySlots.filter(Boolean).join("\n")).map((schedule, index) => (
+                            <li key={`${schedule}-${index}`}>• {schedule}</li>
+                          ))}
+                        </ul>
                       </>
                     )}
                   </div>
@@ -885,7 +923,14 @@ function QuickRegisterDrawer({
                           <div className="flex flex-wrap gap-2">
                             {monthOptions.map((opt, index) => {
                               const checked = isSelected && selectedMonth?.label === opt.label;
-                              const dateRange = fmtMonthDateRange(opt.startDate, opt.endDate, opt.weeks);
+                              const sessionCount = opt.weeks !== undefined && opt.weeks !== ""
+                                ? `${opt.weeks} ${Number(opt.weeks) === 1 ? "Session" : "Sessions"}`
+                                : "";
+                              const optionDetails = [
+                                fmtMonthDateRange(opt.startDate, opt.endDate),
+                                sessionCount,
+                                opt.price !== undefined && opt.price !== "" ? `$${opt.price}` : "",
+                              ].filter(Boolean).join(" - ");
                               return (
                                 <label key={`${opt.label}-${index}`} className={`cursor-pointer rounded-2xl border px-3 py-1.5 text-sm font-semibold transition ${checked ? "border-[#A33B2B] bg-[#A33B2B] text-white" : "border-slate-300 bg-white text-slate-700"}`}>
                                   <input
@@ -900,13 +945,8 @@ function QuickRegisterDrawer({
                                       setDaySlots([null]);
                                     }}
                                   />
-                                  <span className="flex flex-col leading-tight">
-                                    <span>{opt.label}{opt.price ? ` · $${opt.price}` : ""}</span>
-                                    {dateRange && (
-                                      <span className={`text-[11px] font-normal ${checked ? "text-white/80" : "text-slate-500"}`}>
-                                        {dateRange}
-                                      </span>
-                                    )}
+                                  <span className="leading-tight">
+                                    {optionDetails || opt.label}
                                   </span>
                                 </label>
                               );
@@ -914,7 +954,7 @@ function QuickRegisterDrawer({
                           </div>
                         </div>
                       ) : (
-                        <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-700">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
                           <input
                             type="radio"
                             name={`quick-batch-${batch._id}`}

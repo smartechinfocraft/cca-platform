@@ -11,6 +11,7 @@ import GenderSelect from "../../components/registration/GenderSelect";
 import WeeklyBatchSelector from "../../components/registration/WeeklyBatchSelector";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../../utils/monthOptions";
+import { formatDateOnly } from "../../utils/dateOnly";
 import toast from "react-hot-toast";
 
 // ─── DOB validator (same logic as StudentDetails) ─────────────────────────────
@@ -122,11 +123,11 @@ function getLocationStr(batch: BatchRaw): string {
 // Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
 function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
   if (!startDate || !endDate) return "";
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
+  const start = formatDateOnly(startDate, opts);
+  const end = formatDateOnly(endDate, opts);
+  if (!start || !end) return "";
+  const range = `${start} - ${end}`;
   return weeks ? `${range} ( ${weeks} week )` : range;
 }
 
@@ -629,7 +630,7 @@ export default function ProgramSelection() {
                         {bMonthOpts.map((m, mi) => (
                           <p key={mi} className="flex items-center gap-1.5 text-xs" style={{ color: "var(--ink-500)" }}>
                             <span aria-hidden>📅</span>
-                            {m.label} {m.startDate ? `Starts – ${new Date(m.startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` : ""}
+                            {m.label} {m.startDate ? `Starts – ${formatDateOnly(m.startDate, { month: "long", day: "numeric", year: "numeric" })}` : ""}
                           </p>
                         ))}
                       </div>

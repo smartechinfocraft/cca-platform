@@ -7,6 +7,7 @@ import { registrationsAPI, batchesAPI, programsAPI } from '../api/client';
 import { useAdminAuth } from '../context/AuthContext';
 import { PageHeader, DataTable, Modal, Btn, Badge, FormField, Select, Textarea, SearchInput, Input } from '../components/common/UI';
 import toast from 'react-hot-toast';
+import { splitAndSortScheduleItems } from '../../utils/scheduleDisplay';
 
 const STATUSES = ['PENDING','AWAITING_PAYMENT','PAYMENT_FAILED','PAID','CONFIRMED','CANCELLED','REFUNDED','WAITLISTED'];
 
@@ -28,11 +29,7 @@ async function loadXLSX() {
   });
 }
 
-const splitScheduleItems = (value) =>
-  String(value || '')
-    .split(/\s*(?:\n|;|\s+\|\s+|\s+\+\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
-    .map((part) => part.trim())
-    .filter(Boolean);
+const splitScheduleItems = splitAndSortScheduleItems;
 
 const canonicalDay = (value) => {
   const normalized = String(value || '').trim().toUpperCase();

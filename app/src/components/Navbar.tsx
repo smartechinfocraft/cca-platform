@@ -104,28 +104,21 @@ function Navbar() {
         style={{ borderBottom: scrolled ? "1px solid var(--pitch-deep)" : "1px solid transparent" }}
       >
       {/* Pre-Header Announcement Banner */}
-      {/*  <div className="top-0 left-0 right-0 w-full bg-black text-white text-sm py-2 px-6 z-[60] text-center font-medium">
+      <div className="top-0 left-0 right-0 w-full bg-black text-white text-sm py-2 px-6 z-[60] text-center font-medium">
         <p>
-      📢 Hurry!  Early Bird Fall 2026 discounts are ending soon... — use code <strong>EARLYBIRD</strong>
+      📢 Hurry!  Winter Programs are LIVE... — use code <strong>OUTDOORDISCOUNT</strong>
 
           
-            &nbsp;&nbsp; | &nbsp;&nbsp; Registration for 
+            &nbsp;&nbsp; | &nbsp;&nbsp; 
            <a
-            href="https://legacy.calcricket.org/product_cat/week-long/"
+            href="/programs"
             target="_blank"
             rel="noopener noreferrer"
             className="underline text-[var(--gold)] font-semibold hover:text-gray-300 transition-colors"
-          >Week Long Camps </a> available on{" "}
-          <a
-            href="https://legacy.calcricket.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline text-[var(--gold)] font-semibold hover:text-gray-300 transition-colors"
-          >
-            legacy.calcricket.org
-          </a> 
+          >Register Now </a> 
+         
         </p>
-      </div>*/}
+      </div>
       <div className="max-w-7xl mx-auto px-6">
         <div className="h-20 flex items-center justify-between">
 
@@ -207,13 +200,13 @@ function Navbar() {
 </svg></span>
                 </button>*/}
 
-                <button
+                {/* <button
                   onClick={() => { setProgramsOpen(false); setOpen(false); window.open("#"); }}
                   className="flex gap-3 w-full text-left px-5 py-3 text-sm font-medium text-[var(--ink-600)] hover:bg-[var(--pitch-soft)] hover:text-[var(--outfield)] transition"
                 >
                   Winter Programs <span className="flex gap-1 text-black/50">Coming Soon</span>
 
-                </button>
+                </button> */}
 
                 {categories.length === 0 && (
                   <p className="px-5 py-3 text-sm text-[var(--ink-400)]">Loading...</p>

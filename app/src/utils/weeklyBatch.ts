@@ -1,3 +1,5 @@
+import { formatDateOnly, parseDateOnly } from "./dateOnly";
+
 // ============================================================
 //  utils/weeklyBatch.ts
 //  Shared helpers for the WEEKLY batchType "multi-batch" flow.
@@ -39,7 +41,9 @@ export function fmt12(t: string): string {
 
 /** Human display line for one batch, e.g. "July 20 - July 24 · 4:00 PM - 5:30 PM" */
 export function formatWeeklyBatchLine(batch: WeeklyBatchRaw): string {
-  const dateLabel = batch.label || `${batch.startDate} - ${batch.endDate}`;
+  const dateLabel = batch.startDate && batch.endDate
+    ? formatWeekRangeLabel(batch)
+    : batch.label || "";
   const timeLabel = batch.startTime && batch.endTime
     ? `${fmt12(batch.startTime)} - ${fmt12(batch.endTime)}`
     : "";
@@ -98,14 +102,14 @@ export function groupWeeklyBatches(batches: WeeklyBatchRaw[]): WeeklyBatchGroup[
  * (time isn't repeated here since it's already shown on the Batch line). */
 export function formatWeekRangeLabel(batch: WeeklyBatchRaw): string {
   if (!batch.startDate || !batch.endDate) return batch.label || "";
-  const s = new Date(batch.startDate);
-  const e = new Date(batch.endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return batch.label || "";
-  const sm = s.toLocaleDateString("en-US", { month: "long" });
-  const em = e.toLocaleDateString("en-US", { month: "long" });
+  const s = parseDateOnly(batch.startDate);
+  const e = parseDateOnly(batch.endDate);
+  if (!s || !e) return batch.label || "";
+  const sm = formatDateOnly(batch.startDate, { month: "long" });
+  const em = formatDateOnly(batch.endDate, { month: "long" });
   return sm === em
-    ? `${sm} ${s.getDate()} - ${e.getDate()}`
-    : `${sm} ${s.getDate()} - ${em} ${e.getDate()}`;
+    ? `${sm} ${s.getUTCDate()} - ${e.getUTCDate()}`
+    : `${sm} ${s.getUTCDate()} - ${em} ${e.getUTCDate()}`;
 }
 
 /**
@@ -156,7 +160,7 @@ export function toWeeklyBatchSnapshots(
     .filter((b) => selectedIds.includes(b._id))
     .map((b) => ({
       _id: b._id,
-      label: b.label || formatWeeklyBatchLine(b),
+      label: formatWeeklyBatchLine(b),
       startDate: b.startDate,
       startTime: b.startTime,
       endDate: b.endDate,

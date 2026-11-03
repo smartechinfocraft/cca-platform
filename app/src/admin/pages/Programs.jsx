@@ -25,6 +25,20 @@ const uniqueOptions = (options) => {
     .sort((a, b) => a.label.localeCompare(b.label));
 };
 
+const locationLabel = (location) => (location?.title || '').trim();
+const locationKey = (location) => locationLabel(location).replace(/\s+/g, ' ').toLocaleLowerCase();
+
+const uniqueLocationOptions = (rows) => {
+  const labels = new Map();
+  rows.forEach(row => {
+    const label = locationLabel(row.location).replace(/\s+/g, ' ');
+    const value = locationKey(row.location);
+    if (label && value && !labels.has(value)) labels.set(value, label);
+  });
+  return Array.from(labels, ([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+};
+
 const hasAny = (selected, values) => !selected.length || values.some(value => selected.includes(value));
 const PROGRAM_FILTER_STORAGE_KEY = 'admin.programs.filters.v1';
 const DEFAULT_PROGRAM_FILTERS = { categories: [], locations: [], ageGroups: [], levels: [], status: [] };
@@ -255,7 +269,7 @@ async function downloadTemplate() {
     ['Coach Name', 'First Last — must exactly match a coach in admin — leave blank for none.'],
     ['Is Featured', 'TRUE or FALSE  (default FALSE). Repeat on every row.'],
     ['Is Active', 'TRUE or FALSE  (default TRUE). Repeat on every row.'],
-    ['Class Day (DAY rows only)', 'Monday / Tuesday / Wednesday / Thursday / Friday / Saturday / Sunday'],
+    ['Class Day (DAY rows only)', 'Monday / Tuesday / Wednesday / Thursday / Friday / Saturday / Sunday. Repeat a day with different times to add another weekly session.'],
     ['Start Time (DAY rows only)', 'HH:MM 24hr  e.g. 17:00'],
     ['End Time (DAY rows only)', 'HH:MM 24hr  e.g. 18:30'],
     ['Ground Address (DAY rows only)', 'Full address e.g. 10800 Torre Avenue, Cupertino'],
@@ -276,6 +290,7 @@ async function downloadTemplate() {
     ['IMPORTANT NOTES'],
     ['• Start entering data from Row 4 onwards (rows 1-3 are key/label/hint — do not delete)'],
     ['• Sample programs are in rows 4-9 — replace with your real data, or delete and start fresh'],
+    ['• Each DAY row is one weekly session. Repeat a weekday with a different time to add another session on that day.'],
     ['• A program needs AT LEAST one DAY row. MONTH rows are only needed if Batch Type = REGULAR_WITH_MONTH'],
     ['• Required fields are marked with *'],
     ['• Upload the filled sheet using "Upload Excel" button on the Programs page'],
@@ -443,6 +458,7 @@ export default function Programs() {
   const [openFilter,   setOpenFilter]   = useState('');
   const [selectedIds,  setSelectedIds]  = useState([]);
   const [bulkSaving,   setBulkSaving]   = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState('');
   const [uploading,    setUploading]    = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const fileInputRef                   = useRef();
@@ -453,6 +469,19 @@ export default function Programs() {
     try {
       const p = await programsAPI.getAll();
       setRows(p.data.data);
+      setFilters(previous => ({
+        ...previous,
+        locations: [...new Set(previous.locations.map(value => {
+          const existingOption = p.data.data.find(row => locationKey(row.location) === value);
+          if (existingOption) return locationKey(existingOption.location);
+          const legacyLabelMatch = p.data.data.find(row =>
+            row.location?.city?.trim().replace(/\s+/g, ' ').toLocaleLowerCase() === value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+          );
+          if (legacyLabelMatch) return locationKey(legacyLabelMatch.location);
+          const legacyMatch = p.data.data.find(row => idOf(row.location) === value);
+          return legacyMatch ? locationKey(legacyMatch.location) : value;
+        }))],
+      }));
     } catch {
       toast.error('Failed to load programs');
     } finally {
@@ -468,7 +497,7 @@ export default function Programs() {
 
   const filterOptions = {
     categories: uniqueOptions(rows.map(row => ({ value: idOf(row.category), label: row.category?.title || '' }))),
-    locations: uniqueOptions(rows.map(row => ({ value: idOf(row.location), label: row.location?.city || row.location?.title || '' }))),
+    locations: uniqueLocationOptions(rows),
     ageGroups: uniqueOptions(rows.flatMap(row => (row.ageGroups || []).map(age => ({ value: age, label: age })))),
     levels: uniqueOptions(rows.flatMap(row => (row.skillLevels || []).map(level => ({ value: level, label: level })))),
     status: [
@@ -506,6 +535,21 @@ export default function Programs() {
       load();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Delete failed');
+    }
+  };
+
+  const handleDuplicate = async (row) => {
+    if (!window.confirm(`Create an inactive copy of "${row.title}"?`)) return;
+    setDuplicatingId(row._id);
+    try {
+      const response = await programsAPI.duplicate(row._id);
+      const duplicate = response.data.data;
+      toast.success('Inactive program copy created. Review and update it before activating.');
+      navigate(`/admin/programs/${duplicate._id}/edit`);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to duplicate program');
+    } finally {
+      setDuplicatingId('');
     }
   };
 
@@ -560,7 +604,7 @@ export default function Programs() {
 
     if (q && !searchable.includes(q)) return false;
     if (!hasAny(filters.categories, [idOf(r.category)])) return false;
-    if (!hasAny(filters.locations, [idOf(r.location)])) return false;
+    if (!hasAny(filters.locations, [locationKey(r.location)])) return false;
     if (!hasAny(filters.ageGroups, r.ageGroups || [])) return false;
     if (!hasAny(filters.levels, r.skillLevels || [])) return false;
     if (!hasAny(filters.status, [r.isActive ? 'active' : 'inactive'])) return false;
@@ -637,7 +681,7 @@ export default function Programs() {
     { key: 'title',     label: 'Program Title' },
     { key: 'sku',       label: 'SKU',       render: v => <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#F5D97A' }}>{v}</span> },
     { key: 'category',  label: 'Category',  render: v => v?.title || '—' },
-    { key: 'location',  label: 'Location',  render: v => v?.city  || '—' },
+    { key: 'location',  label: 'Location Name',  render: v => v?.title || '—' },
     { key: 'basePrice', label: 'Price',     render: v => `$${v}` },
     { key: 'ageGroups', label: 'Age Groups',render: v => (v || []).join(', ') || '—' },
     { key: 'isActive',  label: 'Status',    render: v => <Badge label={v ? 'ACTIVE' : 'INACTIVE'} /> },
@@ -646,7 +690,28 @@ export default function Programs() {
       key: '_id', label: 'Actions',
       render: (_, row) => (
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Btn small onClick={() => navigate(`/admin/programs/${row._id}/edit`)}>Edit</Btn>
+          <a
+            href={`/admin/programs/${row._id}/edit`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-block',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '6px 14px',
+              background: 'linear-gradient(135deg, #D4AF37, #B8960C)',
+              color: '#0a2416',
+              fontSize: '12px',
+              fontWeight: '600',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Edit
+          </a>
+          <Btn small disabled={duplicatingId === row._id} onClick={() => handleDuplicate(row)}>
+            {duplicatingId === row._id ? 'Copying...' : 'Duplicate'}
+          </Btn>
           {row.isActive && (
             <Btn small variant="danger" onClick={() => handleDeactivate(row)}>Deactivate</Btn>
           )}

@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { registrationsAPI, locationsAPI, programsAPI, categoriesAPI } from '../api/client';
 import { PageHeader, DataTable, Badge, Select, SearchInput, Btn } from '../components/common/UI';
 import toast from 'react-hot-toast';
+import { splitAndSortScheduleItems } from '../../utils/scheduleDisplay';
 
 const ACADEMY_NAME = 'California Cricket Academy';
 
@@ -55,10 +56,7 @@ function batchLabel(b) {
 }
 
 function splitScheduleItems(value) {
-  return String(value || '')
-    .split(/\s*(?:\n|;|\s+\|\s+|\s+\+\s+|,\s*(?=[A-Z][a-z]+day\b))\s*/i)
-    .map(item => item.trim())
-    .filter(Boolean);
+  return splitAndSortScheduleItems(value);
 }
 
 function selectedBatchLabels(row) {

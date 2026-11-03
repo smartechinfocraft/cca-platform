@@ -249,7 +249,7 @@ router.get('/public/programs', async (req, res) => {
 
     const data = await mongoose.model('Program')
       .find(filter)
-      .populate('category', 'title slug')
+      .populate('category', 'title slug holidayNotes')
       .populate('location', 'title city address')
       .sort({ createdAt: -1 })
       .lean();
@@ -268,7 +268,7 @@ router.get('/public/programs/:id', async (req, res) => {
   try {
     const program = await mongoose.model('Program')
       .findOne({ _id: req.params.id, isActive: true })
-      .populate('category', 'title slug')
+      .populate('category', 'title slug holidayNotes')
       .populate('location', 'title city address')
       .populate('coachId', 'firstName lastName profileImageUrl');
 
@@ -291,7 +291,7 @@ router.get('/public/programs/:id', async (req, res) => {
       const days = prog.scheduleDays;
 
       // Determine if multi-day (more than one day) or single-day
-      const multiDays = days.map(d => d.day).filter(Boolean);
+      const multiDays = [...new Set(days.map(d => d.day).filter(Boolean))];
       const isMulti   = multiDays.length > 1;
 
       // Build timeSlots array from each scheduledDay entry
@@ -499,6 +499,7 @@ router.get(   '/programs',     protect, progCtrl.getAll);
 router.get(   '/programs/:id', protect, progCtrl.getOne);
 // ISSUE 4: uploadCoverImage handles the file, then controller saves path to DB
 router.post(  '/programs',     protect, superAdminOnly, uploadCoverImage, progCtrl.create);
+router.post(  '/programs/:id/duplicate', protect, superAdminOnly, progCtrl.duplicate);
 router.put(   '/programs/:id', protect, superAdminOnly, uploadCoverImage, progCtrl.update);
 router.delete('/programs/:id', protect, superAdminOnly, progCtrl.remove);
 router.delete('/programs/:id/permanent', protect, superAdminOnly, progCtrl.hardRemove);
@@ -879,7 +880,7 @@ router.post('/coach-portal/messages/:threadId/reply', coachAuth, async (req, res
 //  COUPONS — Both admins
 // ═══════════════════════════════════════════════════════════
 const couponCRUD = makeCRUD('Coupon', [
-  'code', 'type', 'value', 'minAmount', 'maxUses',
+  'code', 'type', 'value', 'minAmount', 'categoryIds', 'maxUses',
   'expiresAt', 'description', 'isActive', 'isPubliclyVisible',
 ]);
 router.get(   '/coupons',     protect, couponCRUD.getAll);

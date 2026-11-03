@@ -19,6 +19,8 @@ import SavedStudentPicker from "../components/registration/SavedStudentPicker";
 import WeeklyBatchSelector from "../components/registration/WeeklyBatchSelector";
 import { calcWeeklyPrice, toWeeklyBatchSnapshots, type WeeklyBatchRaw } from "../utils/weeklyBatch";
 import { getVisibleMonthOptions } from "../utils/monthOptions";
+import { splitAndSortScheduleItems } from "../utils/scheduleDisplay";
+import { formatDateOnly } from "../utils/dateOnly";
 import toast from "react-hot-toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -41,6 +43,17 @@ const DAY_FULL: Record<string, string> = {
   MON: "Monday", TUE: "Tuesday", WED: "Wednesday", THU: "Thursday",
   FRI: "Friday", SAT: "Saturday", SUN: "Sunday",
 };
+const DAY_ORDER = Object.fromEntries(
+  Object.values(DAY_FULL).map((day, index) => [day, index]),
+) as Record<string, number>;
+
+function sortDaySlotOptions(options: string[]): string[] {
+  return [...options].sort((a, b) => {
+    const aOrder = DAY_ORDER[a.split(" - ")[0]] ?? Object.keys(DAY_ORDER).length;
+    const bOrder = DAY_ORDER[b.split(" - ")[0]] ?? Object.keys(DAY_ORDER).length;
+    return aOrder - bOrder;
+  });
+}
 function fmt12(t: string): string {
   if (!t) return "";
   const [hStr, mStr] = t.split(":");
@@ -62,21 +75,27 @@ function getLocationStr(batch: BatchRaw): string {
   if (batch.groundLocationNote) return batch.groundLocationNote;
   return "";
 }
-// Formats a month option's start/end dates + weeks as "Jul 5 - Aug 10 ( 5 week )"
-function fmtMonthDateRange(startDate?: string, endDate?: string, weeks?: string | number): string {
+// Formats a month option's start/end dates as "Jul 5 - Aug 10"
+function fmtMonthDateRange(startDate?: string, endDate?: string): string {
   if (!startDate || !endDate) return "";
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const range = `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
-  return weeks ? `${range} ( ${weeks} week )` : range;
+  const start = formatDateOnly(startDate, opts);
+  const end = formatDateOnly(endDate, opts);
+  return start && end ? `${start} - ${end}` : "";
+}
+function getMonthOptionSessionCount(label?: string): string {
+  return label?.match(/\b\d+\s*Sessions?\b/i)?.[0] ?? "";
+}
+function formatMonthOptionDetails(option?: MonthOption | null): string {
+  if (!option) return "";
+  return [
+    fmtMonthDateRange(option.startDate, option.endDate),
+    getMonthOptionSessionCount(option.label),
+    option.price !== undefined && option.price !== "" ? `$${option.price}` : "",
+  ].filter(Boolean).join(" - ");
 }
 function formatProgramDate(date?: string): string {
-  if (!date) return "";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return formatDateOnly(date, { month: "short", day: "numeric", year: "numeric" });
 }
 function renderDescription(description?: string) {
   if (!description) return null;
@@ -89,13 +108,13 @@ function renderDescription(description?: string) {
 }
 function buildDaySlotOptions(batch: BatchRaw): string[] {
   if (Array.isArray(batch.scheduleDays) && batch.scheduleDays.length > 0) {
-    return batch.scheduleDays.map((schedule) => {
+    return sortDaySlotOptions(batch.scheduleDays.map((schedule) => {
       const day = schedule.day ? (DAY_FULL[schedule.day] ?? schedule.day) : "";
       const time = schedule.startTime && schedule.endTime
         ? `${fmt12(schedule.startTime)} - ${fmt12(schedule.endTime)}`
         : "";
       return [day, time, schedule.groundAddress].filter(Boolean).join(" - ");
-    }).filter(Boolean);
+    }).filter(Boolean));
   }
   const slots = getSlots(batch);
   const locationSuffix = getLocationStr(batch) ? ` - ${getLocationStr(batch)}` : "";
@@ -104,13 +123,13 @@ function buildDaySlotOptions(batch: BatchRaw): string[] {
   else if (batch.dayOfWeek && batch.dayOfWeek !== "MULTI") days = [DAY_FULL[batch.dayOfWeek] ?? batch.dayOfWeek];
   else if (batch.days) days = [batch.days];
   if (days.length === 0) return [];
-  return days.map((day, index) => {
+  return sortDaySlotOptions(days.map((day, index) => {
     if (slots.length > 0) {
       const s = slots[index] ?? slots[0];
       return `${day} - ${fmt12(s.startTime)} - ${fmt12(s.endTime)}${locationSuffix}`;
     }
     return `${day}${locationSuffix}`;
-  });
+  }));
 }
 function freqLabel(n: number): string {
   const m: Record<number, string> = { 1: "Once a Week", 2: "Twice a Week", 3: "Thrice a Week" };
@@ -414,10 +433,10 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                       <div className="flex flex-wrap gap-2">
                         {bMonthOpts.map((opt, oi) => {
                           const isChecked = isSelected && selectedMonth?.label === opt.label;
-                          const dateRange = fmtMonthDateRange(opt.startDate, opt.endDate, opt.weeks);
+                          const optionDetails = formatMonthOptionDetails(opt);
                           return (
                             <label key={oi}
-                              className={`flex items-center gap-1.5 cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-2xl border transition ${isChecked
+                              className={`flex items-center cursor-pointer text-sm px-3 py-1.5 font-semibold rounded-2xl border transition ${isChecked
                                 ? "border-green-200 bg-green-800 text-white"
                                 : "border-slate-300 bg-white text-slate-700 hover:border-green-500"}`}
                             >
@@ -430,13 +449,8 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
                                 }}
                                 className="sr-only"
                               />
-                              <span className="flex flex-col leading-tight">
-                                <span>{opt.label}{opt.price ? ` · $${opt.price}` : ""}</span>
-                                {dateRange && (
-                                  <span className={`text-[11px] font-normal ${isChecked ? "text-white/80" : "text-slate-500"}`}>
-                                    {dateRange}
-                                  </span>
-                                )}
+                              <span className={`leading-tight ${isChecked ? "text-white/80" : "text-slate-500"}`}>
+                                {optionDetails}
                               </span>
                             </label>
                           );
@@ -546,7 +560,12 @@ function InlineRegistration({ programId, batches, programTitle, programImage, ba
               <p className="text-sm font-semibold text-[#0F172A]">
                 {activeBatch?.title || activeBatch?.name} · {selectedMonth?.label}
               </p>
-              <p className="text-xs text-slate-500">{daySlots.filter(Boolean).join(" + ")}</p>
+              <p className="text-xs text-slate-500">{formatMonthOptionDetails(selectedMonth)}</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+                {splitAndSortScheduleItems(daySlots.filter(Boolean).join("\n")).map((schedule, index) => (
+                  <li key={`${schedule}-${index}`}>• {schedule}</li>
+                ))}
+              </ul>
             </div>
             <p className="text-lg font-bold text-green-800">${totalPrice}</p>
           </div>
@@ -816,6 +835,12 @@ function ProgramDetails() {
                     <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-slate-600 sm:text-base">
                       {renderDescription(p.shortDescription || p.detailedDescription)}
                     </p>
+                  )}
+                  {p.category?.holidayNotes?.trim() && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Holiday / Closure Notes</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-amber-900">{p.category.holidayNotes}</p>
+                    </div>
                   )}
                   {p.startDate && (
                     <p className="mt-3 text-sm font-semibold text-slate-700">

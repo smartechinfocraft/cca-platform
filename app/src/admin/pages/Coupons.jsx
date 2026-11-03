@@ -3,7 +3,7 @@
 //  Create discount codes: percentage or fixed amount
 // ============================================================
 import React, { useEffect, useState } from 'react';
-import { couponsAPI } from '../api/client';
+import { categoriesAPI, couponsAPI } from '../api/client';
 import {
   PageHeader, DataTable, Modal, Btn, Badge,
   FormField, Input, Select, SearchInput
@@ -13,11 +13,12 @@ import toast from 'react-hot-toast';
 const EMPTY = {
   code: '', type: 'PERCENTAGE', value: '', minAmount: '0',
   maxUses: '', expiresAt: '', description: '', isActive: true,
-  isPubliclyVisible: true,
+  isPubliclyVisible: true, categoryIds: [],
 };
 
 export default function Coupons() {
   const [rows, setRows]       = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -34,6 +35,12 @@ export default function Coupons() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    categoriesAPI.getAll()
+      .then(res => setCategories(res.data.data))
+      .catch(() => toast.error('Failed to load categories'));
+  }, []);
+
   const openCreate = () => { setEditing(null); setForm(EMPTY); setModalOpen(true); };
   const openEdit   = (row) => {
     setEditing(row);
@@ -47,6 +54,7 @@ export default function Coupons() {
       description: row.description || '',
       isActive:    row.isActive !== false,
       isPubliclyVisible: row.isPubliclyVisible !== false,
+      categoryIds: (row.categoryIds || []).map(category => String(category?._id || category)),
     });
     setModalOpen(true);
   };
@@ -64,18 +72,25 @@ export default function Coupons() {
         minAmount: parseFloat(form.minAmount) || 0,
         maxUses:   form.maxUses ? parseInt(form.maxUses) : null,
         expiresAt: form.expiresAt || undefined,
+        categoryIds: [...new Set((form.categoryIds || []).map(category => String(category?._id || category)))],
       };
+      let response;
       if (editing) {
-        await couponsAPI.update(editing._id, payload);
-        toast.success('Coupon updated!');
+        response = await couponsAPI.update(editing._id, payload);
       } else {
-        await couponsAPI.create(payload);
-        toast.success('Coupon created!');
+        response = await couponsAPI.create(payload);
       }
+      const savedCategoryIds = (response.data.data?.categoryIds || [])
+        .map(category => String(category?._id || category))
+        .sort();
+      if (JSON.stringify(savedCategoryIds) !== JSON.stringify([...payload.categoryIds].sort())) {
+        throw new Error('Selected categories were not saved. Please retry.');
+      }
+      toast.success(editing ? 'Coupon updated!' : 'Coupon created!');
       setModalOpen(false);
       load();
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Save failed');
+      toast.error(e.response?.data?.message || e.message || 'Save failed');
     } finally { setSaving(false); }
   };
 
@@ -102,6 +117,16 @@ export default function Coupons() {
       render: (v, row) => row.type === 'PERCENTAGE' ? `${v}%` : `$${v}`,
     },
     { key: 'minAmount', label: 'Min Order', render: v => `$${v}` },
+    {
+      key: 'categoryIds', label: 'Categories',
+      render: ids => {
+        if (!ids?.length) return 'All categories';
+        const names = ids.map(id => categories.find(category => category._id === String(id?._id || id))?.title).filter(Boolean);
+        const unavailableCount = ids.length - names.length;
+        if (!names.length) return `${ids.length} selected`;
+        return unavailableCount ? `${names.join(', ')} + ${unavailableCount} unavailable` : names.join(', ');
+      },
+    },
     {
       key: 'usedCount', label: 'Used / Max',
       render: (v, row) => row.maxUses ? `${v} / ${row.maxUses}` : `${v} / ∞`,
@@ -165,6 +190,33 @@ export default function Coupons() {
           <FormField label="Max Uses (blank = unlimited)">
             <Input type="number" value={form.maxUses} onChange={f('maxUses')} placeholder="∞" />
           </FormField>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FormField label="Applies to Categories (blank = all categories)">
+              <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '4px 8px' }}>
+                {categories.map(category => {
+                  const categoryId = String(category._id);
+                  const checked = form.categoryIds.includes(categoryId);
+                  return (
+                    <label key={categoryId} style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 4px', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => setForm(current => ({
+                          ...current,
+                          categoryIds: e.target.checked
+                            ? [...current.categoryIds, categoryId]
+                            : current.categoryIds.filter(id => id !== categoryId),
+                        }))}
+                        style={{ width: '16px', height: '16px', accentColor: '#D4AF37', flex: '0 0 auto' }}
+                      />
+                      {category.title}
+                    </label>
+                  );
+                })}
+                {!categories.length && <span style={{ display: 'block', padding: '8px 4px', color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>No categories available</span>}
+              </div>
+            </FormField>
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <FormField label="Expiry Date (optional)">
               <Input type="date" value={form.expiresAt} onChange={f('expiresAt')} style={{ width: '200px' }} />

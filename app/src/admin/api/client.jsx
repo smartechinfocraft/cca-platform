@@ -111,6 +111,7 @@ export const programsAPI = {
   getPublicDetail: (id) => client.get(`/public/programs/${id}`),
   getOne:  (id)       => client.get(`/programs/${id}`),
   create:  (formData) => client.post('/programs', formData),
+  duplicate: (id) => client.post(`/programs/${id}/duplicate`),
   update:  (id, formData) => client.put(`/programs/${id}`, formData),
   remove:  (id)       => client.delete(`/programs/${id}`),
   hardRemove: (id)    => client.delete(`/programs/${id}/permanent`),

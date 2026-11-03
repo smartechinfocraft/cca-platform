@@ -191,6 +191,7 @@ const couponSchema = new mongoose.Schema(
     type:       { type: String, enum: ['PERCENTAGE', 'FIXED'], required: true },
     value:      { type: Number, required: true, min: 0 },   // % or $ amount
     minAmount:  { type: Number, default: 0 },               // Min cart value to apply
+    categoryIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],
     maxUses:    { type: Number, default: null },             // null = unlimited
     usedCount:  { type: Number, default: 0 },
     // Optional per-parent redemption cap (null = no per-user restriction).
@@ -329,6 +330,8 @@ const registrationSchema = new mongoose.Schema(
       {
         programId:       { type: String },
         programTitle:    { type: String },
+        categoryName:    { type: String },
+        categoryHolidayNotes: { type: String },
         batchType:       { type: String },
         batchId:         { type: String },
         batchName:       { type: String },

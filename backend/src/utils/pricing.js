@@ -120,16 +120,18 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
 
   // Price priority (most specific wins):
   //   1. WEEKLY batchType with batches selected: (discountedPrice||basePrice) × weekCount
-  //   2. Batch per-session price × sessions/week
-  //   3. Batch flat price override
-  //   4. Program discountedPrice
-  //   5. Program basePrice
+  //   2. Selected month option price × sessions/week
+  //   3. Non-WEEKLY batch/program price × sessions/week
+  //   4. Legacy WEEKLY fallback: batch or program price
   let unitPrice;
   if (program.batchType === 'WEEKLY' && weekCount > 0) {
     const perWeekPrice = program.discountedPrice != null ? program.discountedPrice : program.basePrice;
     unitPrice = perWeekPrice * weekCount;
   } else if (selectedMonthPrice > 0) {
     unitPrice = selectedMonthPrice * selectedFrequency;
+  } else if (program.batchType !== 'WEEKLY') {
+    const perSessionPrice = batch?.price ?? (program.discountedPrice != null ? program.discountedPrice : program.basePrice);
+    unitPrice = perSessionPrice * selectedFrequency;
   } else if (batch?.pricePerSession && selectedFrequency > 0) {
     unitPrice = batch.pricePerSession * selectedFrequency;
   } else if (batch?.price != null) {
@@ -176,6 +178,12 @@ async function computeRegistrationTotal({ programId, batchId, studentCount = 1, 
       // Check usage limit (null = unlimited)
       if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
         const err = new Error('Coupon usage limit has been reached');
+        err.status = 400;
+        throw err;
+      }
+
+      if (!couponAppliesToCategory(coupon, program.category)) {
+        const err = new Error('This coupon does not apply to the selected program.');
         err.status = 400;
         throw err;
       }
@@ -282,13 +290,20 @@ function validateSelectedSchedule({ program, selectedDays, sessionsPerWeek, sele
     err.code = 'INVALID_SCHEDULE';
     throw err;
   }
+  const requestedKeys = requested.map(normalizeSchedule);
+  if (new Set(requestedKeys).size !== requestedKeys.length) {
+    const err = new Error('The same program time slot cannot be selected more than once.');
+    err.status = 400;
+    err.code = 'INVALID_SCHEDULE';
+    throw err;
+  }
   const allowed = new Set(storedDays.map(day => normalizeSchedule([
     DAY_NAMES[day.day] || day.day,
     formatScheduleTime(day.startTime),
     formatScheduleTime(day.endTime),
     day.groundAddress,
   ].filter(Boolean).join(' - '))));
-  if (requested.some(part => !allowed.has(normalizeSchedule(part)))) {
+  if (requestedKeys.some(part => !allowed.has(part))) {
     const err = new Error('One or more selected program days are invalid or have changed.');
     err.status = 400;
     err.code = 'INVALID_SCHEDULE';
@@ -313,15 +328,16 @@ function isDisabledFlag(value) {
   return value === false || value === 'false' || value === 0 || value === '0';
 }
 
-async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
+async function applyCouponToSubtotal({ subtotal, eligibleSubtotal = subtotal, couponCode, parentId, knownCoupon }) {
   const Coupon = mongoose.model('Coupon');
   const safeSubtotal = round2(subtotal);
+  const safeEligibleSubtotal = round2(eligibleSubtotal);
   if (!couponCode) return { discount: 0, total: safeSubtotal, coupon: null };
 
   const { releaseExpiredUnstartedReservations } = require('../services/couponReservationService');
   await releaseExpiredUnstartedReservations();
 
-  const coupon = await Coupon.findOne({
+  const coupon = knownCoupon || await Coupon.findOne({
     code: couponCode.trim().toUpperCase(),
     isActive: true,
   }).lean();
@@ -345,7 +361,13 @@ async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
     throw err;
   }
 
-  if (safeSubtotal < coupon.minAmount) {
+  if (Array.isArray(coupon.categoryIds) && coupon.categoryIds.length > 0 && safeEligibleSubtotal <= 0) {
+    const err = new Error('This coupon does not apply to any items in your cart.');
+    err.status = 400;
+    throw err;
+  }
+
+  if (safeEligibleSubtotal < coupon.minAmount) {
     const err = new Error(`Coupon requires a minimum order of $${coupon.minAmount}`);
     err.status = 400;
     throw err;
@@ -366,8 +388,8 @@ async function applyCouponToSubtotal({ subtotal, couponCode, parentId }) {
   }
 
   const discount = coupon.type === 'PERCENTAGE'
-    ? round2(safeSubtotal * (coupon.value / 100))
-    : round2(Math.min(coupon.value, safeSubtotal));
+    ? round2(safeEligibleSubtotal * (coupon.value / 100))
+    : round2(Math.min(coupon.value, safeEligibleSubtotal));
 
   return {
     discount,
@@ -455,10 +477,21 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
   }));
 
   const subtotal = round2(lineItems.reduce((sum, item) => sum + item.subtotal, 0));
+  const coupon = couponCode ? await mongoose.model('Coupon').findOne({
+    code: couponCode.trim().toUpperCase(),
+    isActive: true,
+  }).lean() : null;
+  const eligibleSubtotal = !coupon || !Array.isArray(coupon.categoryIds) || coupon.categoryIds.length === 0
+    ? subtotal
+    : round2(lineItems
+      .filter(item => couponAppliesToCategory(coupon, item.program.category))
+      .reduce((sum, item) => sum + item.subtotal, 0));
   const couponResult = await applyCouponToSubtotal({
     subtotal,
+    eligibleSubtotal,
     couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
     parentId,
+    knownCoupon: coupon,
   });
 
   return {
@@ -470,6 +503,11 @@ async function computeCartTotal({ cartItems, couponCode, parentId }) {
     lineItems,
     coupon: couponResult.coupon,
   };
+}
+
+function couponAppliesToCategory(coupon, categoryId) {
+  const categoryIds = Array.isArray(coupon.categoryIds) ? coupon.categoryIds.map(String) : [];
+  return categoryIds.length === 0 || categoryIds.includes(String(categoryId?._id || categoryId));
 }
 
 module.exports = {
