@@ -106,7 +106,7 @@ function Navbar() {
       {/* Pre-Header Announcement Banner */}
       <div className="top-0 left-0 right-0 w-full bg-black text-white text-sm py-2 px-6 z-[60] text-center font-medium">
         <p>
-      📢 Hurry!  Winter Programs are LIVE... — use code <strong>OUTDOORDISCOUNT</strong>
+      📢 Hurry!  Winter Programs are LIVE... — use discount code <strong>EARLYBIRD</strong>
 
           
             &nbsp;&nbsp; | &nbsp;&nbsp; 

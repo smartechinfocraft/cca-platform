@@ -129,8 +129,8 @@ export default function Hero() {
             <div className="reveal reveal-delay-3 flex flex-wrap gap-3 mt-9">
               <button
                 onClick={() => navigate("/programs?category=6acc2d97991042456f831314")}
-                className="btn-glow px-8 py-3.5 rounded-full font-semibold text-sm shadow-lg hover:scale-105 transition-transform"
-                style={{ background: "var(--outfield)", color: "var(--pitch)" }}
+                className="border-2 px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105"
+                
               >
                Winter 2026-27 Outdoor Programs
               </button>
