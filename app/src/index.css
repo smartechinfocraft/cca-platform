@@ -593,3 +593,223 @@ body {
   background: var(--pitch-deep);
   border-radius: 10px;
 }
+
+@media (max-width: 900px) {
+  .admin-shell {
+    height: 100dvh !important;
+    min-height: 100dvh;
+  }
+
+  .admin-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: min(280px, 85vw) !important;
+    min-width: 0 !important;
+    height: 100dvh !important;
+    z-index: 100;
+  }
+
+  .admin-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 90;
+    border: 0;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .admin-main {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0 !important;
+  }
+
+  .admin-content {
+    padding: 16px !important;
+  }
+
+  .admin-program-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-program-grid--month-price,
+  .admin-program-grid--schedule-slot {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .admin-program-grid--schedule-slot > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .admin-data-table__desktop {
+    display: none;
+  }
+
+  .admin-data-table__tiles {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .admin-data-table__tile {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid rgba(212, 175, 55, 0.14);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .admin-data-table__tile-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .admin-data-table__select-all {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 4px 8px;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 12px;
+  }
+
+  .admin-data-table__select-all input {
+    width: 18px;
+    height: 18px;
+  }
+
+  .admin-data-table__select-all span {
+    margin-left: auto;
+  }
+
+  .admin-data-table__tile-title {
+    min-width: 0;
+    color: #F5D97A;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-data-table__selection {
+    flex: 0 0 auto;
+    padding-top: 2px;
+  }
+
+  .admin-data-table__selection input {
+    width: 18px;
+    height: 18px;
+  }
+
+  .admin-data-table__details {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+    margin: 0;
+  }
+
+  .admin-data-table__field {
+    min-width: 0;
+  }
+
+  .admin-data-table__field dt {
+    margin-bottom: 3px;
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .admin-data-table__field dd {
+    min-width: 0;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-data-table__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .admin-data-table__message {
+    padding: 22px 12px;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+  }
+}
+
+@media (min-width: 901px) {
+  .admin-mobile-backdrop {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-data-table__details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 901px) {
+  .admin-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+  }
+
+  .admin-data-table__tiles {
+    display: none;
+  }
+
+  .admin-program-grid {
+    display: grid;
+  }
+
+  .admin-program-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-program-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-program-grid--month-price {
+    grid-template-columns: 80px 130px minmax(0, 1fr) auto;
+  }
+
+  .admin-program-grid--schedule-slot {
+    display: grid;
+    grid-template-columns: 110px 130px 130px minmax(0, 1fr) auto;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .admin-program-grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-program-grid--schedule-slot {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  }
+
+  .admin-program-grid--schedule-slot > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px) {
+  .admin-program-grid--2,
+  .admin-program-grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}

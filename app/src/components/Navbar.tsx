@@ -92,7 +92,8 @@ function Navbar() {
    { label: "Media", href: "/media" },
     { label: "About", href: "/about" },
     { label: "FAQ", href: "/faq" },
-    { label: "Donate Now", href: "/donate" },
+  //  { label: "Donate Now", href: "/donate" },
+    
   ];
 
   return (
@@ -213,6 +214,14 @@ function Navbar() {
                 )}
               </div>
             </div>
+
+            <button
+              onClick={() => window.open("https://tools.signupgenius.com/c/giving-tuesday-peer-to-peer-fundraiser-14301/fundraiser/details", "_blank", "noopener,noreferrer")}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--ink-500)] hover:text-[var(--outfield)] hover:bg-[var(--pitch-soft)] transition-all"
+            >
+              Giving Tuesday
+              <img src="https://tools.signupgenius.com/assets/sug-logo-CTBB-zuT.svg" style={{ height: "35px" }} alt="Giving Tuesday" />
+            </button>
 
             {/* Rest of nav links */}
             {links.slice(1).map((link) => (

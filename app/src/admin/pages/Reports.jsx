@@ -8,7 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { reportsAPI, programsAPI, categoriesAPI, locationsAPI, levelsAPI } from '../api/client';
-import { PageHeader, Btn, Card, FormField, Select, Input } from '../components/common/UI';
+import { PageHeader, Btn, Card, FormField, Select, Input, DataTable } from '../components/common/UI';
 import { buildCustomReportPdf } from '../../utils/pdfGenerators';
 import toast from 'react-hot-toast';
 
@@ -112,6 +112,13 @@ export default function Reports() {
   if (loading) return <div style={{ color: 'rgba(255,255,255,0.5)', padding: '40px' }}>Loading reports...</div>;
 
   const { totals, revenueByPeriod, revenueByProgram, paymentBreakdown } = revenue || {};
+  const customReportColumns = [
+    { key: 'name', label: 'Program' },
+    { key: 'revenue', label: 'Revenue', render: value => <span style={{ color: '#D4AF37', fontWeight: '600' }}>${value.toLocaleString()}</span> },
+    { key: 'count', label: 'Count', render: value => <span style={{ color: '#22c55e' }}>{value}</span> },
+    { key: 'avgValue', label: 'Avg Value', render: value => <span style={{ color: 'rgba(255,255,255,0.6)' }}>${value.toFixed(2)}</span> },
+    { key: 'discount', label: 'Discount', render: value => <span style={{ color: '#A33B2B' }}>${value.toLocaleString()}</span> },
+  ];
 
   return (
     <div style={{ color: '#fff' }}>
@@ -266,28 +273,7 @@ export default function Reports() {
             </div>
 
             {/* Table */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                <thead>
-                  <tr>
-                    {['Program','Revenue','Count','Avg Value','Discount'].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '10px 12px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {customData.rows.map(row => (
-                    <tr key={row._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.75)' }}>{row.name || '—'}</td>
-                      <td style={{ padding: '10px 12px', color: '#D4AF37', fontWeight: '600' }}>${row.revenue.toLocaleString()}</td>
-                      <td style={{ padding: '10px 12px', color: '#22c55e' }}>{row.count}</td>
-                      <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)' }}>${row.avgValue.toFixed(2)}</td>
-                      <td style={{ padding: '10px 12px', color: '#A33B2B' }}>${row.discount.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable columns={customReportColumns} rows={customData.rows} emptyMsg="No report data found" />
 
             <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '12px', textAlign: 'right' }}>
               Generated: {new Date(customData.generatedAt).toLocaleString()}

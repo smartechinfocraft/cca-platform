@@ -44,8 +44,8 @@ export const Btn = ({ children, onClick, variant = 'primary', disabled, type = '
 // ─── DataTable ────────────────────────────────────────────────────────────────
 // columns: [{ key, label, render? }]  rows: array of objects
 export const DataTable = ({ columns, rows, loading, emptyMsg = 'No data found' }) => (
-  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(212,175,55,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
-    <div style={{ overflowX: 'auto' }}>
+  <div className="admin-data-table" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(212,175,55,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
+    <div className="admin-data-table__desktop" style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
         <thead>
           <tr>
@@ -72,6 +72,66 @@ export const DataTable = ({ columns, rows, loading, emptyMsg = 'No data found' }
           )}
         </tbody>
       </table>
+    </div>
+    <div className="admin-data-table__tiles" aria-label="Table data">
+      {loading ? (
+        <div className="admin-data-table__message">Loading...</div>
+      ) : !rows?.length ? (
+        <div className="admin-data-table__message">{emptyMsg}</div>
+      ) : (
+        <>
+          {columns.filter(column => column.key === 'select').map(column => (
+            <div className="admin-data-table__select-all" key={column.key}>
+              {column.label}
+              <span>Select all filtered rows</span>
+            </div>
+          ))}
+          {rows.map((row, i) => {
+            const titleColumn = columns.find(column =>
+              ['title', 'name', 'studentname', 'registrationnumber', 'firstname'].includes(String(column.key).toLowerCase())
+            ) || columns.find(column => column.key !== 'select' && !/^(actions?|operations?)$/i.test(String(column.label)));
+            const actionColumns = columns.filter(column => /^(actions?|operations?)$/i.test(String(column.label)));
+            const detailColumns = columns.filter(column =>
+              column.key !== 'select' &&
+              column !== titleColumn &&
+              !actionColumns.includes(column)
+            );
+            const renderValue = column => column.render
+              ? column.render(row[column.key], row)
+              : (row[column.key] ?? '—');
+
+            return (
+              <article className="admin-data-table__tile" key={row._id || i}>
+                <div className="admin-data-table__tile-header">
+                  {columns.filter(column => column.key === 'select').map(column => (
+                    <div className="admin-data-table__selection" key={column.key}>
+                      {renderValue(column)}
+                    </div>
+                  ))}
+                  {titleColumn && (
+                    <div className="admin-data-table__tile-title">
+                      {renderValue(titleColumn)}
+                    </div>
+                  )}
+                </div>
+                <dl className="admin-data-table__details">
+                  {detailColumns.map(column => (
+                    <div className="admin-data-table__field" key={column.key}>
+                      <dt>{column.label}</dt>
+                      <dd>{renderValue(column)}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {actionColumns.map(column => (
+                  <div className="admin-data-table__actions" key={column.key}>
+                    {renderValue(column)}
+                  </div>
+                ))}
+              </article>
+            );
+          })}
+        </>
+      )}
     </div>
   </div>
 );

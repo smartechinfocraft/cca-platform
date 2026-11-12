@@ -4,7 +4,7 @@
 //  Outlet renders the current page in the content area
 //  REPLACE: app/src/admin/components/layout/AdminLayout.jsx
 // ============================================================
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -38,7 +38,14 @@ const NAV_ITEMS = [
 export default function AdminLayout() {
   const { user, logout, isSuperAdmin } = useAdminAuth();
   const navigate  = useNavigate();
-  const [sideOpen, setSideOpen] = useState(true);
+  const [sideOpen, setSideOpen] = useState(() => window.innerWidth >= 901);
+
+  useEffect(() => {
+    const breakpoint = window.matchMedia('(min-width: 901px)');
+    const updateSidebar = () => setSideOpen(breakpoint.matches);
+    breakpoint.addEventListener('change', updateSidebar);
+    return () => breakpoint.removeEventListener('change', updateSidebar);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -49,9 +56,9 @@ export default function AdminLayout() {
   const visibleNav = NAV_ITEMS.filter(item => !item.superOnly || isSuperAdmin);
 
   return (
-    <div style={styles.shell}>
+    <div className="admin-shell" style={styles.shell}>
       {/* ── Sidebar ─────────────────────────────────────── */}
-      <aside style={{ ...styles.sidebar, transform: sideOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
+      <aside className="admin-sidebar" style={{ ...styles.sidebar, transform: sideOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
         {/* Brand */}
         <div style={styles.sideHeader}>
           <div style={styles.logoMark}>CCA</div>
@@ -76,6 +83,9 @@ export default function AdminLayout() {
                 ...styles.navItem,
                 ...(isActive ? styles.navActive : {}),
               })}
+              onClick={() => {
+                if (window.innerWidth < 901) setSideOpen(false);
+              }}
             >
               <span style={styles.navIcon}>{item.icon}</span>
               {item.label}
@@ -101,13 +111,16 @@ export default function AdminLayout() {
       </aside>
 
       {/* ── Main area ───────────────────────────────────── */}
-      <div style={styles.main}>
+      {sideOpen && <button className="admin-mobile-backdrop" aria-label="Close navigation" onClick={() => setSideOpen(false)} />}
+      <div className="admin-main" style={{ ...styles.main, marginLeft: sideOpen ? '260px' : '0' }}>
         {/* Top header */}
         <header style={styles.header}>
           <button
             onClick={() => setSideOpen(!sideOpen)}
             style={styles.menuBtn}
             title="Toggle sidebar"
+            aria-label={sideOpen ? 'Close navigation' : 'Open navigation'}
+            aria-expanded={sideOpen}
           >
             ☰
           </button>
@@ -120,7 +133,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page content */}
-        <main style={styles.content}>
+        <main className="admin-content" style={styles.content}>
           <Outlet />
         </main>
       </div>

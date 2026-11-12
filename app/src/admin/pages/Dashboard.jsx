@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { dashboardAPI } from '../api/client';
 import { useAdminAuth }      from '../context/AuthContext';
+import { DataTable } from '../components/common/UI';
 
 // Color palette for charts (gold/green/cricket themed)
 const COLORS = ['#D4AF37','#22c55e','#3b82f6','#A33B2B','#a855f7','#ec4899','#14b8a6'];
@@ -270,50 +271,19 @@ export default function Dashboard() {
 
       {/* ── Recent Registrations table ────────────────── */}
       <ChartBox title="Recent Registrations">
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-            <thead>
-              <tr>
-                {['Reg #','Program','Amount','Status','Payment','Date'].map(h => (
-                  <th key={h} style={{
-                    textAlign: 'left', padding: '10px 12px',
-                    color: 'rgba(255,255,255,0.4)', fontSize: '12px',
-                    fontWeight: '500', letterSpacing: '0.5px',
-                    borderBottom: '1px solid rgba(255,255,255,0.08)',
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(recentRegistrations || []).map(reg => (
-                <tr key={reg._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <td style={td}>{reg.registrationNumber}</td>
-                  <td style={td}>{reg.programId?.title || '—'}</td>
-                  <td style={{ ...td, color: '#22c55e' }}>${reg.totalAmount?.toLocaleString()}</td>
-                  <td style={td}><Badge status={reg.status} /></td>
-                  <td style={td}>{reg.paymentMethod}</td>
-                  <td style={{ ...td, color: 'rgba(255,255,255,0.4)' }}>
-                    {new Date(reg.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-              {!recentRegistrations?.length && (
-                <tr>
-                  <td colSpan={6} style={{ ...td, textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: '32px' }}>
-                    No registrations yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={[
+            { key: 'registrationNumber', label: 'Reg #' },
+            { key: 'programId', label: 'Program', render: value => value?.title || '—' },
+            { key: 'totalAmount', label: 'Amount', render: value => <span style={{ color: '#22c55e' }}>${value?.toLocaleString()}</span> },
+            { key: 'status', label: 'Status', render: value => <Badge status={value} /> },
+            { key: 'paymentMethod', label: 'Payment' },
+            { key: 'createdAt', label: 'Date', render: value => <span style={{ color: 'rgba(255,255,255,0.4)' }}>{new Date(value).toLocaleDateString()}</span> },
+          ]}
+          rows={recentRegistrations || []}
+          emptyMsg="No registrations yet"
+        />
       </ChartBox>
     </div>
   );
 }
-
-const td = {
-  padding: '12px',
-  color: 'rgba(255,255,255,0.75)',
-  verticalAlign: 'middle',
-};

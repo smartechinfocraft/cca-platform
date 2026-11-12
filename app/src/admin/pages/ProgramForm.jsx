@@ -915,7 +915,7 @@ export default function ProgramForm() {
         )}
 
         {/* Category + Main Location */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+        <div className="admin-program-grid admin-program-grid--2" style={{ gap: '0 20px' }}>
           <FormField label="Category (Season)" required>
             <Select value={form.categoryId} onChange={e => setForm(p => ({ ...p, categoryId: e.target.value }))}>
               <option value="">— Select Season —</option>
@@ -986,7 +986,7 @@ export default function ProgramForm() {
 
       {/* ── SECTION 4: Pricing & Capacity ── */}
       <Section title="💰 Pricing & Capacity">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 20px' }}>
+        <div className="admin-program-grid admin-program-grid--3" style={{ gap: '0 20px' }}>
           <FormField label="Base Price ($)" required>
             <Input
               type="number"
@@ -1061,7 +1061,7 @@ export default function ProgramForm() {
 
       {/* ── SECTION 5: Dates & Program Type ── */}
       <Section title="📅 Dates & Program Type">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+        <div className="admin-program-grid admin-program-grid--2" style={{ gap: '0 20px' }}>
           <FormField label="Batch Type" required>
             <Select value={form.batchType} onChange={e => setForm(p => ({ ...p, batchType: e.target.value }))}>
               {BATCH_TYPES.map(bt => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
@@ -1159,7 +1159,7 @@ export default function ProgramForm() {
                     </span>
                   </div>
                   {/* Row 1: Start Date + End Date */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <div className="admin-program-grid admin-program-grid--2" style={{ gap: '8px', marginBottom: '8px' }}>
                     <div>
                       <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '3px' }}>
                         Month Start Date <span style={{color:'#F5D97A'}}>*</span>
@@ -1185,7 +1185,7 @@ export default function ProgramForm() {
                     </div>
                   )}
                   {/* Row 2: Weeks / Sessions + Price + Label + Remove */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '80px 130px 1fr auto', gap: '8px', alignItems: 'end' }}>
+                  <div className="admin-program-grid admin-program-grid--month-price" style={{ gap: '8px', alignItems: 'end' }}>
                     <div>
                       <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '3px' }}>
                         Weeks / Sessions <span style={{fontSize:'10px', color:'#6ee7b7'}}>(auto)</span>
@@ -1302,7 +1302,7 @@ export default function ProgramForm() {
                 </div>
 
                 {/* Age Group + Level chips — restricted to program-level selections */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px', marginBottom: '14px' }}>
+                <div className="admin-program-grid admin-program-grid--2" style={{ gap: '0 20px', marginBottom: '14px' }}>
                   <div>
                     <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>
                       Age Group(s) <span style={{color:'#F5D97A'}}>*</span>
@@ -1340,7 +1340,7 @@ export default function ProgramForm() {
                 </div>
 
                 {/* Start / End date + time — Week 1 (the root) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px', marginBottom: '12px' }}>
+                <div className="admin-program-grid admin-program-grid--2" style={{ gap: '0 20px', marginBottom: '12px' }}>
                   <FormField label="Start Date" required>
                     <Input type="date" value={batch.startDate}
                       onChange={e => updateWeeklyBatch(idx, 'startDate', e.target.value)} />
@@ -1383,7 +1383,7 @@ export default function ProgramForm() {
                         ✕
                       </button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+                    <div className="admin-program-grid admin-program-grid--2" style={{ gap: '0 20px' }}>
                       <FormField label="Start Date" required>
                         <Input type="date" value={wk.startDate}
                           onChange={e => updateWeeklyBatch(subIdx, 'startDate', e.target.value)} />
@@ -1490,9 +1490,7 @@ export default function ProgramForm() {
                   borderRadius: '8px', marginBottom: '8px',
                 }}>
                   {daySlots.map((dayData, slotIndex) => (
-                    <div key={`${day}-${slotIndex}`} style={{
-                      display: 'grid',
-                      gridTemplateColumns: '110px 130px 130px 1fr auto',
+                    <div key={`${day}-${slotIndex}`} className="admin-program-grid admin-program-grid--schedule-slot" style={{
                       gap: '12px', alignItems: 'center',
                       padding: slotIndex ? '10px 0 0' : '0',
                       marginTop: slotIndex ? '10px' : '0',
